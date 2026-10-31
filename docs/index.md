@@ -4,7 +4,8 @@ Plataforma personal de análisis de mercados financieros, construcción de carte
 simulación, en la que se incorpora módulo a módulo lo aprendido en el Máster MIAX.
 
 !!! info "Estado"
-    Fase **F0 — bootstrap**. Consulta la [hoja de ruta](plan/plan-maestro.md) para ver las fases.
+    Fases **F0** (bootstrap) y **F1** (modelo de dominio) completadas. Consulta la
+    [hoja de ruta](plan/plan-maestro.md) para ver las siguientes.
 
 ## Componentes
 

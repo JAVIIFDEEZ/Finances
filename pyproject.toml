@@ -21,6 +21,7 @@ dev = [
   # Type checking
   "mypy>=2.4.1",
   "pandas-stubs>=3.1.0.261029",
+  "scipy-stubs>=1.18.0",
   # Testing
   "pytest>=9.2.0",
   "pytest-cov>=7.1.0",
@@ -69,7 +70,6 @@ select = [
   "D",     # pydocstyle
   "DTZ",   # flake8-datetimez (no naive datetimes)
   "E",     # pycodestyle errors
-  "EM",    # flake8-errmsg
   "ERA",   # eradicate (commented-out code)
   "F",     # pyflakes
   "FBT",   # flake8-boolean-trap
@@ -109,6 +109,9 @@ ignore = [
   "PLR0913", # explicit keyword-only parameters are preferred to config bags
 ]
 
+[tool.ruff.lint.isort]
+known-first-party = ["investinglab", "support"]
+
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
@@ -117,6 +120,9 @@ ban-relative-imports = "all"
 
 [tool.ruff.lint.flake8-type-checking]
 runtime-evaluated-base-classes = ["pydantic.BaseModel", "pydantic_settings.BaseSettings"]
+# numpy and pandas are imported at runtime everywhere anyway; hiding them behind
+# TYPE_CHECKING would only add noise.
+exempt-modules = ["typing", "typing_extensions", "numpy", "pandas"]
 
 [tool.ruff.lint.per-file-ignores]
 "**/tests/**" = [
@@ -138,7 +144,7 @@ docstring-code-format = true
 python_version = "3.13"
 strict = true
 plugins = ["pydantic.mypy"]
-mypy_path = ["packages/investinglab/src"]
+mypy_path = ["packages/investinglab/src", "packages/investinglab/tests"]
 explicit_package_bases = true
 warn_unreachable = true
 enable_error_code = ["ignore-without-code", "redundant-expr", "truthy-bool", "possibly-undefined"]
@@ -159,6 +165,7 @@ warn_required_dynamic_aliases = true
 [tool.pytest.ini_options]
 minversion = "9.0"
 testpaths = ["packages/investinglab/tests"]
+pythonpath = ["packages/investinglab/tests"]
 addopts = [
   "-ra",
   "--strict-markers",
