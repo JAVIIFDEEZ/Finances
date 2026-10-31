@@ -1,7 +1,10 @@
-# Plan maestro — plataforma financiera personal
+# Plan maestro — InvestingLab
 
-> Estado: **propuesta pendiente de aprobación**. Nombre provisional del producto: **Capitalis**
-> (paquete `capitalis`). Si eliges otro nombre, se sustituye en todo el documento.
+> Estado: **aprobado** (31-10-2026). Producto: **InvestingLab** · paquete núcleo `investinglab`
+> · API `investinglab_api` · variables de entorno `INVESTINGLAB_*`.
+>
+> Este documento es la hoja de ruta viva: se actualiza al cerrar cada fase. Las decisiones
+> detalladas se registran como [ADRs](../adr/index.md).
 
 ---
 
@@ -11,15 +14,15 @@
 |---|------|----------|
 | 1–4 | Contexto | Repo personal, sin plazo. Objetivo: calidad de producto, no de práctica. B1-T1 se cumple al 100 % como primer módulo. |
 | 3 | Estructura | Monorepo políglota con workspace `uv` (Python) y app Next.js. El núcleo es un paquete independiente que **no depende** de FastAPI ni de SQLAlchemy (lo garantiza el empaquetado, no solo la disciplina). |
-| 5 | Git | Una rama `feat/*` por fase → PR a `development` con CI en verde. `main` se crea para releases (`v0.1.0` = B1-T1 completo). |
-| 6 | Nombre | Sin "MIAX". Propuestas libres en PyPI y npm: **Capitalis** (recomendado), AlphaLedger, Capitalab. |
+| 5 | Git | Una rama `feat/*` (o `chore/*`) por fase → PR a `development` con CI en verde; los merges los hace Claude por ahora. `main` se crea para releases (`v0.1.0` = B1-T1 completo). |
+| 6 | Nombre | **InvestingLab** (paquete `investinglab`, libre en PyPI y npm). |
 | 7 | Idioma | Código, docstrings, commits y API en inglés. README, docs y ADRs en español. UI y `report()` bilingües (`es` por defecto, `en` disponible). |
 | 13 | Frecuencias | Desde 1 minuto hasta mensual (`1m, 5m, 15m, 30m, 1h, 4h, 1d, 1w, 1mo`). Cada proveedor declara qué frecuencias e histórico máximo sirve, y el router elige el que puede atender la petición. |
 | 15 | Cripto | Clase de activo de primer nivel. Integración de CryptoWorld en la sección 9. |
 | 16 | Rebalanceo | Política explícita: `BuyAndHold`, `Periodic(freq)` o `Threshold(band)`. Por defecto `Periodic(monthly)`, la misma en el histórico y en Monte Carlo. |
 | 17 | Alineación | Nunca se inventan datos. Detalle en la sección 6. |
 | 18 | Outliers | Se detectan y se reportan; nunca se borran. |
-| 20 | Auth | Robusta y apta para despliegue público. Detalle en la sección 8. |
+| 20 | Auth | Better Auth (passkeys + TOTP obligatorio) en la web y verificación JWKS en la API. Detalle en la sección 8. |
 | 21 | Despliegue | Local con Docker Compose, diseñado *cloud-ready* (12-factor, almacenamiento de objetos para Parquet, secretos por entorno). |
 | 22 | Gráficos | La API devuelve **datos tipados**, nunca especificaciones de gráficos. El frontend pinta con ECharts y Lightweight Charts. Matplotlib/seaborn solo en el núcleo (`plots_report()` y exportación de informes). Plotly queda fuera. |
 | 23 | Docs | Zensical + mkdocstrings-python. |
@@ -30,14 +33,14 @@
 ## 1. Árbol de carpetas
 
 ```
-capitalis/
+investinglab/
 ├── apps/
-│   ├── api/                              # FastAPI (miembro del workspace uv) → paquete capitalis_api
+│   ├── api/                              # FastAPI (miembro del workspace uv) → paquete investinglab_api
 │   │   ├── pyproject.toml
-│   │   ├── src/capitalis_api/
+│   │   ├── src/investinglab_api/
 │   │   │   ├── main.py                   # app factory
 │   │   │   ├── bootstrap.py              # composition root: puertos → adaptadores
-│   │   │   ├── settings.py               # pydantic-settings (prefijo CAPITALIS_API_)
+│   │   │   ├── settings.py               # pydantic-settings (prefijo INVESTINGLAB_API_)
 │   │   │   ├── http/                     # errores RFC 9457, middlewares, request-id, CORS, cabeceras de seguridad
 │   │   │   ├── security/                 # verificación JWT (JWKS), PATs, scopes, rate limiting
 │   │   │   ├── persistence/              # modelos SQLAlchemy 2.0 async, repositorios, unit of work
@@ -61,9 +64,9 @@ capitalis/
 │       ├── messages/{es,en}.json         # i18n (next-intl)
 │       └── e2e/                          # Playwright
 ├── packages/
-│   └── capitalis/                        # NÚCLEO: librería pura, usable desde un notebook
+│   └── investinglab/                     # NÚCLEO: librería pura, usable desde un notebook
 │       ├── pyproject.toml                # extras: [yahoo] [crypto] [plots] [all]
-│       ├── src/capitalis/
+│       ├── src/investinglab/
 │       │   ├── domain/                   # dataclasses frozen + slots, sin I/O
 │       │   │   ├── instruments.py        # Instrument, InstrumentId, Identifiers, AssetClass, Exchange
 │       │   │   ├── money.py              # Currency (ISO 4217, unidades menores GBp→GBP), CurrencyPair
@@ -102,7 +105,7 @@ capitalis/
 ├── justfile                              # setup, dev, test, lint, typecheck, gen-client, migrate, record-fixtures, docs
 ├── pyproject.toml                        # raíz del workspace uv + ruff, mypy, pytest, import-linter
 ├── uv.lock
-├── zensical.yml / mkdocs.yml
+├── zensical.toml
 ├── CLAUDE.md · README.md · .env.example · .pre-commit-config.yaml · .editorconfig
 └── .github/
     ├── workflows/                        # python.yml, web.yml, contract.yml (OpenAPI ↔ cliente), docker.yml
@@ -111,7 +114,7 @@ capitalis/
 
 **Por qué esta estructura y no `backend/` + `frontend/`:**
 
-- `packages/capitalis` es la librería del enunciado: se importa en un notebook sin API ni base de datos.
+- `packages/investinglab` es la librería del enunciado: se importa en un notebook sin API ni base de datos.
 - Como no declara FastAPI ni SQLAlchemy como dependencias, es imposible que el dominio las importe.
 - Dentro del núcleo, `import-linter` verifica en CI las reglas de capas:
   - `domain` no importa nada del proyecto;
@@ -137,7 +140,7 @@ flowchart TB
         ROOT[Composition root]
     end
 
-    subgraph core[packages/capitalis · núcleo]
+    subgraph core[packages/investinglab · núcleo]
         FACADE[Toolkit · fachada pública]
         SERVICES[services · casos de uso]
         ANALYTICS[analytics]
@@ -342,7 +345,7 @@ Investigué el estado actual de cada proveedor. Los límites de los planes gratu
 |--------|-----------|-------------|--------|-------|------|
 | **Yahoo Finance** (`yfinance`) | Acciones, índices, ETFs, FX, futuros y cripto; fundamentales, dividendos/splits, opciones | 1m…1mo (1m ≈ 30 días; ≤30m ≈ 60 días; 1h ≈ 2 años) | Sin clave | Sin SLA y con throttling (429) frecuente → caché, rate limit y fallback | F2 |
 | **Alpha Vantage** | Acciones/ETF, FX, cripto, intradía, fundamentales, noticias con sentimiento | 1m…1mo | Clave gratuita | 25 peticiones/día; el ajustado es premium; sin índices. Fallback de equities y validación cruzada | F2 |
-| **FRED + ALFRED** | Macro, tipos, FX (`DEX*`), vintages point-in-time | D…A | Clave gratuita | ALFRED evita el *look-ahead bias* de las revisiones | F2 |
+| **FRED + ALFRED** | Macro, tipos, FX (`DEX*`), vintages point-in-time | D…A | Clave gratuita (la misma para ambos) | **Modo ALFRED por defecto**: cada dato con su fecha de publicación (primera publicación, `output_type=4`); el modo "último valor revisado" es opcional | F2 |
 | **BCE Data Portal** (SDMX) | €STR, tipos de cambio de referencia, curvas cupón cero, HICP | D, M | Sin clave | Fuente oficial para EUR | F2 |
 | **Tiingo** | EOD EE. UU. ajustado (30+ años), intradía IEX, cripto | 1m…1d | Clave gratuita | Licencia de uso personal | F11 |
 | **Alpaca Market Data** | Barras de EE. UU. por minuto desde 2016; cripto | 1m…1d | Cuenta gratuita | En el plan free se bloquean los últimos 15 minutos; la mejor fuente gratuita de intradía de EE. UU. | F11 |
@@ -519,7 +522,7 @@ La conversión a tipo por periodo usa la convención del mercado monetario (ACT/
 |----------------------|--------------------------------|
 | Clientes de Binance y KuCoin | **ccxt**: un solo adaptador para más de 100 exchanges con la misma interfaz. |
 | Cliente de CoinGecko, on-chain, noticias, Fear & Greed | Adaptadores que implementan los puertos del núcleo, devolviendo objetos de dominio. |
-| Motor de análisis técnico | `capitalis.analytics.technical`, **generalizado a cualquier `PriceSeries`** (también acciones e índices), tipado y con tests de propiedades. La librería `ta` está sin mantenimiento: los indicadores básicos se implementan vectorizados con NumPy, o con TA-Lib (decisión en un ADR). |
+| Motor de análisis técnico | `investinglab.analytics.technical`, **generalizado a cualquier `PriceSeries`** (también acciones e índices), tipado y con tests de propiedades. La librería `ta` está sin mantenimiento: los indicadores básicos se implementan vectorizados con NumPy, o con TA-Lib (decisión en un ADR). |
 | Predicción ML y backtesting | Se reescriben con un protocolo anti-*look-ahead* (walk-forward). Tienen más sentido en el bloque del máster dedicado a ML, como módulo propio. |
 | Alertas y Celery | Worker de jobs de la plataforma (fase F13). |
 | Pantallas (velas, Fear & Greed, multichain…) | Sección "Cripto" del frontend, reutilizando el diseño de los componentes. |
@@ -631,7 +634,7 @@ Cada fase va en su rama `feat/*`, con commits Conventional pequeños, y se cierr
 
 | Fase | Rama | Contenido | Hito |
 |------|------|-----------|------|
-| **F0** | `chore/bootstrap` | Workspace uv, paquetes vacíos, ruff/mypy/pytest/import-linter/pre-commit, justfile, `CLAUDE.md`, plantilla MADR + ADRs 0001–0004 (registro de decisiones, monorepo hexagonal, tooling, idioma), `.env.example`, `.gitignore`, esqueleto de docs con Zensical, CI de Python | Repo profesional vacío |
+| **F0** | `chore/bootstrap` | Workspace uv, paquete núcleo con capas, configuración y logging, ruff/mypy/pytest/import-linter/pre-commit, justfile, `CLAUDE.md`, plantilla MADR + ADRs 0001–0005, `.env.example`, `.gitignore`, docs con Zensical, CI de Python | Repo profesional vacío |
 | **F1** | `feat/domain-model` | Instrument, Currency, Frequency/Calendar, PriceSeries con estadísticos automáticos, ReturnSeries, EconomicSeries, Weights, Portfolio (validación + alineación), DataQualityReport, errores; ADR de validación estricta; tests unitarios y de propiedades | Modelado 4.3 |
 | **F2** | `feat/market-data` | Puertos, registro de proveedores, routing y fallback, infraestructura HTTP (httpx + tenacity + aiolimiter), adaptadores de Yahoo, Alpha Vantage, FRED/ALFRED y BCE; ingesta concurrente con `BatchResult`; almacén Parquet + DuckDB con TTL e incremental; tests de contrato; `record-fixtures` | Ingesta 4.2 |
 | **F3** | `feat/analytics` | Retornos, rendimiento (CAGR, volatilidad, Sharpe, Sortino, Calmar), riesgo (max drawdown, VaR/CVaR histórico, paramétrico y Cornish-Fisher), correlaciones (pairwise y semanal), contribución al riesgo, motor de rebalanceo, servicio de divisas y tipo libre de riesgo, limpieza y calidad | Limpieza 4.5 (parte) |
@@ -651,36 +654,25 @@ Fases F0–F5: cumplen el taller al 100 %. Fases F6–F10: la plataforma. Fases 
 
 ---
 
-## 14. ADRs previstos (MADR)
+## 14. ADRs
 
-1. Registrar decisiones de arquitectura con MADR
-2. Monorepo con núcleo hexagonal como paquete independiente
-3. Tooling: uv, ruff, mypy strict, import-linter, just
-4. Política de idioma (código en inglés, documentación en español, UI bilingüe)
-5. Validación estricta de entradas (requisito 4.5)
-6. Representación temporal (UTC intradía, etiquetas de sesión en diario)
-7. Alineación sin relleno artificial y valoración as-of
-8. `yfinance` en hilo dedicado frente a cliente propio; httpx para APIs oficiales
-9. Caché Parquet + DuckDB con TTL, sobre fsspec
-10. pandas en la interfaz pública; sin polars (volúmenes pequeños)
-11. Divisa base, conversión as-of y tipo libre de riesgo por divisa
-12. Modelos de Monte Carlo y estimación de covarianza
-13. Autenticación: Better Auth (BFF) + verificación JWKS en la API
-14. La API sirve datos, no gráficos (fuera Plotly)
-15. Zensical + mkdocstrings para la documentación
-16. Cliente del frontend generado con orval
-17. Estrategia de migración desde CryptoWorld
+Los ADRs aceptados están en [`docs/adr/`](../adr/index.md). Previstos para las próximas fases:
+validación estricta de entradas, representación temporal, alineación sin relleno artificial,
+`yfinance` en hilo dedicado frente a httpx, caché Parquet + DuckDB, pandas en la interfaz
+pública (sin polars), divisa base y tipo libre de riesgo, modelos de Monte Carlo, autenticación
+(Better Auth + JWKS), la API sirve datos y no gráficos, cliente generado con orval y migración
+desde CryptoWorld.
 
 ---
 
-## 15. Pendiente de tu confirmación
+## 15. Decisiones confirmadas (31-10-2026)
 
-1. **Nombre:** Capitalis (recomendado), AlphaLedger o Capitalab. Comprobé que están libres en PyPI y npm; no he verificado marcas registradas.
+1. **Nombre:** InvestingLab.
 2. **Autenticación:** Better Auth + JWKS en la API, con passkeys y TOTP obligatorio.
-3. **Merges:** ¿hago yo el merge (squash) de los PR `feat/*` → `development` cuando la CI esté en verde, o prefieres hacerlo tú?
-4. **Red del entorno:** no puedo cambiar la configuración del entorno de cloud. Tienes que añadir los dominios de la sección 16.
-5. **Claves de API:** FRED y Alpha Vantage para F2. Tiingo, Alpaca y CoinGecko (demo) para F11 y F12. La SEC solo exige un email en el User-Agent.
-6. **CryptoWorld:** estrategia de migración progresiva (sección 9).
+3. **Merges:** Claude mergea los PR a `development` cuando la CI está en verde (por ahora).
+4. **Macro:** FRED/ALFRED en modo point-in-time por defecto (misma clave de API para ambos).
+5. **Claves pendientes de conseguir:** FRED y Alpha Vantage (F2); Tiingo, Alpaca y CoinGecko (F11–F12).
+6. **CryptoWorld:** migración progresiva (sección 9).
 
 ## 16. Dominios a permitir en el entorno de cloud
 
