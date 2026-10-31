@@ -3,6 +3,7 @@
 Services depend on these abstractions; adapters implement them.
 """
 
+from investinglab.ports.calendar import CalendarUnavailableError, TradingCalendar
 from investinglab.ports.errors import (
     AuthenticationError,
     ProviderDataError,
@@ -29,6 +30,7 @@ __all__ = [
     "BarsRequest",
     "CachedBars",
     "CachedEconomicSeries",
+    "CalendarUnavailableError",
     "Dataset",
     "EconomicDataProvider",
     "EconomicRequest",
@@ -41,6 +43,7 @@ __all__ = [
     "RateLimitedError",
     "SeriesStore",
     "SymbolNotFoundError",
+    "TradingCalendar",
     "UnsupportedRequestError",
     "VintageMode",
 ]
