@@ -10,8 +10,10 @@ from investinglab.services.market_data import (
     MarketDataService,
 )
 from investinglab.services.registry import ProviderRegistry
+from investinglab.services.risk_free import DEFAULT_RISK_FREE_SERIES, RiskFreeRateService
 
 __all__ = [
+    "DEFAULT_RISK_FREE_SERIES",
     "BatchResult",
     "CachePolicy",
     "CurrencyService",
@@ -20,5 +22,6 @@ __all__ = [
     "FetchFailure",
     "MarketDataService",
     "ProviderRegistry",
+    "RiskFreeRateService",
     "yahoo_style_fx_symbol",
 ]
