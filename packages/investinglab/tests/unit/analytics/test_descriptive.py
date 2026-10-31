@@ -67,3 +67,11 @@ def test_cagr() -> None:
 )
 def test_cagr_is_nan_when_undefined(total: float, periods: int, per_year: float) -> None:
     assert math.isnan(cagr(total, periods, per_year))
+
+
+def test_underflowing_spread_has_no_shape_statistics() -> None:
+    # Found by Hypothesis: subnormal differences make the variance underflow to zero.
+    moments = describe_returns(np.array([0.0, 5e-324, 5e-324, 5e-324, 5e-324]))
+
+    assert math.isnan(moments.skewness)
+    assert math.isnan(moments.excess_kurtosis)

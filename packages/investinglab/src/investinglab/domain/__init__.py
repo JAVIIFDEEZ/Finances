@@ -22,6 +22,7 @@ from investinglab.domain.instruments import (
     Identifiers,
     Instrument,
 )
+from investinglab.domain.metrics import DEFAULT_CONFIDENCE_LEVELS, RiskMetrics, TailRisk
 from investinglab.domain.money import (
     CHF,
     EUR,
@@ -39,6 +40,7 @@ from investinglab.domain.portfolio import (
     WEIGHT_TOLERANCE,
     Holding,
     Portfolio,
+    PortfolioBacktest,
     RebalanceKind,
     RebalancePolicy,
 )
@@ -62,6 +64,7 @@ from investinglab.domain.time import (
 __all__ = [
     "CHF",
     "CRYPTO_SCHEDULE",
+    "DEFAULT_CONFIDENCE_LEVELS",
     "EQUITY_SCHEDULE",
     "EUR",
     "EXCHANGES",
@@ -92,6 +95,7 @@ __all__ = [
     "InvestingLabError",
     "MarketSchedule",
     "Portfolio",
+    "PortfolioBacktest",
     "PriceAdjustment",
     "PriceField",
     "PriceSeries",
@@ -99,7 +103,9 @@ __all__ = [
     "RebalanceKind",
     "RebalancePolicy",
     "ReturnKind",
+    "RiskMetrics",
     "SeriesStats",
+    "TailRisk",
     "UnknownCurrencyError",
     "align",
     "parse_quote_currency",

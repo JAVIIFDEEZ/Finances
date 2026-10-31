@@ -3,13 +3,24 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import TYPE_CHECKING, Final
 
+import numpy as np
 import pandas as pd
 
+from investinglab.analytics import (
+    correlation_from_covariance,
+    covariance_matrix,
+    drawdown,
+    effective_number_of_assets,
+    herfindahl_index,
+    rebalanced_path,
+    risk_contributions,
+)
 from investinglab.domain.errors import DomainError, InvalidPortfolioError
+from investinglab.domain.metrics import DEFAULT_CONFIDENCE_LEVELS, RiskMetrics
 from investinglab.domain.panel import AlignedPanel, AlignmentMethod, align
 from investinglab.domain.time import Frequency
 
@@ -23,6 +34,7 @@ __all__ = [
     "WEIGHT_TOLERANCE",
     "Holding",
     "Portfolio",
+    "PortfolioBacktest",
     "RebalanceKind",
     "RebalancePolicy",
 ]
@@ -96,6 +108,74 @@ class RebalancePolicy:
         if self.kind is RebalanceKind.THRESHOLD:
             return f"threshold (±{self.band:.1%})"
         return "buy and hold"
+
+
+_PERIOD_ALIASES: Final[dict[Frequency, str]] = {
+    Frequency.WEEK_1: "W-SUN",
+    Frequency.MONTH_1: "M",
+    Frequency.QUARTER_1: "Q",
+    Frequency.YEAR_1: "Y",
+}
+
+
+@dataclass(frozen=True, slots=True, eq=False)
+class PortfolioBacktest:
+    """Historical path of a portfolio under its rebalancing policy.
+
+    Values use the last *observed* price of each holding (mark-to-market, ADR-0008);
+    :attr:`staleness` tells how many periods old each holding's mark is.
+    """
+
+    _returns: pd.Series = field(repr=False)
+    _values: pd.Series = field(repr=False)
+    _weights: pd.DataFrame = field(repr=False)
+    _turnover: pd.Series = field(repr=False)
+    _staleness: pd.DataFrame = field(repr=False)
+    rebalance_dates: pd.DatetimeIndex = field(repr=False)
+
+    @property
+    def returns(self) -> pd.Series:
+        """Portfolio return per period."""
+        return self._returns.copy(deep=False)
+
+    @property
+    def values(self) -> pd.Series:
+        """Portfolio value per period, starting at the initial value."""
+        return self._values.copy(deep=False)
+
+    @property
+    def weights(self) -> pd.DataFrame:
+        """Weights held at the end of each period (after any rebalancing)."""
+        return self._weights.copy(deep=False)
+
+    @property
+    def turnover(self) -> pd.Series:
+        """One-way turnover traded at each period."""
+        return self._turnover.copy(deep=False)
+
+    @property
+    def staleness(self) -> pd.DataFrame:
+        """Age, in periods, of each holding's last observed price."""
+        return self._staleness.copy(deep=False)
+
+    @property
+    def total_turnover(self) -> float:
+        """Sum of the one-way turnover over the whole period."""
+        return float(self._turnover.sum())
+
+    @property
+    def start(self) -> pd.Timestamp:
+        """First date of the backtest (every holding observed at least once)."""
+        return pd.Timestamp(self._values.index[0])
+
+    @property
+    def end(self) -> pd.Timestamp:
+        """Last date of the backtest."""
+        return pd.Timestamp(self._values.index[-1])
+
+    def drawdown(self) -> pd.Series:
+        """Decline of the portfolio value from its running peak."""
+        return drawdown(self._values)
 
 
 @dataclass(frozen=True, slots=True)
@@ -287,6 +367,139 @@ class Portfolio:
     def aligned(self, method: AlignmentMethod | str = AlignmentMethod.UNION) -> AlignedPanel:
         """Holdings' prices and returns on a common time axis (no data is invented)."""
         return align(self.series, method)
+
+    @property
+    def periods_per_year(self) -> float:
+        """Annualisation factor: the densest holding's (the union calendar is at least as dense)."""
+        return max(h.series.periods_per_year for h in self.holdings)
+
+    @property
+    def herfindahl_index(self) -> float:
+        """Concentration of the target weights (1 = single asset, 1/n = equal weights)."""
+        return herfindahl_index(self.weights.to_numpy())
+
+    @property
+    def effective_number_of_assets(self) -> float:
+        """How many equally weighted assets the portfolio is equivalent to."""
+        return effective_number_of_assets(self.weights.to_numpy())
+
+    # ── History ──────────────────────────────────────────────────────
+
+    def backtest(
+        self,
+        *,
+        initial_value: float = 1.0,
+        method: AlignmentMethod | str = AlignmentMethod.UNION,
+    ) -> PortfolioBacktest:
+        """Value the portfolio through history under its rebalancing policy.
+
+        The path starts at the first date on which every holding has been observed.
+
+        Args:
+            initial_value: Portfolio value at the start date.
+            method: Calendar alignment (union keeps every observation).
+        """
+        if not initial_value > 0:
+            raise DomainError("initial_value must be positive")
+        panel = self.aligned(method)
+        start = panel.common_start()
+        returns = panel.returns.loc[start:]
+        policy = self.rebalance
+        path = rebalanced_path(
+            returns,
+            self.weights.to_numpy(),
+            rebalance_dates=self._rebalance_dates(pd.DatetimeIndex(returns.index)),
+            band=policy.band if policy.kind is RebalanceKind.THRESHOLD else None,
+            initial_value=initial_value,
+        )
+        return PortfolioBacktest(
+            _returns=path.returns,
+            _values=path.values,
+            _weights=path.weights,
+            _turnover=path.turnover,
+            _staleness=panel.staleness().loc[start:],
+            rebalance_dates=path.rebalanced,
+        )
+
+    def returns(self) -> pd.Series:
+        """Historical portfolio returns under the rebalancing policy."""
+        return self.backtest().returns
+
+    def value_history(self, initial_value: float = 1.0) -> pd.Series:
+        """Historical portfolio value under the rebalancing policy."""
+        return self.backtest(initial_value=initial_value).values
+
+    def metrics(
+        self,
+        *,
+        risk_free_rate: float | pd.Series = 0.0,
+        levels: Sequence[float] = DEFAULT_CONFIDENCE_LEVELS,
+    ) -> RiskMetrics:
+        """Performance and risk metrics of the historical portfolio returns.
+
+        Args:
+            risk_free_rate: Annual risk-free rate (decimal), constant or point-in-time series.
+            levels: Confidence levels for VaR and CVaR.
+        """
+        return RiskMetrics.from_returns(
+            self.returns(),
+            periods_per_year=self.periods_per_year,
+            risk_free_rate=risk_free_rate,
+            levels=levels,
+        )
+
+    # ── Co-movement and risk decomposition ───────────────────────────
+
+    def asset_returns(self, frequency: Frequency | str | None = None) -> pd.DataFrame:
+        """Holdings' returns on their own calendars, joined (NaN = not observed).
+
+        Args:
+            frequency: Optional coarser frequency (e.g. weekly) to resample each holding
+                first. Weekly returns reduce the bias of non-synchronous closes between
+                markets (Europe closes hours before the United States).
+        """
+        series = self.series
+        if frequency is not None and Frequency(frequency) != self.frequency:
+            series = tuple(s.resample(frequency) for s in series)
+        return align(series).returns.iloc[1:]
+
+    def covariance(self, frequency: Frequency | str | None = None) -> pd.DataFrame:
+        """Covariance of holdings' returns (pairwise-complete, PSD-repaired), per period."""
+        return covariance_matrix(self.asset_returns(frequency))
+
+    def correlation(self, frequency: Frequency | str | None = None) -> pd.DataFrame:
+        """Correlation of holdings' returns consistent with :meth:`covariance`."""
+        return correlation_from_covariance(self.covariance(frequency))
+
+    def risk_contributions(self, frequency: Frequency | str | None = None) -> pd.DataFrame:
+        """Contribution of each holding to the portfolio volatility (Euler decomposition).
+
+        Columns: ``weight``, ``marginal``, ``contribution`` and ``share`` (per period) plus
+        ``annualized_contribution``. Shares sum to 1.
+        """
+        covariance = self.covariance(frequency)
+        table = risk_contributions(self.weights.to_numpy(), covariance.to_numpy())
+        table.index = pd.Index(self.symbols, name="symbol")
+        target = Frequency(frequency) if frequency is not None else self.frequency
+        periods = max(h.series.instrument.schedule.periods_per_year(target) for h in self)
+        table["annualized_contribution"] = table["contribution"] * np.sqrt(periods)
+        return table
+
+    def _rebalance_dates(self, index: pd.DatetimeIndex) -> pd.DatetimeIndex | None:
+        policy = self.rebalance
+        if policy.kind is not RebalanceKind.PERIODIC or policy.frequency is None:
+            return None
+        if policy.frequency is Frequency.DAY_1 and not self.frequency.is_intraday:
+            return index[1:-1]
+        labels = index.tz_localize(None) if index.tz is not None else index
+        sessions = labels.normalize()
+        keys: pd.Index
+        if policy.frequency is Frequency.DAY_1:
+            keys = pd.Index(sessions)
+        else:
+            keys = pd.Index(sessions.to_period(_PERIOD_ALIASES[policy.frequency]))
+        last_in_period = pd.Series(index, index=index).groupby(keys.to_numpy()).max()
+        return pd.DatetimeIndex(last_in_period.to_numpy()).difference(index[-1:])
 
     def __len__(self) -> int:
         return len(self.holdings)
