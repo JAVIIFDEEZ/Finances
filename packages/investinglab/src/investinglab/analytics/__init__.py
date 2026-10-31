@@ -19,6 +19,7 @@ from investinglab.analytics.descriptive import (
     describe_returns,
 )
 from investinglab.analytics.drawdown import drawdown, max_drawdown
+from investinglab.analytics.portfolio import RebalancedPath, rebalanced_path, risk_contributions
 from investinglab.analytics.returns import (
     cumulative_returns,
     log_returns,
@@ -41,6 +42,7 @@ from investinglab.analytics.risk import (
 )
 
 __all__ = [
+    "RebalancedPath",
     "ReturnMoments",
     "VaRMethod",
     "annualize_mean",
@@ -63,6 +65,8 @@ __all__ = [
     "max_drawdown",
     "nearest_positive_semidefinite",
     "per_period_rate",
+    "rebalanced_path",
+    "risk_contributions",
     "sharpe_ratio",
     "simple_returns",
     "sortino_ratio",
