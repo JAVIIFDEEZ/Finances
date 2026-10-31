@@ -85,6 +85,22 @@ classDiagram
         +resample(frequency) PriceSeries
         +metrics(risk_free_rate, levels) RiskMetrics
         +beta(benchmark) float
+        +quality(expected_sessions) DataQualityReport
+    }
+    class FxRates {
+        +CurrencyPair pair
+        +DataSource source
+        +rates Series
+        +inverse() FxRates
+        +rates_at(timestamps) Series
+        +convert(series) PriceSeries
+    }
+    class DataQualityReport {
+        +str symbol
+        +tuple~QualityIssue~ issues
+        +ok bool
+        +worst_severity Severity
+        +to_frame() DataFrame
     }
     class EconomicSeries {
         +str series_id
@@ -180,6 +196,9 @@ classDiagram
     Portfolio ..> RiskMetrics : calcula
     PriceSeries ..> RiskMetrics : calcula
     RiskMetrics *-- TailRisk
+    FxRates --> CurrencyPair
+    FxRates ..> PriceSeries : convierte
+    PriceSeries ..> DataQualityReport : diagnostica
 ```
 
 ## Responsabilidades
@@ -194,6 +213,8 @@ classDiagram
 | `AlignedPanel` | Alineación multiactivo sin inventar datos ([ADR-0008](../adr/0008-alignment-without-artificial-fill.md)) |
 | `Portfolio`, `Holding`, `RebalancePolicy` | Cartera con pesos validados (suma 1, cortos solo explícitos, misma divisa y frecuencia), historia con rebalanceo, métricas, correlaciones y contribución al riesgo ([ADR-0013](../adr/0013-risk-metrics-and-portfolio-engine.md)) |
 | `PortfolioBacktest` | Trayectoria histórica: retornos, valor, pesos, rotación y antigüedad de las valoraciones |
+| `FxRates` | Tipos de cambio validados y conversión *as-of* sin rellenar ([ADR-0014](../adr/0014-currency-conversion-and-risk-free-rate.md)) |
+| `DataQualityReport`, `QualityIssue` | Diagnóstico de calidad: outliers, splits sospechosos, precios congelados, OHLC incoherente, sesiones ausentes ([ADR-0015](../adr/0015-data-quality-diagnostics.md)) |
 | `RiskMetrics`, `TailRisk` | Rentabilidad, volatilidad, Sharpe, Sortino, Calmar, drawdown y VaR/CVaR (histórico, normal y Cornish-Fisher) |
 
 ## Inmutabilidad

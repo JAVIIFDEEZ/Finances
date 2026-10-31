@@ -6,6 +6,10 @@
 
 ::: investinglab.domain.metrics
 
+::: investinglab.domain.fx
+
+::: investinglab.domain.quality
+
 ::: investinglab.domain.panel
 
 ::: investinglab.domain.economic

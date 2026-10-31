@@ -4,4 +4,6 @@
 
 ::: investinglab.ports.storage
 
+::: investinglab.ports.calendar
+
 ::: investinglab.ports.errors

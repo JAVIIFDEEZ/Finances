@@ -34,6 +34,7 @@ from investinglab.analytics import (
 )
 from investinglab.domain.errors import DomainError, InvalidSeriesError
 from investinglab.domain.metrics import DEFAULT_CONFIDENCE_LEVELS, RiskMetrics
+from investinglab.domain.quality import DataQualityReport, QualityThresholds, assess_quality
 from investinglab.domain.time import Frequency
 
 if TYPE_CHECKING:
@@ -444,6 +445,19 @@ class PriceSeries:
             risk_free_rate=risk_free_rate,
             levels=levels,
         )
+
+    def quality(
+        self,
+        *,
+        expected_sessions: pd.DatetimeIndex | None = None,
+        thresholds: QualityThresholds | None = None,
+    ) -> DataQualityReport:
+        """Diagnose data-quality issues (outliers, split-like jumps, frozen prices...).
+
+        Nothing is modified or removed. Pass the market's official sessions (see
+        :class:`~investinglab.services.DataQualityService`) to also detect missing days.
+        """
+        return assess_quality(self, expected_sessions=expected_sessions, thresholds=thresholds)
 
     def beta(self, benchmark: PriceSeries) -> float:
         """Sensitivity to ``benchmark`` on the dates where both have a return."""
