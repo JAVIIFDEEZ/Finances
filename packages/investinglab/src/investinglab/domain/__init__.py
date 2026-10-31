@@ -35,6 +35,13 @@ from investinglab.domain.money import (
     parse_quote_currency,
 )
 from investinglab.domain.panel import AlignedPanel, AlignmentMethod, align
+from investinglab.domain.portfolio import (
+    WEIGHT_TOLERANCE,
+    Holding,
+    Portfolio,
+    RebalanceKind,
+    RebalancePolicy,
+)
 from investinglab.domain.series import (
     MIN_OBSERVATIONS,
     DataSource,
@@ -63,6 +70,7 @@ __all__ = [
     "JPY",
     "MIN_OBSERVATIONS",
     "USD",
+    "WEIGHT_TOLERANCE",
     "AlignedPanel",
     "AlignmentMethod",
     "AssetClass",
@@ -74,6 +82,7 @@ __all__ = [
     "EconomicSeries",
     "Exchange",
     "Frequency",
+    "Holding",
     "Identifiers",
     "IncompatibleSeriesError",
     "Instrument",
@@ -82,10 +91,13 @@ __all__ = [
     "InvalidSeriesError",
     "InvestingLabError",
     "MarketSchedule",
+    "Portfolio",
     "PriceAdjustment",
     "PriceField",
     "PriceSeries",
     "QuoteUnit",
+    "RebalanceKind",
+    "RebalancePolicy",
     "ReturnKind",
     "SeriesStats",
     "UnknownCurrencyError",
