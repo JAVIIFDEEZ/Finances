@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import dataclasses
 import math
-from datetime import datetime
+from datetime import date, datetime
 
 import numpy as np
 import pandas as pd
@@ -276,3 +276,29 @@ def test_data_source_needs_a_slug_and_an_aware_timestamp() -> None:
         DataSource("Yahoo Finance", SYNTHETIC_SOURCE.retrieved_at)
     with pytest.raises(DomainError, match="timezone-aware"):
         DataSource("yahoo", datetime(2026, 1, 1))  # noqa: DTZ001 - the point of the test
+
+
+def test_between_accepts_dates() -> None:
+    series = make_series([100.0, 101.0, 102.0, 103.0, 104.0])
+
+    sub = series.between(date(2024, 1, 3), date(2024, 1, 5))
+
+    assert sub.prices.tolist() == [101.0, 102.0, 103.0]
+
+
+def test_intraday_between_uses_session_dates_in_the_market_timezone() -> None:
+    # Madrid bars from 08:00 to 16:00 UTC on two days (09:00-17:00 local time).
+    day1 = pd.date_range("2024-01-02 08:00", periods=9, freq="1h", tz="UTC")
+    day2 = pd.date_range("2024-01-03 08:00", periods=9, freq="1h", tz="UTC")
+    series = make_series(
+        [float(i) for i in range(1, 19)],
+        index=pd.DatetimeIndex(day1.append(day2)),
+        frequency=Frequency.HOUR_1,
+    )
+
+    first_day = series.between(date(2024, 1, 2), date(2024, 1, 2))
+
+    assert len(first_day) == 9
+    assert series.between(start=date(2024, 1, 3)).prices.iloc[0] == 10.0
+    utc_bound = series.between(end=pd.Timestamp("2024-01-02 10:00", tz="UTC"))
+    assert len(utc_bound) == 3

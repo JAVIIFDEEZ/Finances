@@ -163,6 +163,28 @@ class EconomicSeries:
                 result[position] = known[latest_observation]
         return pd.Series(result, index=target, name=self.series_id)
 
+    def between(
+        self,
+        start: date | datetime | pd.Timestamp | str | None = None,
+        end: date | datetime | pd.Timestamp | str | None = None,
+    ) -> EconomicSeries:
+        """Sub-series with observation dates in ``[start, end]``, keeping every vintage."""
+        dates = self._observations["observation_date"]
+        mask = pd.Series(data=True, index=dates.index)
+        if start is not None:
+            mask &= dates >= pd.Timestamp(start)
+        if end is not None:
+            mask &= dates <= pd.Timestamp(end)
+        return EconomicSeries(
+            series_id=self.series_id,
+            title=self.title,
+            units=self.units,
+            frequency=self.frequency,
+            source=self.source,
+            data=self._observations[mask],
+            seasonal_adjustment=self.seasonal_adjustment,
+        )
+
     def _as_series(self, frame: pd.DataFrame) -> pd.Series:
         series = pd.Series(
             frame["value"].to_numpy(),

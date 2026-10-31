@@ -45,11 +45,11 @@ def test_json_format_emits_one_parseable_object_per_line(
 def test_standard_library_loggers_share_the_format(capsys: pytest.CaptureFixture[str]) -> None:
     configure_logging(LogLevel.INFO, LogFormat.JSON)
 
-    logging.getLogger("httpx").info("HTTP Request: GET /")
+    logging.getLogger("thirdparty.lib").info("connected")
 
     record = json.loads(capsys.readouterr().err.strip())
-    assert record["event"] == "HTTP Request: GET /"
-    assert record["logger"] == "httpx"
+    assert record["event"] == "connected"
+    assert record["logger"] == "thirdparty.lib"
 
 
 def test_level_filters_records(capsys: pytest.CaptureFixture[str]) -> None:
@@ -71,3 +71,24 @@ def test_console_format_is_human_readable(capsys: pytest.CaptureFixture[str]) ->
     output = capsys.readouterr().err
     assert "hello" in output
     assert "who" in output
+
+
+def test_credentials_are_scrubbed_from_any_logger(capsys: pytest.CaptureFixture[str]) -> None:
+    configure_logging(LogLevel.DEBUG, LogFormat.JSON)
+
+    logging.getLogger("thirdparty").warning("GET /x?series_id=A&api_key=abc123&apikey=zz")
+    get_logger().info("calling", url="https://x.test/q?token=pk_live_1&x=1")
+
+    output = capsys.readouterr().err
+    assert "abc123" not in output
+    assert "pk_live_1" not in output
+    assert "zz" not in output
+    assert "api_key=***" in output
+    assert "token=***" in output
+
+
+def test_noisy_http_loggers_are_quietened() -> None:
+    configure_logging(LogLevel.DEBUG, LogFormat.JSON)
+
+    assert logging.getLogger("httpx").level == logging.WARNING
+    assert logging.getLogger("httpcore").level == logging.WARNING

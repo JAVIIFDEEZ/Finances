@@ -9,17 +9,37 @@ Standard-library loggers are routed through the same processors, so third-party 
 from __future__ import annotations
 
 import logging
+import re
 import sys
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Final
 
 import structlog
 
 from investinglab.config.settings import LogFormat, LogLevel
 
 if TYPE_CHECKING:
-    from structlog.typing import Processor
+    from structlog.typing import EventDict, Processor, WrappedLogger
 
-__all__ = ["configure_logging", "get_logger"]
+__all__ = ["configure_logging", "get_logger", "redact_secrets"]
+
+# Credentials sent as query parameters (FRED ``api_key``, Alpha Vantage ``apikey``, SIX
+# ``token``...) must never be written to any log, whoever emits the line.
+_SECRET_IN_TEXT: Final = re.compile(
+    r"(?i)\b(api_?key|access_token|token|secret|password)=([^&\s\"']+)"
+)
+# Chatty third-party loggers that print full request URLs at INFO level.
+_QUIET_LOGGERS: Final = ("httpx", "httpcore")
+
+
+def _scrub(value: Any) -> Any:  # noqa: ANN401 - log values are arbitrary
+    if isinstance(value, str):
+        return _SECRET_IN_TEXT.sub(r"\1=***", value)
+    return value
+
+
+def redact_secrets(_: WrappedLogger, __: str, event_dict: EventDict) -> EventDict:
+    """Structlog processor that masks ``key=value`` credentials in every string value."""
+    return {key: _scrub(value) for key, value in event_dict.items()}
 
 
 def _shared_processors() -> list[Processor]:
@@ -29,6 +49,7 @@ def _shared_processors() -> list[Processor]:
         structlog.stdlib.add_log_level,
         structlog.processors.TimeStamper(fmt="iso", utc=True),
         structlog.processors.StackInfoRenderer(),
+        redact_secrets,
     ]
 
 
@@ -71,6 +92,8 @@ def configure_logging(
     root.handlers.clear()
     root.addHandler(handler)
     root.setLevel(level.value)
+    for name in _QUIET_LOGGERS:
+        logging.getLogger(name).setLevel(max(logging.WARNING, root.level))
 
 
 def get_logger(name: str | None = None) -> structlog.stdlib.BoundLogger:

@@ -12,7 +12,11 @@ copyright = "© InvestingLab — uso privado"
 nav = [
   { "Inicio" = "index.md" },
   { "Plan maestro" = "plan/plan-maestro.md" },
-  { "Arquitectura" = ["architecture/index.md", "architecture/domain.md"] },
+  { "Arquitectura" = [
+    "architecture/index.md",
+    "architecture/domain.md",
+    "architecture/ingestion.md",
+  ] },
   { "Decisiones (ADR)" = [
     "adr/index.md",
     "adr/0001-record-architecture-decisions.md",
@@ -24,11 +28,17 @@ nav = [
     "adr/0007-time-representation.md",
     "adr/0008-alignment-without-artificial-fill.md",
     "adr/0009-point-in-time-economic-series.md",
+    "adr/0010-multi-provider-ingestion.md",
+    "adr/0011-parquet-duckdb-cache.md",
+    "adr/0012-resilient-http-client.md",
   ] },
   { "Referencia API" = [
     "reference/index.md",
     "reference/domain.md",
     "reference/analytics.md",
+    "reference/ports.md",
+    "reference/services.md",
+    "reference/adapters.md",
     "reference/config.md",
   ] },
 ]

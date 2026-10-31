@@ -72,3 +72,43 @@ def test_settings_are_immutable() -> None:
 
 def test_get_settings_is_cached() -> None:
     assert get_settings() is get_settings()
+
+
+def test_cache_dir_defaults_inside_the_data_dir() -> None:
+    assert Settings(data_dir=Path("/srv/data")).effective_cache_dir == Path("/srv/data/cache")
+    assert Settings(cache_dir=Path("/srv/cache")).effective_cache_dir == Path("/srv/cache")
+
+
+def test_api_keys_are_secret(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("INVESTINGLAB_FRED_API_KEY", "not-a-real-key")
+
+    settings = Settings()
+
+    assert settings.fred_api_key is not None
+    assert settings.fred_api_key.get_secret_value() == "not-a-real-key"
+    assert "not-a-real-key" not in repr(settings)
+    assert settings.alphavantage_api_key is None
+
+
+@pytest.mark.parametrize(
+    ("name", "value"),
+    [("HTTP_TIMEOUT_SECONDS", "0"), ("HTTP_MAX_ATTEMPTS", "0"), ("MAX_CONCURRENCY", "1000")],
+)
+def test_network_settings_are_bounded(
+    monkeypatch: pytest.MonkeyPatch, name: str, value: str
+) -> None:
+    monkeypatch.setenv(f"INVESTINGLAB_{name}", value)
+
+    with pytest.raises(ValidationError):
+        Settings()
+
+
+def test_the_documented_env_example_loads_cleanly() -> None:
+    example = Path(__file__).parents[5] / ".env.example"
+    Path(".env").write_text(example.read_text(encoding="utf-8"), encoding="utf-8")
+
+    settings = Settings()
+
+    assert settings.log_format is None
+    assert settings.cache_dir is None
+    assert settings.fred_api_key is None

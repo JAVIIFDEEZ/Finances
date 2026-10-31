@@ -345,7 +345,7 @@ Investigué el estado actual de cada proveedor. Los límites de los planes gratu
 |--------|-----------|-------------|--------|-------|------|
 | **Yahoo Finance** (`yfinance`) | Acciones, índices, ETFs, FX, futuros y cripto; fundamentales, dividendos/splits, opciones | 1m…1mo (1m ≈ 30 días; ≤30m ≈ 60 días; 1h ≈ 2 años) | Sin clave | Sin SLA y con throttling (429) frecuente → caché, rate limit y fallback | F2 |
 | **Alpha Vantage** | Acciones/ETF, FX, cripto, intradía, fundamentales, noticias con sentimiento | 1m…1mo | Clave gratuita | 25 peticiones/día; el ajustado es premium; sin índices. Fallback de equities y validación cruzada | F2 |
-| **FRED + ALFRED** | Macro, tipos, FX (`DEX*`), vintages point-in-time | D…A | Clave gratuita (la misma para ambos) | **Modo ALFRED por defecto**: cada dato con su fecha de publicación (primera publicación, `output_type=4`); el modo "último valor revisado" es opcional | F2 |
+| **FRED + ALFRED** | Macro, tipos, FX (`DEX*`), vintages point-in-time | D…A | Clave gratuita (la misma para ambos) | **Modo ALFRED por defecto**: cada dato con su fecha de publicación (primera publicación, `output_type=4`); el modo "último valor revisado" es opcional. Sin clave, *fallback* al CSV público `fredgraph.csv`, que solo da el último valor y queda marcado como no point-in-time | F2 |
 | **BCE Data Portal** (SDMX) | €STR, tipos de cambio de referencia, curvas cupón cero, HICP | D, M | Sin clave | Fuente oficial para EUR | F2 |
 | **Tiingo** | EOD EE. UU. ajustado (30+ años), intradía IEX, cripto | 1m…1d | Clave gratuita | Licencia de uso personal | F11 |
 | **Alpaca Market Data** | Barras de EE. UU. por minuto desde 2016; cripto | 1m…1d | Cuenta gratuita | En el plan free se bloquean los últimos 15 minutos; la mejor fuente gratuita de intradía de EE. UU. | F11 |
@@ -355,6 +355,8 @@ Investigué el estado actual de cada proveedor. Los límites de los planes gratu
 | **Eurostat, Banco de España, INE** | Macro europea y española | M, Q, A | Sin clave | APIs oficiales | F11 |
 | **US Treasury** (FiscalData, par yield curve) | Curva oficial de EE. UU. | D | Sin clave | | F11 |
 | **Kenneth French Data Library** | Factores Fama-French, momentum, carteras | D, W, M | Sin clave | Base de los modelos factoriales de bloques futuros | F11 |
+| **Global-q (Hou-Xue-Zhang)** y **Goyal-Welch** | Factores q5; predictores macro clásicos (dp, ep, tms, dfy, infl…) | M, A | Sin clave | Vistos en los notebooks del máster (con `tidyfinance` como referencia) | F11 |
+| **SIX Market Signal** (SIX 1BBO) | Cotizaciones (bid/ask) y operaciones de más de 4.000 acciones europeas, BME incluida, por ISIN | Tiempo real (solo el día en curso) | Token (`pk_…`) | Prueba de 1 mes con 1 petición/s y sin redistribución. Base de analítica de liquidez (spread en pb) | F11 |
 | **Cboe** | Histórico del VIX y otros índices de volatilidad | D | Sin clave | | F11 |
 | **ccxt** (Binance, Kraken, Coinbase, KuCoin…) | OHLCV cripto con histórico completo, order books, funding | 1m… | Endpoints públicos | Sustituye a los clientes propios de CryptoWorld | F12 |
 | **CoinGecko** | Capitalización, dominancia, metadatos | D | Clave demo gratuita | | F12 |
@@ -529,6 +531,18 @@ La conversión a tipo por periodo usa la convención del mercado monetario (ACT/
 
 CryptoWorld sigue funcionando tal cual mientras dura la migración. Cuando la nueva plataforma cubra sus funcionalidades, podrás archivarlo o mantenerlo como proyecto académico del TFG.
 
+### ¿Uno o dos repositorios? (31-10-2026)
+
+**Decisión: un único repositorio y una única plataforma (InvestingLab).** CryptoWorld se congela como registro del TFG y su código útil se porta aquí. No se fusionan los historiales de git.
+
+Motivos:
+
+- **Mismo núcleo.** `PriceSeries`, `Portfolio`, riesgo, Monte Carlo e informes sirven igual para BTC que para SAN.MC. Las carteras mixtas (acciones, bonos y cripto) solo son posibles con un modelo común.
+- **Una sola autenticación, un solo despliegue, una sola CI y un solo sistema de diseño.** Mantener dos backends (Django y FastAPI) y dos frontends (Vite y Next.js) siendo una sola persona duplica el trabajo y los fallos de seguridad.
+- **El cripto encaja como clase de activo y como módulo.** Tiene sus proveedores (ccxt, CoinGecko, on-chain), la sección Cripto en la web y la analítica técnica generalizada.
+
+Tener dos repositorios solo compensaría si cripto fuese un producto separado, con otro equipo o con otros usuarios.
+
 ---
 
 ## 10. API REST (`/api/v1`)
@@ -677,5 +691,23 @@ desde CryptoWorld.
 ## 16. Dominios a permitir en el entorno de cloud
 
 - **F2:** `query1.finance.yahoo.com`, `query2.finance.yahoo.com`, `fc.yahoo.com`, `finance.yahoo.com`, `guce.yahoo.com`, `www.alphavantage.co`, `api.stlouisfed.org`, `data-api.ecb.europa.eu`
-- **F11:** `api.tiingo.com`, `data.alpaca.markets`, `www.sec.gov`, `data.sec.gov`, `api.openfigi.com`, `api.db.nomics.world`, `ec.europa.eu`, `www.bde.es`, `servicios.ine.es`, `api.fiscaldata.treasury.gov`, `home.treasury.gov`, `mba.tuck.dartmouth.edu`, `cdn.cboe.com`
+- **F2 (FRED sin clave):** `fred.stlouisfed.org`
+- **F11:** `api.marketsignal.six-group.com`, `global-q.org`, `api.tiingo.com`, `data.alpaca.markets`, `www.sec.gov`, `data.sec.gov`, `api.openfigi.com`, `api.db.nomics.world`, `ec.europa.eu`, `www.bde.es`, `servicios.ine.es`, `api.fiscaldata.treasury.gov`, `home.treasury.gov`, `mba.tuck.dartmouth.edu`, `cdn.cboe.com`
 - **F12:** `api.binance.com`, `api.kraken.com`, `api.exchange.coinbase.com`, `api.kucoin.com`, `api.coingecko.com`, `api.blockchain.info`, `api.blockchair.com`, `api.llama.fi`, `api.alternative.me`, `min-api.cryptocompare.com`
+
+## 17. Aprendizajes de los notebooks del máster (Drive, 31-10-2026)
+
+Revisé el código y el texto (sin salidas) de 6 de los 17 notebooks de Drive. El material de clase **no se versiona** en este repositorio; aquí solo quedan las ideas aplicables:
+
+| Notebook | Idea que incorporamos | Fase |
+|----------|-----------------------|------|
+| `01_DescargaDeDatosPro` | Paquete con configuración inmutable, sesión HTTP única con reintentos y *rate limit*, excepciones propias, descargas idempotentes e informe de errores por fuente. Confirma el diseño de F2a | F2a ✅ |
+| `01_DescargaDeDatosPro` | `TickerSnapshot` de Yahoo (perfil, estados financieros, dividendos, splits, opciones, noticias); SEC: `company_tickers.json` → CIK, `data.sec.gov/submissions`, descarga de 10-K/10-Q y extracción de texto | F2b / F11 |
+| `01_DescargaDeDatosPro` / `01_Fuentes_Datos` | FRED sin clave mediante `fredgraph.csv` (solo el último valor) | F2b |
+| `01_Fuentes_Datos_Econ-Financieros` | Factores Fama-French (ZIP de Kenneth French), q-factors (global-q.org), predictores de Goyal-Welch; `tidyfinance` como referencia | F11 |
+| `03_Análisis_Datos_Contables` | Analítica fundamental: margen, rotación, ROA, ROE y apalancamiento (DuPont) sobre los estados financieros, comparados por sector | F11 (módulo fundamentales) |
+| `04_Efectos_Macro_Contable_Rentabilidad` | Réplica de Goyal-Welch (2008): regresiones predictivas in-sample y out-of-sample, R² ajustado y *bootstrap* | Bloque de econometría |
+| `02_EDAYPreparacionDatos` | Validación de datos crudos, limpieza, *features* y señales; tono de informes SEC con el léxico Loughran-McDonald y con LLM, con caché de respuestas | F3 (calidad) / módulo NLP |
+| `clase_market_signal` | API SIX Market Signal (BME/SIX por ISIN): spread bid-ask en puntos básicos, clasificación de liquidez y resumen por sector | F11 |
+
+Pendientes de revisar: `02_Analisis_datos_macro`, `ALUMNO_MIAX15_Curva_Tipos_Recesiones`, `03_Backtesting`, la serie `Dia1/Dia2` de IA y el curso de Python.
