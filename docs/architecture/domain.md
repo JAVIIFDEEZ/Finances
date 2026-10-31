@@ -83,6 +83,8 @@ classDiagram
         +max_drawdown() float
         +between(start, end) PriceSeries
         +resample(frequency) PriceSeries
+        +metrics(risk_free_rate, levels) RiskMetrics
+        +beta(benchmark) float
     }
     class EconomicSeries {
         +str series_id
@@ -126,6 +128,38 @@ classDiagram
         +from_weights(name, series, weights)$ Portfolio
         +equal_weight(name, series)$ Portfolio
         +aligned(method) AlignedPanel
+        +backtest(initial_value) PortfolioBacktest
+        +returns() Series
+        +value_history(initial_value) Series
+        +metrics(risk_free_rate, levels) RiskMetrics
+        +correlation(frequency) DataFrame
+        +risk_contributions(frequency) DataFrame
+    }
+    class PortfolioBacktest {
+        +returns Series
+        +values Series
+        +weights DataFrame
+        +turnover Series
+        +staleness DataFrame
+        +rebalance_dates DatetimeIndex
+        +drawdown() Series
+    }
+    class RiskMetrics {
+        +float annualized_return
+        +float annualized_volatility
+        +float sharpe_ratio
+        +float sortino_ratio
+        +float calmar_ratio
+        +float max_drawdown
+        +tuple~TailRisk~ tail
+        +from_returns(returns, periods_per_year)$ RiskMetrics
+        +tail_risk(level, method) TailRisk
+    }
+    class TailRisk {
+        +float level
+        +VaRMethod method
+        +float value_at_risk
+        +float conditional_value_at_risk
     }
 
     CurrencyPair --> Currency
@@ -142,6 +176,10 @@ classDiagram
     Portfolio --> RebalancePolicy
     Portfolio --> Currency
     Portfolio ..> AlignedPanel : crea
+    Portfolio ..> PortfolioBacktest : crea
+    Portfolio ..> RiskMetrics : calcula
+    PriceSeries ..> RiskMetrics : calcula
+    RiskMetrics *-- TailRisk
 ```
 
 ## Responsabilidades
@@ -154,7 +192,9 @@ classDiagram
 | `PriceSeries` | Serie OHLCV o de cierre ajustado inmutable y validada; estadísticos automáticos al construirse |
 | `EconomicSeries` | Serie macro bitemporal *point-in-time* ([ADR-0009](../adr/0009-point-in-time-economic-series.md)) |
 | `AlignedPanel` | Alineación multiactivo sin inventar datos ([ADR-0008](../adr/0008-alignment-without-artificial-fill.md)) |
-| `Portfolio`, `Holding`, `RebalancePolicy` | Cartera con pesos validados (suma 1, cortos solo explícitos, misma divisa y frecuencia) |
+| `Portfolio`, `Holding`, `RebalancePolicy` | Cartera con pesos validados (suma 1, cortos solo explícitos, misma divisa y frecuencia), historia con rebalanceo, métricas, correlaciones y contribución al riesgo ([ADR-0013](../adr/0013-risk-metrics-and-portfolio-engine.md)) |
+| `PortfolioBacktest` | Trayectoria histórica: retornos, valor, pesos, rotación y antigüedad de las valoraciones |
+| `RiskMetrics`, `TailRisk` | Rentabilidad, volatilidad, Sharpe, Sortino, Calmar, drawdown y VaR/CVaR (histórico, normal y Cornish-Fisher) |
 
 ## Inmutabilidad
 

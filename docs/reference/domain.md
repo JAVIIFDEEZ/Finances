@@ -4,6 +4,8 @@
 
 ::: investinglab.domain.portfolio
 
+::: investinglab.domain.metrics
+
 ::: investinglab.domain.panel
 
 ::: investinglab.domain.economic

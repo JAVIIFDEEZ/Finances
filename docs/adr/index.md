@@ -19,6 +19,7 @@ actualiza el estado del antiguo.
 | [0010](0010-multi-provider-ingestion.md) | Ingesta multifuente: puertos, registro, routing con *fallback* y lotes | Aceptado |
 | [0011](0011-parquet-duckdb-cache.md) | Caché de datos de mercado en Parquet consultada con DuckDB | Aceptado |
 | [0012](0012-resilient-http-client.md) | Cliente HTTP común: reintentos, cuotas e higiene de secretos | Aceptado |
+| [0013](0013-risk-metrics-and-portfolio-engine.md) | Métricas de riesgo, correlaciones y motor de valoración de carteras | Aceptado |
 
 ## Cómo añadir un ADR
 

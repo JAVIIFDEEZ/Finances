@@ -7,7 +7,7 @@ un subpaquete público; se irán añadiendo a medida que se implementen las fase
 | Paquete | Contenido |
 |---------|-----------|
 | [`investinglab.domain`](domain.md) | Modelo de dominio: series, carteras, instrumentos, divisas, tiempo |
-| [`investinglab.analytics`](analytics.md) | Núcleo numérico: retornos, drawdown, estadísticos descriptivos |
+| [`investinglab.analytics`](analytics.md) | Núcleo numérico: retornos, drawdown, momentos, riesgo, covarianza y motor de carteras |
 | [`investinglab.ports`](ports.md) | Contratos de proveedores, caché y errores de proveedor |
 | [`investinglab.services`](services.md) | Casos de uso: ingesta multifuente con caché, *fallback* y lotes |
 | [`investinglab.adapters`](adapters.md) | Cliente HTTP resiliente y caché Parquet + DuckDB |
