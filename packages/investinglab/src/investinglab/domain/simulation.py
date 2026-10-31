@@ -20,7 +20,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Any, Final
 
 import numpy as np
 import pandas as pd
@@ -37,6 +37,8 @@ from investinglab.domain.errors import DomainError
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
+
+    from matplotlib.figure import Figure
 
 __all__ = [
     "MAX_SIMULATED_POINTS",
@@ -380,6 +382,17 @@ class SimulationResult:
             rows[f"cvar_{label}"] = cvar.value
             rows[f"drawdown_at_risk_{label}"] = self.drawdown_at_risk(level)
         return pd.DataFrame({"value": rows})
+
+    def plot(self, **options: Any) -> Figure:  # noqa: ANN401
+        """Fan chart of the paths and histogram of terminal values with VaR/CVaR.
+
+        Requires the ``plots`` extra (matplotlib). See
+        :func:`investinglab.reporting.simulation.simulation_figure` for the options.
+        """
+        # Lazy, documented exception to the layering (ADR-0016): plotting lives in reporting.
+        from investinglab.reporting.simulation import simulation_figure  # noqa: PLC0415
+
+        return simulation_figure(self, **options)
 
 
 def _check_level(level: float) -> None:
