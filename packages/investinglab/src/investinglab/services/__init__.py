@@ -9,6 +9,7 @@ from investinglab.services.market_data import (
     FetchFailure,
     MarketDataService,
 )
+from investinglab.services.quality import DataQualityService
 from investinglab.services.registry import ProviderRegistry
 from investinglab.services.risk_free import DEFAULT_RISK_FREE_SERIES, RiskFreeRateService
 
@@ -17,6 +18,7 @@ __all__ = [
     "BatchResult",
     "CachePolicy",
     "CurrencyService",
+    "DataQualityService",
     "DataUnavailableError",
     "FetchAttempt",
     "FetchFailure",
