@@ -5,6 +5,7 @@ The domain may use the numerical kernel (:mod:`investinglab.analytics`) but neve
 frameworks, plotting or configuration (enforced by import-linter).
 """
 
+from investinglab.domain.economic import EconomicSeries
 from investinglab.domain.errors import (
     DomainError,
     IncompatibleSeriesError,
@@ -67,6 +68,7 @@ __all__ = [
     "CurrencyPair",
     "DataSource",
     "DomainError",
+    "EconomicSeries",
     "Exchange",
     "Frequency",
     "Identifiers",
