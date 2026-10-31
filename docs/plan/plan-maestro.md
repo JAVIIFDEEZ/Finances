@@ -117,7 +117,8 @@ investinglab/
 - `packages/investinglab` es la librería del enunciado: se importa en un notebook sin API ni base de datos.
 - Como no declara FastAPI ni SQLAlchemy como dependencias, es imposible que el dominio las importe.
 - Dentro del núcleo, `import-linter` verifica en CI las reglas de capas:
-  - `domain` no importa nada del proyecto;
+  - `analytics` es un núcleo numérico puro por debajo del dominio (ver ADR-0002);
+  - `domain` solo importa `analytics`;
   - `services` solo depende de `ports`;
   - nadie salvo la fachada y el composition root importa `adapters`.
 - `apps/` contiene los entregables desplegables. Mañana puede añadirse `apps/worker` o `apps/cli` sin tocar el núcleo.
@@ -143,7 +144,7 @@ flowchart TB
     subgraph core[packages/investinglab · núcleo]
         FACADE[Toolkit · fachada pública]
         SERVICES[services · casos de uso]
-        ANALYTICS[analytics]
+        ANALYTICS[analytics · núcleo numérico]
         REPORTING[reporting]
         PORTS[ports · Protocols]
         DOMAIN[domain · dataclasses]
@@ -166,11 +167,10 @@ flowchart TB
     ROOT --> STORAGE
     FACADE --> SERVICES
     SERVICES --> PORTS
-    SERVICES --> ANALYTICS
     SERVICES --> REPORTING
-    ANALYTICS --> DOMAIN
     REPORTING --> DOMAIN
     PORTS --> DOMAIN
+    DOMAIN --> ANALYTICS
     PROVIDERS -.implementa.-> PORTS
     STORAGE -.implementa.-> PORTS
     PROVIDERS --> HTTPX --> EXT
@@ -178,7 +178,7 @@ flowchart TB
     PERSIST --> PG
 ```
 
-Las dependencias siempre apuntan hacia `domain`. Los adaptadores implementan los puertos y solo se instancian en dos composition roots: `Toolkit.from_settings()` para los notebooks y `bootstrap.py` para la API.
+Las dependencias siempre apuntan hacia el centro (`domain` y su núcleo numérico `analytics`). Los adaptadores implementan los puertos y solo se instancian en dos composition roots: `Toolkit.from_settings()` para los notebooks y `bootstrap.py` para la API.
 
 ---
 

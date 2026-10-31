@@ -36,10 +36,15 @@ Opción elegida: **monorepo con el núcleo como paquete independiente** y arquit
   dominio **no puede** importarlos.
 * `apps/api` (FastAPI) y `apps/web` (Next.js) son entregables desplegables que consumen el
   núcleo. Pueden añadirse `apps/worker` o `apps/cli` sin tocarlo.
-* Dentro del núcleo, `import-linter` impone las capas:
-  `toolkit → modules → services | adapters → reporting → analytics | ports → domain`.
+* Dentro del núcleo, `import-linter` impone las capas (de fuera hacia dentro):
+  `toolkit → modules → services | adapters → reporting | ports → domain → analytics`.
   El dominio no importa I/O, frameworks ni librerías de gráficos; los casos de uso dependen
   de puertos, nunca de adaptadores concretos.
+* `analytics` es un **núcleo funcional** (*functional core*): funciones numéricas puras sobre
+  arrays y series de NumPy/pandas, sin tipos del dominio, sin I/O y sin gráficos. Está por
+  debajo del dominio para que las dataclasses (`PriceSeries`, `Portfolio`) puedan exponer
+  sus estadísticos y su Monte Carlo como métodos propios, tal y como exige el enunciado
+  B1-T1, sin dependencias circulares. Es la misma relación que tiene el dominio con NumPy.
 
 ### Consecuencias
 

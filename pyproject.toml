@@ -203,9 +203,9 @@ layers = [
   "(investinglab.toolkit)",
   "investinglab.modules",
   "investinglab.services : investinglab.adapters",
-  "investinglab.reporting",
-  "investinglab.analytics : investinglab.ports",
+  "investinglab.reporting : investinglab.ports",
   "investinglab.domain",
+  "investinglab.analytics",
 ]
 containers = []
 exhaustive = false
@@ -228,10 +228,13 @@ forbidden_modules = [
 ]
 
 [[tool.importlinter.contracts]]
-name = "Analytics is computational: no I/O, no plotting"
+name = "Analytics is a pure numerical kernel: no I/O, no plotting, no configuration"
 type = "forbidden"
 source_modules = ["investinglab.analytics"]
 forbidden_modules = [
+  "investinglab.config",
+  "structlog",
+  "pydantic_settings",
   "httpx",
   "yfinance",
   "duckdb",

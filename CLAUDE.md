@@ -19,9 +19,9 @@ con lo aprendido en el Máster MIAX. Objetivo de calidad: repositorio profesiona
 ```
 packages/investinglab/   núcleo: librería Python pura (usable desde un notebook)
   src/investinglab/
-    domain/      dataclasses frozen+slots, sin I/O            ← capa más interna
+    analytics/   núcleo funcional: cálculo numérico puro       ← capa más interna
+    domain/      dataclasses frozen+slots, sin I/O (usa analytics)
     ports/       Protocols que el núcleo espera del exterior
-    analytics/   cálculo cuantitativo puro
     reporting/   Markdown + matplotlib/seaborn
     services/    casos de uso (orquestan puertos/analytics/reporting)
     adapters/    http/, providers/<proveedor>/, storage/ (implementan puertos)
@@ -34,8 +34,8 @@ docs/            Zensical: adr/, architecture/, plan/, reference/, modules/
 
 ## Reglas de arquitectura (verificadas por `lint-imports`)
 
-1. Dependencias siempre hacia dentro: `toolkit → modules → services | adapters → reporting →
-   analytics | ports → domain`.
+1. Dependencias siempre hacia dentro: `toolkit → modules → services | adapters → reporting |
+   ports → domain → analytics`. `analytics` trabaja con arrays/series y no conoce el dominio.
 2. `domain` no importa I/O, frameworks, gráficos ni `config`.
 3. `services` y `ports` dependen de abstracciones, nunca de `httpx`, `duckdb`, `yfinance`…
 4. Cero lógica de negocio en routers de la API: validar → llamar caso de uso → mapear schema.
