@@ -1,0 +1,84 @@
+# Every hook runs from the project's virtual environment through `uv run --frozen`, so hook
+# versions are pinned by uv.lock (single source of truth) and no remote hook repository is
+# ever cloned. Install with `just setup`.
+default_install_hook_types: [pre-commit, commit-msg]
+default_stages: [pre-commit]
+exclude: ^(docs/enunciados/|uv\.lock$)
+
+repos:
+  - repo: local
+    hooks:
+      # ── Hygiene ──────────────────────────────────────────────────────
+      - id: trailing-whitespace
+        name: trim trailing whitespace
+        entry: uv run --frozen trailing-whitespace-fixer
+        language: system
+        types: [text]
+        exclude: \.md$
+      - id: end-of-file-fixer
+        name: fix end of files
+        entry: uv run --frozen end-of-file-fixer
+        language: system
+        types: [text]
+      - id: check-merge-conflict
+        name: check for merge conflicts
+        entry: uv run --frozen check-merge-conflict
+        language: system
+        types: [text]
+      - id: check-yaml
+        name: check yaml
+        entry: uv run --frozen check-yaml --unsafe
+        language: system
+        types: [yaml]
+      - id: check-toml
+        name: check toml
+        entry: uv run --frozen check-toml
+        language: system
+        types: [toml]
+      - id: check-added-large-files
+        name: check for added large files
+        entry: uv run --frozen check-added-large-files --maxkb=1024
+        language: system
+
+      # ── Secrets ──────────────────────────────────────────────────────
+      - id: detect-private-key
+        name: detect private keys
+        entry: uv run --frozen detect-private-key
+        language: system
+        types: [text]
+      - id: detect-secrets
+        name: detect secrets
+        entry: uv run --frozen detect-secrets-hook --baseline .secrets.baseline
+        language: system
+        types: [text]
+
+      # ── Python ───────────────────────────────────────────────────────
+      - id: ruff-check
+        name: ruff check
+        entry: uv run --frozen ruff check --fix --exit-non-zero-on-fix
+        language: system
+        types_or: [python, pyi]
+      - id: ruff-format
+        name: ruff format
+        entry: uv run --frozen ruff format
+        language: system
+        types_or: [python, pyi]
+      - id: import-linter
+        name: import-linter (architecture contracts)
+        entry: uv run --frozen lint-imports
+        language: system
+        pass_filenames: false
+        types: [python]
+      - id: mypy
+        name: mypy --strict
+        entry: uv run --frozen mypy
+        language: system
+        pass_filenames: false
+        types_or: [python, pyi]
+
+      # ── Commit messages ──────────────────────────────────────────────
+      - id: conventional-commit
+        name: conventional commit message
+        entry: uv run --frozen conventional-pre-commit --strict build chore ci docs feat fix perf refactor revert style test
+        language: system
+        stages: [commit-msg]
