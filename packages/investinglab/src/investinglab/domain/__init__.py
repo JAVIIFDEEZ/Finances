@@ -33,6 +33,15 @@ from investinglab.domain.money import (
     QuoteUnit,
     parse_quote_currency,
 )
+from investinglab.domain.series import (
+    MIN_OBSERVATIONS,
+    DataSource,
+    PriceAdjustment,
+    PriceField,
+    PriceSeries,
+    ReturnKind,
+    SeriesStats,
+)
 from investinglab.domain.time import (
     CRYPTO_SCHEDULE,
     EQUITY_SCHEDULE,
@@ -50,11 +59,13 @@ __all__ = [
     "FX_SCHEDULE",
     "GBP",
     "JPY",
+    "MIN_OBSERVATIONS",
     "USD",
     "AssetClass",
     "Currency",
     "CurrencyKind",
     "CurrencyPair",
+    "DataSource",
     "DomainError",
     "Exchange",
     "Frequency",
@@ -66,7 +77,12 @@ __all__ = [
     "InvalidSeriesError",
     "InvestingLabError",
     "MarketSchedule",
+    "PriceAdjustment",
+    "PriceField",
+    "PriceSeries",
     "QuoteUnit",
+    "ReturnKind",
+    "SeriesStats",
     "UnknownCurrencyError",
     "parse_quote_currency",
 ]
