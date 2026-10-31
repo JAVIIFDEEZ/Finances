@@ -16,6 +16,7 @@ __all__ = [
     "correlation_from_covariance",
     "covariance_matrix",
     "is_positive_semidefinite",
+    "ledoit_wolf",
     "nearest_positive_semidefinite",
 ]
 
@@ -66,3 +67,40 @@ def correlation_from_covariance(covariance: pd.DataFrame) -> pd.DataFrame:
     correlation = np.clip(correlation, -1.0, 1.0)
     np.fill_diagonal(correlation, np.where(std > 0, 1.0, np.nan))
     return pd.DataFrame(correlation, index=covariance.index, columns=covariance.columns)
+
+
+def ledoit_wolf(observations: np.ndarray) -> tuple[np.ndarray, float]:
+    """Ledoit-Wolf (2004) shrinkage covariance towards a scaled identity matrix.
+
+    The sample covariance of many assets estimated on few observations is noisy and
+    ill-conditioned; shrinking it towards ``m * I`` (``m`` = average variance) with the
+    optimal intensity reduces the estimation error. The trace (total variance) is kept.
+
+    Args:
+        observations: Complete observations, one row per period and one column per asset.
+
+    Returns:
+        The shrunk covariance (per period, maximum-likelihood scaling) and the shrinkage
+        intensity in ``[0, 1]`` (0 = sample covariance, 1 = scaled identity).
+
+    Raises:
+        ValueError: With fewer than two observations or any missing value.
+    """
+    data = np.asarray(observations, dtype="float64")
+    if data.ndim != 2 or data.shape[0] < 2:  # noqa: PLR2004
+        raise ValueError("Ledoit-Wolf needs a 2-D array with at least two observations")
+    if not np.isfinite(data).all():
+        raise ValueError("Ledoit-Wolf needs complete observations (no NaN)")
+    n, p = data.shape
+    centred = data - data.mean(axis=0)
+    sample = centred.T @ centred / n
+    target_scale = float(np.trace(sample)) / p
+    frobenius_sample = float(np.sum(sample**2))
+    dispersion = (frobenius_sample - p * target_scale**2) / p
+    if dispersion <= 0.0:
+        return sample, 0.0
+    fourth = float(np.sum(np.sum(centred**2, axis=1) ** 2))
+    noise = (fourth / n - frobenius_sample) / (n * p)
+    shrinkage = float(np.clip(noise / dispersion, 0.0, 1.0))
+    shrunk = shrinkage * target_scale * np.eye(p) + (1.0 - shrinkage) * sample
+    return shrunk, shrinkage
