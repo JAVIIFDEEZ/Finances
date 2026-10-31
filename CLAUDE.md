@@ -39,8 +39,9 @@ docs/            Zensical: adr/, architecture/, plan/, reference/, modules/
 2. `domain` no importa I/O, frameworks, gráficos ni `config`.
 3. `services` y `ports` dependen de abstracciones, nunca de `httpx`, `duckdb`, `yfinance`…
 4. Cero lógica de negocio en routers de la API: validar → llamar caso de uso → mapear schema.
-5. Nuevo proveedor = nuevo adaptador en `adapters/providers/<nombre>/` que implementa el puerto
-   y se registra. Nada más cambia.
+5. Nuevo proveedor = nuevo adaptador en `adapters/providers/<nombre>/` que implementa
+   `MarketDataProvider` y/o `EconomicDataProvider`, declara sus `ProviderCapabilities`, usa
+   `HttpClient` para la red y se registra en `ProviderRegistry`. Nada más cambia.
 6. Nuevo bloque del máster = nuevo paquete en `modules/` que se registra. Lo reutilizable va al
    núcleo (`analytics`, `services`…), no se queda atrapado dentro del módulo.
 
@@ -62,7 +63,8 @@ docs/            Zensical: adr/, architecture/, plan/, reference/, modules/
   API, configuración).
 - pandas y NumPy en la interfaz pública.
 - Docstrings estilo Google en todo lo público. Imports absolutos (`ban-relative-imports`).
-- Nada de `print`: usa `investinglab.config.get_logger(__name__)`.
+- Nada de `print`: usa `investinglab.config.get_logger(__name__)`. Los logs enmascaran
+  credenciales (`api_key=`, `token=`…) automáticamente; aun así, nunca registres secretos.
 - Idioma ([ADR-0004](docs/adr/0004-language-policy.md)): código, docstrings, commits y API en
   inglés; docs, ADRs y este fichero en español; UI e informes bilingües.
 
@@ -104,6 +106,8 @@ uv run just docs              # web de documentación con recarga en vivo
 ## Seguridad
 
 - Nunca commitear secretos: `.env` está ignorado; `detect-secrets` corre en cada commit.
+- Credenciales de proveedores solo por entorno (`INVESTINGLAB_FRED_API_KEY`,
+  `INVESTINGLAB_ALPHAVANTAGE_API_KEY`…) como `SecretStr`. Nunca en código, tests ni chat.
   Si aparece un falso positivo, actualiza `.secrets.baseline` con
   `uv run detect-secrets scan --baseline .secrets.baseline`.
 - Nunca commitear material de clase: `docs/enunciados/` está ignorado.

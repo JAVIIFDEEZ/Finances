@@ -16,6 +16,9 @@ actualiza el estado del antiguo.
 | [0007](0007-time-representation.md) | Representación temporal: UTC en intradía y etiquetas de sesión en diario | Aceptado |
 | [0008](0008-alignment-without-artificial-fill.md) | Alineación de calendarios sin relleno artificial | Aceptado |
 | [0009](0009-point-in-time-economic-series.md) | Series macroeconómicas bitemporales (*point-in-time*) | Aceptado |
+| [0010](0010-multi-provider-ingestion.md) | Ingesta multifuente: puertos, registro, routing con *fallback* y lotes | Aceptado |
+| [0011](0011-parquet-duckdb-cache.md) | Caché de datos de mercado en Parquet consultada con DuckDB | Aceptado |
+| [0012](0012-resilient-http-client.md) | Cliente HTTP común: reintentos, cuotas e higiene de secretos | Aceptado |
 
 ## Cómo añadir un ADR
 

@@ -55,5 +55,6 @@ Las reglas no dependen de la disciplina: `import-linter` las comprueba en cada c
 - casos de uso y puertos no importan infraestructura concreta.
 
 - [Modelo de dominio y diagrama de clases](domain.md)
+- [Ingesta de datos de mercado y diagrama de secuencia](ingestion.md)
 
 El diagrama de secuencia (ingesta → cartera → simulación → reporte) se añadirá con las fases F2–F5.
