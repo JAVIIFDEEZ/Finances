@@ -151,7 +151,8 @@ enable_error_code = ["ignore-without-code", "redundant-expr", "truthy-bool", "po
 files = ["packages/investinglab/src", "packages/investinglab/tests"]
 
 [[tool.mypy.overrides]]
-module = ["exchange_calendars.*", "yfinance.*"]
+# No typing information shipped (pyarrow-stubs lag several major versions behind).
+module = ["exchange_calendars.*", "yfinance.*", "pyarrow.*"]
 ignore_missing_imports = true
 
 [tool.pydantic-mypy]
