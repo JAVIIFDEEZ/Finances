@@ -224,6 +224,7 @@ type = "forbidden"
 source_modules = ["investinglab.domain"]
 forbidden_modules = [
   "investinglab.config",
+  "exchange_calendars",
   "httpx",
   "yfinance",
   "duckdb",
@@ -256,4 +257,4 @@ forbidden_modules = [
 name = "Use cases depend on ports, never on concrete infrastructure"
 type = "forbidden"
 source_modules = ["investinglab.services", "investinglab.ports"]
-forbidden_modules = ["httpx", "yfinance", "duckdb", "pyarrow", "fsspec"]
+forbidden_modules = ["httpx", "yfinance", "duckdb", "pyarrow", "fsspec", "exchange_calendars"]
