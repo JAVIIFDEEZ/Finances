@@ -14,6 +14,7 @@ from investinglab.domain import (
     AssetClass,
     Currency,
     DataSource,
+    EconomicSeries,
     Exchange,
     Frequency,
     Instrument,
@@ -110,3 +111,27 @@ def gbm_prices(
     shocks = rng.standard_normal(n - 1)
     log_steps = (mu - 0.5 * sigma**2) * dt + sigma * np.sqrt(dt) * shocks
     return s0 * np.exp(np.concatenate([[0.0], np.cumsum(log_steps)]))
+
+
+def make_economic_series(
+    series_id: str = "SYNTH_RATE",
+    rows: Sequence[tuple[str, str, float]] = (
+        ("2024-01-01", "2024-02-05", 3.5),
+        ("2024-01-01", "2024-03-07", 3.6),
+        ("2024-02-01", "2024-03-07", 3.8),
+        ("2024-03-01", "2024-04-05", 3.9),
+    ),
+) -> EconomicSeries:
+    """A synthetic monthly economic series with one revised observation."""
+    data = pd.DataFrame(list(rows), columns=["observation_date", "published_at", "value"])
+    data["observation_date"] = pd.to_datetime(data["observation_date"])
+    data["published_at"] = pd.to_datetime(data["published_at"])
+    return EconomicSeries(
+        series_id=series_id,
+        title=f"Synthetic {series_id}",
+        units="Percent",
+        frequency=Frequency.MONTH_1,
+        source=SYNTHETIC_SOURCE,
+        data=data,
+        seasonal_adjustment="NSA",
+    )
