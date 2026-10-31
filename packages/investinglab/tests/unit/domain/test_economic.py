@@ -113,3 +113,16 @@ def test_invalid_observations_are_rejected(
 def test_non_dataframe_is_rejected() -> None:
     with pytest.raises(InvalidSeriesError):
         EconomicSeries("X", "x", "u", Frequency.DAY_1, SYNTHETIC_SOURCE, [1, 2])  # type: ignore[arg-type]
+
+
+def test_between_filters_observations_and_keeps_vintages() -> None:
+    series = _unrate(REVISED)
+
+    january = series.between("2024-01-01", "2024-01-31")
+
+    assert january.first_release().tolist() == [3.5]
+    assert january.has_revisions
+    assert january.title == series.title
+    assert series.between(start="2024-02-01").latest().tolist() == [3.8]
+    with pytest.raises(InvalidSeriesError):
+        series.between("2025-01-01")

@@ -35,7 +35,7 @@ from investinglab.domain.errors import DomainError, InvalidSeriesError
 from investinglab.domain.time import Frequency
 
 if TYPE_CHECKING:
-    from datetime import datetime
+    from datetime import date, datetime
 
     from investinglab.domain.instruments import AssetClass, Instrument
     from investinglab.domain.money import Currency
@@ -262,7 +262,8 @@ def _validated_bars(data: object, frequency: Frequency, subject: str) -> pd.Data
     bars = _validate_columns(data, problems)
     if problems:
         raise InvalidSeriesError(subject, problems)
-    bars.index = index.rename(TIME_INDEX_NAME)
+    # Canonical nanosecond resolution: sources (CSV, Parquet, DuckDB) differ in time units.
+    bars.index = pd.DatetimeIndex(index).as_unit("ns").rename(TIME_INDEX_NAME)
     bars.columns.name = None
     return bars
 
@@ -437,11 +438,30 @@ class PriceSeries:
 
     def between(
         self,
-        start: datetime | pd.Timestamp | str | None = None,
-        end: datetime | pd.Timestamp | str | None = None,
+        start: date | datetime | pd.Timestamp | str | None = None,
+        end: date | datetime | pd.Timestamp | str | None = None,
     ) -> PriceSeries:
-        """Sub-series with timestamps in ``[start, end]`` (both inclusive)."""
-        return self.with_bars(self._bars.loc[start:end])
+        """Sub-series with timestamps in ``[start, end]`` (both inclusive).
+
+        For intraday series, naive bounds are session dates in the market timezone: the
+        start includes that whole day and the end includes every bar of its day.
+        """
+        lower = self._bound(start, is_end=False)
+        upper = self._bound(end, is_end=True)
+        return self.with_bars(self._bars.loc[lower:upper])
+
+    def _bound(
+        self, value: date | datetime | pd.Timestamp | str | None, *, is_end: bool
+    ) -> pd.Timestamp | None:
+        if value is None:
+            return None
+        stamp = pd.Timestamp(value)
+        if not self.frequency.is_intraday or stamp.tzinfo is not None:
+            return stamp
+        day = stamp.normalize().tz_localize(self.instrument.timezone)
+        if is_end:
+            day += pd.Timedelta(days=1) - pd.Timedelta(1, unit="ns")
+        return day.tz_convert("UTC")
 
     def resample(self, frequency: Frequency | str) -> PriceSeries:
         """Aggregate the bars to a coarser frequency.
