@@ -40,6 +40,7 @@ from investinglab.domain.portfolio import (
     WEIGHT_TOLERANCE,
     Holding,
     Portfolio,
+    PortfolioBacktest,
     RebalanceKind,
     RebalancePolicy,
 )
@@ -94,6 +95,7 @@ __all__ = [
     "InvestingLabError",
     "MarketSchedule",
     "Portfolio",
+    "PortfolioBacktest",
     "PriceAdjustment",
     "PriceField",
     "PriceSeries",
