@@ -1,0 +1,251 @@
+#
+# InvestingLab — uv workspace root.
+#
+# The root is a *virtual* project: it is never built or published. It only
+# declares the workspace members, the shared development toolchain and the
+# configuration of every quality tool (single source of truth).
+#
+[project]
+name = "investinglab-workspace"
+version = "0.0.0"
+description = "InvestingLab monorepo workspace root (not distributable)."
+requires-python = ">=3.13"
+dependencies = []
+
+[dependency-groups]
+dev = [
+  "investinglab",
+  # Lint, format and architecture rules
+  "ruff>=0.17.3",
+  "import-linter>=2.15",
+  # Type checking
+  "mypy>=2.4.1",
+  "pandas-stubs>=3.1.0.261029",
+  # Testing
+  "pytest>=9.2.0",
+  "pytest-cov>=7.1.0",
+  "pytest-asyncio>=1.4.1",
+  "hypothesis>=6.170.14",
+  "respx>=0.23.1",
+  # Git hooks (all hooks run locally through uv: no remote hook repositories)
+  "pre-commit>=4.7.0",
+  "pre-commit-hooks>=6.0.0",
+  "conventional-pre-commit>=4.2.0",
+  "detect-secrets>=1.5.0",
+  # Task runner (pinned through the lockfile, like every other tool)
+  "rust-just>=1.42.0",
+]
+docs = [
+  "zensical>=0.0.74",
+  "mkdocstrings-python>=2.0.10",
+]
+
+[tool.uv]
+package = false
+default-groups = ["dev", "docs"]
+
+[tool.uv.workspace]
+members = ["packages/*"]
+
+[tool.uv.sources]
+investinglab = { workspace = true }
+
+# ──────────────────────────────────────────────────────────────────────
+# Ruff — lint + format
+# ──────────────────────────────────────────────────────────────────────
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+src = ["packages/investinglab/src", "packages/investinglab/tests"]
+extend-exclude = ["docs/enunciados"]
+
+[tool.ruff.lint]
+select = [
+  "A",     # flake8-builtins
+  "ANN",   # flake8-annotations
+  "ASYNC", # flake8-async
+  "B",     # flake8-bugbear
+  "C4",    # flake8-comprehensions
+  "D",     # pydocstyle
+  "DTZ",   # flake8-datetimez (no naive datetimes)
+  "E",     # pycodestyle errors
+  "EM",    # flake8-errmsg
+  "ERA",   # eradicate (commented-out code)
+  "F",     # pyflakes
+  "FBT",   # flake8-boolean-trap
+  "FURB",  # refurb
+  "G",     # flake8-logging-format
+  "I",     # isort
+  "ICN",   # import conventions (np, pd, plt)
+  "ISC",   # implicit string concatenation
+  "LOG",   # flake8-logging
+  "N",     # pep8-naming
+  "NPY",   # numpy-specific rules
+  "PERF",  # perflint
+  "PGH",   # pygrep-hooks
+  "PIE",   # flake8-pie
+  "PL",    # pylint
+  "PT",    # flake8-pytest-style
+  "PTH",   # use pathlib
+  "RET",   # flake8-return
+  "RSE",   # flake8-raise
+  "RUF",   # ruff-specific rules
+  "S",     # flake8-bandit (security)
+  "SIM",   # flake8-simplify
+  "SLF",   # private member access
+  "T20",   # no print()
+  "TC",    # type-checking imports
+  "TID",   # tidy imports
+  "TRY",   # tryceratops
+  "UP",    # pyupgrade
+  "W",     # pycodestyle warnings
+]
+ignore = [
+  "D105",    # magic methods are self-explanatory
+  "D107",    # __init__ is documented on the class
+  "COM812",  # conflicts with the formatter
+  "ISC001",  # conflicts with the formatter
+  "TRY003",  # long messages in domain exceptions are intentional
+  "PLR0913", # explicit keyword-only parameters are preferred to config bags
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "all"
+
+[tool.ruff.lint.flake8-type-checking]
+runtime-evaluated-base-classes = ["pydantic.BaseModel", "pydantic_settings.BaseSettings"]
+
+[tool.ruff.lint.per-file-ignores]
+"**/tests/**" = [
+  "ANN",     # fixtures and tests do not need full annotations
+  "D",       # test names are the documentation
+  "FBT",     # boolean parametrisation is fine in tests
+  "PLR2004", # magic values are the point of assertions
+  "S101",    # assert is pytest's API
+  "SLF001",  # tests may inspect internals
+]
+
+[tool.ruff.format]
+docstring-code-format = true
+
+# ──────────────────────────────────────────────────────────────────────
+# Mypy — strict type checking
+# ──────────────────────────────────────────────────────────────────────
+[tool.mypy]
+python_version = "3.13"
+strict = true
+plugins = ["pydantic.mypy"]
+mypy_path = ["packages/investinglab/src"]
+explicit_package_bases = true
+warn_unreachable = true
+enable_error_code = ["ignore-without-code", "redundant-expr", "truthy-bool", "possibly-undefined"]
+files = ["packages/investinglab/src", "packages/investinglab/tests"]
+
+[[tool.mypy.overrides]]
+module = ["exchange_calendars.*", "yfinance.*"]
+ignore_missing_imports = true
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true
+
+# ──────────────────────────────────────────────────────────────────────
+# Pytest + coverage
+# ──────────────────────────────────────────────────────────────────────
+[tool.pytest.ini_options]
+minversion = "9.0"
+testpaths = ["packages/investinglab/tests"]
+addopts = [
+  "-ra",
+  "--strict-markers",
+  "--strict-config",
+  "--import-mode=importlib",
+]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+xfail_strict = true
+filterwarnings = ["error"]
+markers = [
+  "integration: crosses a process boundary (database, filesystem-heavy).",
+  "network: performs real HTTP calls; never runs in CI.",
+]
+
+[tool.coverage.run]
+source = ["investinglab"]
+branch = true
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true
+skip_covered = true
+exclude_also = [
+  "if TYPE_CHECKING:",
+  "raise NotImplementedError",
+  "@overload",
+  "^\\s*\\.\\.\\.$",
+]
+
+# ──────────────────────────────────────────────────────────────────────
+# Import Linter — hexagonal architecture rules, enforced in CI
+# ──────────────────────────────────────────────────────────────────────
+[tool.importlinter]
+root_packages = ["investinglab"]
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "Hexagonal layers (outer layers may import inner ones, never the reverse)"
+type = "layers"
+layers = [
+  "(investinglab.toolkit)",
+  "investinglab.modules",
+  "investinglab.services : investinglab.adapters",
+  "investinglab.reporting : investinglab.ports",
+  "investinglab.domain",
+  "investinglab.analytics",
+]
+containers = []
+exhaustive = false
+
+[[tool.importlinter.contracts]]
+name = "The domain is pure: no I/O, no frameworks, no plotting"
+type = "forbidden"
+source_modules = ["investinglab.domain"]
+forbidden_modules = [
+  "investinglab.config",
+  "httpx",
+  "yfinance",
+  "duckdb",
+  "pyarrow",
+  "fsspec",
+  "matplotlib",
+  "seaborn",
+  "structlog",
+  "pydantic_settings",
+]
+
+[[tool.importlinter.contracts]]
+name = "Analytics is a pure numerical kernel: no I/O, no plotting, no configuration"
+type = "forbidden"
+source_modules = ["investinglab.analytics"]
+forbidden_modules = [
+  "investinglab.config",
+  "structlog",
+  "pydantic_settings",
+  "httpx",
+  "yfinance",
+  "duckdb",
+  "pyarrow",
+  "fsspec",
+  "matplotlib",
+  "seaborn",
+]
+
+[[tool.importlinter.contracts]]
+name = "Use cases depend on ports, never on concrete infrastructure"
+type = "forbidden"
+source_modules = ["investinglab.services", "investinglab.ports"]
+forbidden_modules = ["httpx", "yfinance", "duckdb", "pyarrow", "fsspec"]

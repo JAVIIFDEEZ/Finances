@@ -1,0 +1,83 @@
+name: Python
+
+on:
+  pull_request:
+  push:
+    branches: [development, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: python-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  UV_LOCKED: "1"
+  FORCE_COLOR: "1"
+
+jobs:
+  quality:
+    name: Lint, typecheck & test (py${{ matrix.python }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ matrix.python }}
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install dependencies
+        run: uv sync --all-groups
+
+      - name: Lint (ruff + import-linter)
+        run: uv run just lint
+
+      - name: Typecheck (mypy --strict)
+        run: uv run just typecheck
+
+      - name: Test (pytest + coverage gate)
+        run: uv run just test --cov-report=xml
+
+      - name: Upload coverage report
+        if: matrix.python == '3.14'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-xml
+          path: coverage.xml
+          retention-days: 14
+
+  hooks:
+    name: Pre-commit hooks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - run: uv sync --all-groups
+      - name: Run every hook on every file
+        run: uv run pre-commit run --all-files --show-diff-on-failure
+
+  docs:
+    name: Documentation build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+      - run: uv sync --all-groups
+      - run: uv run just docs-build

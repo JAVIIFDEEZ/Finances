@@ -1,0 +1,26 @@
+version: 2
+updates:
+  - package-ecosystem: uv
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    target-branch: development
+    groups:
+      python-dependencies:
+        patterns: ["*"]
+    commit-message:
+      prefix: build
+      include: scope
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    target-branch: development
+    groups:
+      github-actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: ci
