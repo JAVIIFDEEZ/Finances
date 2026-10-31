@@ -15,6 +15,7 @@ from investinglab.domain.errors import (
     InvestingLabError,
     UnknownCurrencyError,
 )
+from investinglab.domain.fx import DEFAULT_MAX_STALENESS, FxRates, currency_attribution
 from investinglab.domain.instruments import (
     EXCHANGES,
     AssetClass,
@@ -65,6 +66,7 @@ __all__ = [
     "CHF",
     "CRYPTO_SCHEDULE",
     "DEFAULT_CONFIDENCE_LEVELS",
+    "DEFAULT_MAX_STALENESS",
     "EQUITY_SCHEDULE",
     "EUR",
     "EXCHANGES",
@@ -85,6 +87,7 @@ __all__ = [
     "EconomicSeries",
     "Exchange",
     "Frequency",
+    "FxRates",
     "Holding",
     "Identifiers",
     "IncompatibleSeriesError",
@@ -108,5 +111,6 @@ __all__ = [
     "TailRisk",
     "UnknownCurrencyError",
     "align",
+    "currency_attribution",
     "parse_quote_currency",
 ]

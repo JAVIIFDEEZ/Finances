@@ -135,3 +135,21 @@ def make_economic_series(
         data=data,
         seasonal_adjustment="NSA",
     )
+
+
+def make_fx_series(
+    rates: Sequence[float] | np.ndarray,
+    *,
+    pair: str = "EURUSD",
+    index: pd.DatetimeIndex | None = None,
+) -> PriceSeries:
+    """A synthetic FX series (``EURUSD=X`` quoted in USD by default)."""
+    quote = Currency(pair[3:])
+    return make_series(
+        rates,
+        symbol=f"{pair}=X",
+        index=index,
+        currency=quote,
+        asset_class=AssetClass.FX,
+        exchange=EXCHANGES["FX"],
+    )
