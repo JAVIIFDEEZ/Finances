@@ -12,4 +12,6 @@
 
 ::: investinglab.analytics.portfolio
 
+::: investinglab.analytics.montecarlo
+
 ::: investinglab.analytics.quality

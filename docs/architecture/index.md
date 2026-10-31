@@ -56,5 +56,6 @@ Las reglas no dependen de la disciplina: `import-linter` las comprueba en cada c
 
 - [Modelo de dominio y diagrama de clases](domain.md)
 - [Ingesta de datos de mercado y diagrama de secuencia](ingestion.md)
+- [Simulación de Monte Carlo y diagrama de flujo](simulation.md)
 
 El diagrama de secuencia (ingesta → cartera → simulación → reporte) se añadirá con las fases F2–F5.

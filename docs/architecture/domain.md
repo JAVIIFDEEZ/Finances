@@ -86,6 +86,7 @@ classDiagram
         +metrics(risk_free_rate, levels) RiskMetrics
         +beta(benchmark) float
         +quality(expected_sessions) DataQualityReport
+        +monte_carlo(config) SimulationResult
     }
     class FxRates {
         +CurrencyPair pair
@@ -150,6 +151,7 @@ classDiagram
         +metrics(risk_free_rate, levels) RiskMetrics
         +correlation(frequency) DataFrame
         +risk_contributions(frequency) DataFrame
+        +monte_carlo(config) SimulationResult
     }
     class PortfolioBacktest {
         +returns Series
@@ -177,6 +179,43 @@ classDiagram
         +float value_at_risk
         +float conditional_value_at_risk
     }
+    class SimulationConfig {
+        +int n_paths
+        +int horizon
+        +SimulationModel model
+        +DriftAssumption drift
+        +VolatilityAssumption volatility
+        +CovarianceEstimator covariance
+        +int seed
+        +float initial_value
+    }
+    class Calibration {
+        +tuple~str~ symbols
+        +ndarray mean_log_return
+        +ndarray covariance
+        +float shrinkage
+        +annual_volatility Series
+        +annual_expected_return Series
+        +correlation DataFrame
+    }
+    class SimulationResult {
+        +SimulationConfig config
+        +Calibration calibration
+        +Timestamp start
+        +values() ndarray
+        +percentile_paths(percentiles) DataFrame
+        +value_at_risk(level) RiskEstimate
+        +conditional_value_at_risk(level) RiskEstimate
+        +drawdown_at_risk(level) float
+        +summary() DataFrame
+        +plot() Figure
+    }
+    class RiskEstimate {
+        +float value
+        +float lower
+        +float upper
+        +float standard_error
+    }
 
     CurrencyPair --> Currency
     Exchange --> MarketSchedule
@@ -199,6 +238,11 @@ classDiagram
     FxRates --> CurrencyPair
     FxRates ..> PriceSeries : convierte
     PriceSeries ..> DataQualityReport : diagnostica
+    Portfolio ..> SimulationResult : simula
+    PriceSeries ..> SimulationResult : simula
+    SimulationResult --> SimulationConfig
+    SimulationResult *-- Calibration
+    SimulationResult ..> RiskEstimate : estima
 ```
 
 ## Responsabilidades
@@ -216,6 +260,7 @@ classDiagram
 | `FxRates` | Tipos de cambio validados y conversión *as-of* sin rellenar ([ADR-0014](../adr/0014-currency-conversion-and-risk-free-rate.md)) |
 | `DataQualityReport`, `QualityIssue` | Diagnóstico de calidad: outliers, splits sospechosos, precios congelados, OHLC incoherente, sesiones ausentes ([ADR-0015](../adr/0015-data-quality-diagnostics.md)) |
 | `RiskMetrics`, `TailRisk` | Rentabilidad, volatilidad, Sharpe, Sortino, Calmar, drawdown y VaR/CVaR (histórico, normal y Cornish-Fisher) |
+| `SimulationConfig`, `SimulationResult`, `Calibration`, `RiskEstimate` | Monte Carlo (GBM, Student-t, *bootstrap*) con la política de rebalanceo de la cartera, VaR/CVaR con intervalo de confianza y visualización ([ADR-0016](../adr/0016-monte-carlo-engine.md)) |
 
 ## Inmutabilidad
 
