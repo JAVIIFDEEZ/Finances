@@ -6,4 +6,6 @@ un subpaquete público; se irán añadiendo a medida que se implementen las fase
 
 | Paquete | Contenido |
 |---------|-----------|
+| [`investinglab.domain`](domain.md) | Modelo de dominio: series, carteras, instrumentos, divisas, tiempo |
+| [`investinglab.analytics`](analytics.md) | Núcleo numérico: retornos, drawdown, estadísticos descriptivos |
 | [`investinglab.config`](config.md) | Configuración validada y logging estructurado |

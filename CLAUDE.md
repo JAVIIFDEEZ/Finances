@@ -86,6 +86,8 @@ uv run just docs              # web de documentación con recarga en vivo
   **reales grabadas** en `tests/fixtures/` (`just record-fixtures` a partir de F2).
 - Los datos sintéticos (p. ej. GBM con semilla) van en una carpeta aparte y se nombran como
   sintéticos. Nunca se presentan como datos de mercado reales.
+- Factorías y estrategias de Hypothesis en `tests/support/` (importables como `support.*`):
+  generan datos **sintéticos** con proveedor `synthetic`.
 - Property-based testing con `hypothesis` para estadísticos y Monte Carlo.
 - Marcadores: `integration` (BD, filesystem pesado) y `network` (nunca en CI).
 
