@@ -1,0 +1,51 @@
+# ── Python ────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+build/
+dist/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.hypothesis/
+.import_linter_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# ── Secrets & local configuration ─────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ── Local data (market-data cache, exports) ───────────────────────────
+/data/
+/var/
+
+# ── Documentation ─────────────────────────────────────────────────────
+site/
+# Course material is copyrighted and must never be committed.
+docs/enunciados/*
+!docs/enunciados/README.md
+
+# ── Notebooks ─────────────────────────────────────────────────────────
+.ipynb_checkpoints/
+
+# ── Node / Next.js ────────────────────────────────────────────────────
+node_modules/
+.next/
+.turbo/
+*.tsbuildinfo
+next-env.d.ts
+playwright-report/
+test-results/
+
+# ── Editors & OS ──────────────────────────────────────────────────────
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.DS_Store
+Thumbs.db
