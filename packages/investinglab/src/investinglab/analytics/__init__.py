@@ -5,6 +5,12 @@ draws nothing: functions take arrays or series and return numbers, arrays or sma
 objects. Domain objects (``PriceSeries``, ``Portfolio``) delegate their calculations here.
 """
 
+from investinglab.analytics.covariance import (
+    correlation_from_covariance,
+    covariance_matrix,
+    is_positive_semidefinite,
+    nearest_positive_semidefinite,
+)
 from investinglab.analytics.descriptive import (
     ReturnMoments,
     annualize_mean,
@@ -43,6 +49,8 @@ __all__ = [
     "cagr",
     "calmar_ratio",
     "conditional_value_at_risk",
+    "correlation_from_covariance",
+    "covariance_matrix",
     "cumulative_returns",
     "describe_returns",
     "downside_deviation",
@@ -50,8 +58,10 @@ __all__ = [
     "effective_number_of_assets",
     "excess_returns",
     "herfindahl_index",
+    "is_positive_semidefinite",
     "log_returns",
     "max_drawdown",
+    "nearest_positive_semidefinite",
     "per_period_rate",
     "sharpe_ratio",
     "simple_returns",
