@@ -35,6 +35,12 @@ from investinglab.analytics import (
 from investinglab.domain.errors import DomainError, InvalidSeriesError
 from investinglab.domain.metrics import DEFAULT_CONFIDENCE_LEVELS, RiskMetrics
 from investinglab.domain.quality import DataQualityReport, QualityThresholds, assess_quality
+from investinglab.domain.simulation import (
+    SimulationConfig,
+    SimulationInputs,
+    SimulationResult,
+    simulate,
+)
 from investinglab.domain.time import Frequency
 
 if TYPE_CHECKING:
@@ -458,6 +464,19 @@ class PriceSeries:
         :class:`~investinglab.services.DataQualityService`) to also detect missing days.
         """
         return assess_quality(self, expected_sessions=expected_sessions, thresholds=thresholds)
+
+    def monte_carlo(self, config: SimulationConfig | None = None) -> SimulationResult:
+        """Simulate the future value of a position in this asset (B1-T1 §4.4)."""
+        settings = config or SimulationConfig()
+        inputs = SimulationInputs(
+            prices=self.prices.to_frame(),
+            weights=np.array([1.0]),
+            periods_per_year=self.periods_per_year,
+            rebalance_every=None,
+            band=None,
+            start=self.end,
+        )
+        return simulate(inputs, settings)
 
     def beta(self, benchmark: PriceSeries) -> float:
         """Sensitivity to ``benchmark`` on the dates where both have a return."""

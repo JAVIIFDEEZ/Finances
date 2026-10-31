@@ -14,7 +14,7 @@ dependencies = []
 
 [dependency-groups]
 dev = [
-  "investinglab",
+  "investinglab[plots]",
   # Lint, format and architecture rules
   "ruff>=0.17.3",
   "import-linter>=2.15",
@@ -217,11 +217,18 @@ layers = [
 ]
 containers = []
 exhaustive = false
+# The only upward import: simulation results delegate their chart to reporting, lazily
+# (like pandas' .plot). ADR-0016.
+ignore_imports = ["investinglab.domain.simulation -> investinglab.reporting.simulation"]
 
 [[tool.importlinter.contracts]]
 name = "The domain is pure: no I/O, no frameworks, no plotting"
 type = "forbidden"
 source_modules = ["investinglab.domain"]
+ignore_imports = [
+  "investinglab.domain.simulation -> investinglab.reporting.simulation",
+  "investinglab.domain.simulation -> matplotlib",  # type of plot()'s return value only
+]
 forbidden_modules = [
   "investinglab.config",
   "exchange_calendars",

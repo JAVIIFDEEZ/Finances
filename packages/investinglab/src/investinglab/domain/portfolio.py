@@ -22,6 +22,12 @@ from investinglab.analytics import (
 from investinglab.domain.errors import DomainError, InvalidPortfolioError
 from investinglab.domain.metrics import DEFAULT_CONFIDENCE_LEVELS, RiskMetrics
 from investinglab.domain.panel import AlignedPanel, AlignmentMethod, align
+from investinglab.domain.simulation import (
+    SimulationConfig,
+    SimulationInputs,
+    SimulationResult,
+    simulate,
+)
 from investinglab.domain.time import Frequency
 
 if TYPE_CHECKING:
@@ -484,6 +490,44 @@ class Portfolio:
         periods = max(h.series.instrument.schedule.periods_per_year(target) for h in self)
         table["annualized_contribution"] = table["contribution"] * np.sqrt(periods)
         return table
+
+    # ── Simulation ───────────────────────────────────────────────────
+
+    def monte_carlo(self, config: SimulationConfig | None = None) -> SimulationResult:
+        """Simulate the portfolio's future value (B1-T1 §4.4).
+
+        Asset returns are simulated jointly (correlations included) and the portfolio's
+        own rebalancing policy is applied inside every path. See
+        :class:`~investinglab.domain.simulation.SimulationConfig` for the parameters.
+
+        Examples:
+            >>> result = portfolio.monte_carlo(SimulationConfig(n_paths=10_000, horizon=252))
+            >>> result.value_at_risk(0.95)
+            >>> result.plot()
+        """
+        settings = config or SimulationConfig()
+        panel = self.aligned()
+        prices = panel.prices.loc[panel.common_start() :]
+        rebalance_every, band = self._simulation_rebalancing()
+        inputs = SimulationInputs(
+            prices=prices,
+            weights=self.weights.reindex([str(c) for c in prices.columns]).to_numpy(),
+            periods_per_year=self.periods_per_year,
+            rebalance_every=rebalance_every,
+            band=band,
+            start=pd.Timestamp(prices.index[-1]),
+        )
+        return simulate(inputs, settings)
+
+    def _simulation_rebalancing(self) -> tuple[int | None, float | None]:
+        policy = self.rebalance
+        if policy.kind is RebalanceKind.THRESHOLD:
+            return None, policy.band
+        if policy.kind is RebalanceKind.BUY_AND_HOLD or policy.frequency is None:
+            return None, None
+        densest = max(self.holdings, key=lambda h: h.series.periods_per_year).series
+        per_rebalance = densest.instrument.schedule.periods_per_year(policy.frequency)
+        return max(1, round(self.periods_per_year / per_rebalance)), None
 
     def _rebalance_dates(self, index: pd.DatetimeIndex) -> pd.DatetimeIndex | None:
         policy = self.rebalance

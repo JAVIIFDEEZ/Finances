@@ -9,6 +9,7 @@ from investinglab.analytics.covariance import (
     correlation_from_covariance,
     covariance_matrix,
     is_positive_semidefinite,
+    ledoit_wolf,
     nearest_positive_semidefinite,
 )
 from investinglab.analytics.descriptive import (
@@ -61,6 +62,7 @@ __all__ = [
     "excess_returns",
     "herfindahl_index",
     "is_positive_semidefinite",
+    "ledoit_wolf",
     "log_returns",
     "max_drawdown",
     "nearest_positive_semidefinite",

@@ -36,7 +36,9 @@ docs/            Zensical: adr/, architecture/, plan/, reference/, modules/
 
 1. Dependencias siempre hacia dentro: `toolkit → modules → services | adapters → reporting |
    ports → domain → analytics`. `analytics` trabaja con arrays/series y no conoce el dominio.
-2. `domain` no importa I/O, frameworks, gráficos ni `config`.
+2. `domain` no importa I/O, frameworks, gráficos ni `config`. Única excepción, declarada en
+   `ignore_imports` ([ADR-0016](docs/adr/0016-monte-carlo-engine.md)): `SimulationResult.plot()`
+   importa `reporting.simulation` de forma diferida. matplotlib es el *extra* opcional `plots`.
 3. `services` y `ports` dependen de abstracciones, nunca de `httpx`, `duckdb`, `yfinance`…
 4. Cero lógica de negocio en routers de la API: validar → llamar caso de uso → mapear schema.
 5. Nuevo proveedor = nuevo adaptador en `adapters/providers/<nombre>/` que implementa

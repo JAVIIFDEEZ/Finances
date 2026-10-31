@@ -6,6 +6,8 @@
 
 ::: investinglab.domain.metrics
 
+::: investinglab.domain.simulation
+
 ::: investinglab.domain.fx
 
 ::: investinglab.domain.quality
