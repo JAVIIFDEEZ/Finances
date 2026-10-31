@@ -34,6 +34,7 @@ from investinglab.domain.money import (
     QuoteUnit,
     parse_quote_currency,
 )
+from investinglab.domain.panel import AlignedPanel, AlignmentMethod, align
 from investinglab.domain.series import (
     MIN_OBSERVATIONS,
     DataSource,
@@ -62,6 +63,8 @@ __all__ = [
     "JPY",
     "MIN_OBSERVATIONS",
     "USD",
+    "AlignedPanel",
+    "AlignmentMethod",
     "AssetClass",
     "Currency",
     "CurrencyKind",
@@ -86,5 +89,6 @@ __all__ = [
     "ReturnKind",
     "SeriesStats",
     "UnknownCurrencyError",
+    "align",
     "parse_quote_currency",
 ]
