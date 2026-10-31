@@ -1,5 +1,60 @@
 """Domain model: immutable value objects and entities with no I/O.
 
-This is the innermost layer. It must not import any other InvestingLab layer, any I/O
-library or any framework (enforced by import-linter).
+Everything here is a ``@dataclass(frozen=True, slots=True)`` validated on construction.
+The domain may use the numerical kernel (:mod:`investinglab.analytics`) but never I/O,
+frameworks, plotting or configuration (enforced by import-linter).
 """
+
+from investinglab.domain.errors import (
+    DomainError,
+    IncompatibleSeriesError,
+    InvalidIdentifierError,
+    InvalidPortfolioError,
+    InvalidSeriesError,
+    InvestingLabError,
+    UnknownCurrencyError,
+)
+from investinglab.domain.money import (
+    CHF,
+    EUR,
+    GBP,
+    JPY,
+    USD,
+    Currency,
+    CurrencyKind,
+    CurrencyPair,
+    QuoteUnit,
+    parse_quote_currency,
+)
+from investinglab.domain.time import (
+    CRYPTO_SCHEDULE,
+    EQUITY_SCHEDULE,
+    FX_SCHEDULE,
+    Frequency,
+    MarketSchedule,
+)
+
+__all__ = [
+    "CHF",
+    "CRYPTO_SCHEDULE",
+    "EQUITY_SCHEDULE",
+    "EUR",
+    "FX_SCHEDULE",
+    "GBP",
+    "JPY",
+    "USD",
+    "Currency",
+    "CurrencyKind",
+    "CurrencyPair",
+    "DomainError",
+    "Frequency",
+    "IncompatibleSeriesError",
+    "InvalidIdentifierError",
+    "InvalidPortfolioError",
+    "InvalidSeriesError",
+    "InvestingLabError",
+    "MarketSchedule",
+    "QuoteUnit",
+    "UnknownCurrencyError",
+    "parse_quote_currency",
+]
