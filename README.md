@@ -42,4 +42,4 @@ uv run just docs          # http://localhost:8000
 
 - [Arquitectura](docs/architecture/index.md)
 - [Decisiones de arquitectura (ADR)](docs/adr/index.md)
-- [Guía para colaborar con Claude Code](CLAUDE.md)
+- [Convenciones del repositorio](CLAUDE.md)
