@@ -74,6 +74,9 @@ def _shape(values: np.ndarray) -> tuple[float, float]:
     m3 = float(np.mean(deviations**3))
     m4 = float(np.mean(deviations**4))
     nan = float("nan")
+    if not m2**2 > 0.0:
+        # Spread so small it underflows (e.g. subnormal numbers): shape is undefined.
+        return nan, nan
     skewness = (
         nan if n < 3 else (m3 / m2**1.5) * math.sqrt(n * (n - 1)) / (n - 2)  # noqa: PLR2004
     )
