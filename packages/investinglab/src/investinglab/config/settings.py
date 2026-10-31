@@ -11,6 +11,7 @@ from enum import StrEnum
 from functools import cache
 from pathlib import Path
 
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 __all__ = ["Environment", "LogFormat", "LogLevel", "Settings", "get_settings"]
@@ -52,6 +53,12 @@ class Settings(BaseSettings):
         log_level: Minimum log level.
         log_format: Log renderer. Defaults to JSON outside local development.
         data_dir: Root directory of the local market-data cache and exports.
+        cache_dir: Market-data cache directory (defaults to ``<data_dir>/cache``).
+        http_timeout_seconds: Timeout of every outbound HTTP request.
+        http_max_attempts: Attempts per request, retries included, for transient errors.
+        max_concurrency: Maximum number of series downloaded at the same time.
+        fred_api_key: FRED/ALFRED API key (free at fred.stlouisfed.org).
+        alphavantage_api_key: Alpha Vantage API key (free at alphavantage.co).
     """
 
     model_config = SettingsConfigDict(
@@ -59,6 +66,7 @@ class Settings(BaseSettings):
         env_nested_delimiter="__",
         env_file=".env",
         env_file_encoding="utf-8",
+        env_ignore_empty=True,
         extra="ignore",
         frozen=True,
     )
@@ -67,6 +75,17 @@ class Settings(BaseSettings):
     log_level: LogLevel = LogLevel.INFO
     log_format: LogFormat | None = None
     data_dir: Path = Path("data")
+    cache_dir: Path | None = None
+    http_timeout_seconds: float = Field(default=30.0, gt=0, le=300)
+    http_max_attempts: int = Field(default=4, ge=1, le=10)
+    max_concurrency: int = Field(default=8, ge=1, le=64)
+    fred_api_key: SecretStr | None = None
+    alphavantage_api_key: SecretStr | None = None
+
+    @property
+    def effective_cache_dir(self) -> Path:
+        """Cache directory: the explicit ``cache_dir`` or ``<data_dir>/cache``."""
+        return self.cache_dir if self.cache_dir is not None else self.data_dir / "cache"
 
     @property
     def effective_log_format(self) -> LogFormat:
