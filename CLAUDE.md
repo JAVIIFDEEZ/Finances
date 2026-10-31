@@ -53,7 +53,9 @@ docs/            Zensical: adr/, architecture/, plan/, reference/, modules/
   fundamentales se indexan por fecha de presentación.
 - **Validación estricta** en los bordes: una serie de precios exige índice temporal monótono y
   sin duplicados, precios finitos > 0, divisa ISO, frecuencia y procedencia.
-- Outliers: se detectan y se reportan; nunca se borran automáticamente.
+- Outliers: se detectan y se reportan (`DataQualityReport`); nunca se borran automáticamente.
+- Divisas: conversión *as-of* con `FxRates` (el último fixing publicado); sin fixing → la
+  observación se descarta, nunca se rellena.
 - Fechas siempre con zona horaria (`DTZ` de ruff lo vigila).
 
 ## Convenciones de código

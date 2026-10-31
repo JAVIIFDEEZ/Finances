@@ -32,6 +32,8 @@ nav = [
     "adr/0011-parquet-duckdb-cache.md",
     "adr/0012-resilient-http-client.md",
     "adr/0013-risk-metrics-and-portfolio-engine.md",
+    "adr/0014-currency-conversion-and-risk-free-rate.md",
+    "adr/0015-data-quality-diagnostics.md",
   ] },
   { "Referencia API" = [
     "reference/index.md",

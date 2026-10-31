@@ -20,6 +20,8 @@ actualiza el estado del antiguo.
 | [0011](0011-parquet-duckdb-cache.md) | Caché de datos de mercado en Parquet consultada con DuckDB | Aceptado |
 | [0012](0012-resilient-http-client.md) | Cliente HTTP común: reintentos, cuotas e higiene de secretos | Aceptado |
 | [0013](0013-risk-metrics-and-portfolio-engine.md) | Métricas de riesgo, correlaciones y motor de valoración de carteras | Aceptado |
+| [0014](0014-currency-conversion-and-risk-free-rate.md) | Conversión de divisas *as-of* y tipo libre de riesgo por divisa | Aceptado |
+| [0015](0015-data-quality-diagnostics.md) | Diagnóstico de calidad de datos con calendarios oficiales | Aceptado |
 
 ## Cómo añadir un ADR
 

@@ -11,3 +11,5 @@
 ::: investinglab.analytics.covariance
 
 ::: investinglab.analytics.portfolio
+
+::: investinglab.analytics.quality
