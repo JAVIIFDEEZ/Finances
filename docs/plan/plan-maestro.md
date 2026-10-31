@@ -14,7 +14,7 @@
 |---|------|----------|
 | 1–4 | Contexto | Repo personal, sin plazo. Objetivo: calidad de producto, no de práctica. B1-T1 se cumple al 100 % como primer módulo. |
 | 3 | Estructura | Monorepo políglota con workspace `uv` (Python) y app Next.js. El núcleo es un paquete independiente que **no depende** de FastAPI ni de SQLAlchemy (lo garantiza el empaquetado, no solo la disciplina). |
-| 5 | Git | Una rama `feat/*` (o `chore/*`) por fase → PR a `development` con CI en verde; los merges los hace Claude por ahora. `main` se crea para releases (`v0.1.0` = B1-T1 completo). |
+| 5 | Git | Una rama `feat/*` (o `chore/*`) por fase → PR a `development`, que se mergea con la CI en verde. `main` se crea para releases (`v0.1.0` = B1-T1 completo). |
 | 6 | Nombre | **InvestingLab** (paquete `investinglab`, libre en PyPI y npm). |
 | 7 | Idioma | Código, docstrings, commits y API en inglés. README, docs y ADRs en español. UI y `report()` bilingües (`es` por defecto, `en` disponible). |
 | 13 | Frecuencias | Desde 1 minuto hasta mensual (`1m, 5m, 15m, 30m, 1h, 4h, 1d, 1w, 1mo`). Cada proveedor declara qué frecuencias e histórico máximo sirve, y el router elige el que puede atender la petición. |
@@ -683,7 +683,7 @@ desde CryptoWorld.
 
 1. **Nombre:** InvestingLab.
 2. **Autenticación:** Better Auth + JWKS en la API, con passkeys y TOTP obligatorio.
-3. **Merges:** Claude mergea los PR a `development` cuando la CI está en verde (por ahora).
+3. **Merges:** los PR se mergean a `development` cuando la CI está en verde.
 4. **Macro:** FRED/ALFRED en modo point-in-time por defecto (misma clave de API para ambos).
 5. **Claves pendientes de conseguir:** FRED y Alpha Vantage (F2); Tiingo, Alpaca y CoinGecko (F11–F12).
 6. **CryptoWorld:** migración progresiva (sección 9).

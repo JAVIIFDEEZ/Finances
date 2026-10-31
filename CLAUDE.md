@@ -1,6 +1,6 @@
 # CLAUDE.md — InvestingLab
 
-Guía de trabajo para sesiones de Claude Code (y para cualquier persona) en este repositorio.
+Guía de trabajo y convenciones del repositorio (también la leen los asistentes de código).
 Léela entera antes de cambiar nada. Si una regla de aquí entra en conflicto con lo que pide
 el usuario, pregunta.
 
@@ -99,7 +99,9 @@ uv run just docs              # web de documentación con recarga en vivo
   `main` solo recibe releases etiquetadas.
 - Conventional Commits pequeños y atómicos (lo valida un hook `commit-msg`).
 - Cada fase termina con `just check` en verde y un resumen: hecho, pendiente, deuda técnica.
-- Merges: Claude puede mergear sus PR a `development` cuando la CI está en verde.
+- Los PR se mergean a `development` cuando la CI está en verde.
+- Sin etiquetas de autoría automáticas: nada de trailers `Co-Authored-By`, pies tipo
+  "Generated with…" ni enlaces de sesión en commits, PR o documentación.
 - Decisión de arquitectura relevante → ADR en el mismo PR.
 - Si cambian comandos, convenciones o estructura → actualizar este fichero.
 
@@ -112,7 +114,7 @@ uv run just docs              # web de documentación con recarga en vivo
   `uv run detect-secrets scan --baseline .secrets.baseline`.
 - Nunca commitear material de clase: `docs/enunciados/` está ignorado.
 
-## Entorno de Claude Code en la nube
+## Entorno de ejecución en la nube
 
 - La red del contenedor bloquea por defecto las APIs de datos (Yahoo, FRED, Alpha Vantage…).
   Las listas de dominios a permitir están en el plan (sección 16). Sin red, se trabaja con
