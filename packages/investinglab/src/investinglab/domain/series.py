@@ -22,6 +22,7 @@ import pandas as pd
 
 from investinglab.analytics import (
     annualize_volatility,
+    beta,
     cagr,
     cumulative_returns,
     describe_returns,
@@ -32,9 +33,11 @@ from investinglab.analytics import (
     total_return,
 )
 from investinglab.domain.errors import DomainError, InvalidSeriesError
+from investinglab.domain.metrics import DEFAULT_CONFIDENCE_LEVELS, RiskMetrics
 from investinglab.domain.time import Frequency
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
     from datetime import date, datetime
 
     from investinglab.domain.instruments import AssetClass, Instrument
@@ -422,6 +425,29 @@ class PriceSeries:
     def max_drawdown(self) -> float:
         """Worst peak-to-trough decline (non-positive)."""
         return self.stats.max_drawdown
+
+    def metrics(
+        self,
+        *,
+        risk_free_rate: float | pd.Series = 0.0,
+        levels: Sequence[float] = DEFAULT_CONFIDENCE_LEVELS,
+    ) -> RiskMetrics:
+        """Performance and risk metrics (Sharpe, Sortino, Calmar, VaR/CVaR...).
+
+        Args:
+            risk_free_rate: Annual risk-free rate (decimal), constant or point-in-time series.
+            levels: Confidence levels for VaR and CVaR.
+        """
+        return RiskMetrics.from_returns(
+            self.returns(),
+            periods_per_year=self.periods_per_year,
+            risk_free_rate=risk_free_rate,
+            levels=levels,
+        )
+
+    def beta(self, benchmark: PriceSeries) -> float:
+        """Sensitivity to ``benchmark`` on the dates where both have a return."""
+        return beta(self.returns(), benchmark.returns())
 
     # ── Transformations (return new, validated series) ───────────────
 
