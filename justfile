@@ -61,6 +61,10 @@ docs:
 docs-build:
     uv run zensical build --clean
 
+# Regenerate the traceability matrices of the master's modules (docs/modules/).
+traceability:
+    uv run python -m investinglab.modules docs/modules
+
 # ── Housekeeping ──────────────────────────────────────────────────────
 
 # Remove caches and build artefacts.

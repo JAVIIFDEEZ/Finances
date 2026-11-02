@@ -12,6 +12,7 @@ copyright = "© InvestingLab — uso privado"
 nav = [
   { "Inicio" = "index.md" },
   { "Plan maestro" = "plan/plan-maestro.md" },
+  { "Módulos del máster" = ["modules/b1-toolkit.md"] },
   { "Arquitectura" = [
     "architecture/index.md",
     "architecture/domain.md",
