@@ -9,6 +9,7 @@ from investinglab.domain import (
     IssueKind,
     PriceAdjustment,
     PriceSeries,
+    QualityIssue,
     QualityThresholds,
     Severity,
     assess_quality,
@@ -43,6 +44,7 @@ def test_outliers_are_flagged_not_removed() -> None:
     (issue,) = report.issues_of(IssueKind.OUTLIER_RETURNS)
     assert issue.severity is Severity.WARNING
     assert issue.timestamps == (INDEX[300],)
+    assert dict(issue.details) == {"count": 1, "threshold": 8.0}
     assert len(series) == len(INDEX)  # nothing was removed
 
 
@@ -62,6 +64,8 @@ def test_split_like_jumps(adjusted: bool, severity: Severity) -> None:
     (issue,) = report.issues_of(IssueKind.SUSPECTED_SPLIT)
     assert issue.severity is severity
     assert issue.timestamps == (INDEX[200],)
+    assert issue.details["adjusted"] == (1.0 if adjusted else 0.0)
+    assert issue.details["count"] == 1
     assert report.worst_severity is severity
     assert not report.ok
 
@@ -79,6 +83,9 @@ def test_stale_prices_ohlc_and_zero_volume() -> None:
     kinds = {issue.kind for issue in report.issues}
     assert {IssueKind.STALE_PRICES, IssueKind.OHLC_INCONSISTENT, IssueKind.ZERO_VOLUME} <= kinds
     assert report.issues_of(IssueKind.ZERO_VOLUME)[0].severity is Severity.INFO
+    assert report.issues_of(IssueKind.ZERO_VOLUME)[0].details["count"] == 3
+    assert report.issues_of(IssueKind.STALE_PRICES)[0].details["longest"] == 10
+    assert report.issues_of(IssueKind.OHLC_INCONSISTENT)[0].details["count"] == 1
     assert report.issues[-1].severity is Severity.INFO  # sorted most severe first
     frame = report.to_frame()
     assert set(frame["kind"]) == {k.value for k in kinds}
@@ -96,6 +103,8 @@ def test_missing_and_unexpected_sessions() -> None:
     (missing,) = report.issues_of(IssueKind.MISSING_SESSIONS)
     assert missing.count == 20
     assert missing.severity is Severity.WARNING
+    assert missing.details["count"] == 20
+    assert 0 < float(missing.details["ratio"]) < 0.1
     (extra,) = report.issues_of(IssueKind.UNEXPECTED_SESSIONS)
     assert extra.timestamps == (pd.Timestamp("2022-01-08"),)
 
@@ -116,6 +125,15 @@ def test_short_history() -> None:
     (issue,) = report.issues_of(IssueKind.SHORT_HISTORY)
     assert issue.count == 0
     assert "years of history" in issue.message
+    assert float(issue.details["years"]) == pytest.approx(59 / 252)
+
+
+def test_issue_details_are_read_only_and_issues_stay_hashable() -> None:
+    issue = QualityIssue(IssueKind.ZERO_VOLUME, Severity.INFO, "x", details={"count": 2})
+
+    with pytest.raises(TypeError):
+        issue.details["count"] = 3  # type: ignore[index]
+    assert hash(issue) == hash(QualityIssue(IssueKind.ZERO_VOLUME, Severity.INFO, "x"))
 
 
 def test_thresholds_are_configurable() -> None:

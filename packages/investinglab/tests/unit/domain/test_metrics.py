@@ -78,3 +78,34 @@ def test_price_series_metrics_and_beta() -> None:
     assert metrics.total_return == pytest.approx(asset.stats.total_return)
     assert market.beta(market) == pytest.approx(1.0)
     assert math.isfinite(asset.beta(market))
+
+
+def test_sharpe_confidence_interval_is_centred_on_the_estimate() -> None:
+    series = make_series(gbm_prices(756, seed=4), symbol="A")
+    metrics = series.metrics()
+
+    low, high = metrics.sharpe_confidence_interval(0.95)
+
+    assert low < metrics.sharpe_ratio < high
+    assert (low + high) / 2 == pytest.approx(metrics.sharpe_ratio)
+    assert (high - low) / 2 == pytest.approx(1.959964 * metrics.sharpe_standard_error, rel=1e-5)
+    narrow = metrics.sharpe_confidence_interval(0.5)
+    assert narrow[1] - narrow[0] < high - low
+
+
+def test_sharpe_confidence_level_must_be_a_probability() -> None:
+    metrics = RiskMetrics.from_returns(RETURNS, periods_per_year=252)
+
+    with pytest.raises(DomainError, match="Confidence level"):
+        metrics.sharpe_confidence_interval(1.0)
+
+
+def test_normality_p_value_flags_fat_tails() -> None:
+    rng = np.random.default_rng(5)
+    fat = pd.Series(
+        rng.standard_t(3, size=1_500) * 0.01, index=pd.bdate_range("2020-01-01", periods=1_500)
+    )
+    normal = pd.Series(rng.standard_normal(1_500) * 0.01, index=fat.index)
+
+    assert RiskMetrics.from_returns(fat, periods_per_year=252).normality_p_value < 0.01
+    assert RiskMetrics.from_returns(normal, periods_per_year=252).normality_p_value > 0.01

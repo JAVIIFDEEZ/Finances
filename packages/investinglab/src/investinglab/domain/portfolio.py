@@ -14,6 +14,7 @@ from investinglab.analytics import (
     correlation_from_covariance,
     covariance_matrix,
     drawdown,
+    drawdown_episodes,
     effective_number_of_assets,
     herfindahl_index,
     rebalanced_path,
@@ -182,6 +183,10 @@ class PortfolioBacktest:
     def drawdown(self) -> pd.Series:
         """Decline of the portfolio value from its running peak."""
         return drawdown(self._values)
+
+    def drawdown_episodes(self, top: int | None = 5) -> pd.DataFrame:
+        """Deepest peak-to-recovery episodes of the portfolio value."""
+        return drawdown_episodes(self._values, top=top)
 
 
 @dataclass(frozen=True, slots=True)

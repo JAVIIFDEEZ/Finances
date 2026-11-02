@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from statistics import NormalDist
 from typing import TYPE_CHECKING, Final
 
 import numpy as np
@@ -15,9 +16,11 @@ from investinglab.analytics import (
     calmar_ratio,
     conditional_value_at_risk,
     describe_returns,
+    jarque_bera,
     max_drawdown,
     per_period_rate,
     sharpe_ratio,
+    sharpe_ratio_standard_error,
     sortino_ratio,
     value_at_risk,
 )
@@ -87,6 +90,33 @@ class RiskMetrics:
     excess_kurtosis: float
     risk_free_rate: float
     tail: tuple[TailRisk, ...]
+
+    @property
+    def sharpe_standard_error(self) -> float:
+        """Standard error of :attr:`sharpe_ratio` (Mertens, 2002: skewness and kurtosis aware)."""
+        return sharpe_ratio_standard_error(
+            self.sharpe_ratio,
+            periods=self.periods,
+            periods_per_year=self.periods_per_year,
+            skewness=self.skewness,
+            excess_kurtosis=self.excess_kurtosis,
+        )
+
+    def sharpe_confidence_interval(self, level: float = 0.95) -> tuple[float, float]:
+        """Normal-approximation confidence interval of the annualised Sharpe ratio.
+
+        Raises:
+            DomainError: If ``level`` is not in ``(0, 1)``.
+        """
+        if not 0.0 < level < 1.0:
+            raise DomainError(f"Confidence level must be in (0, 1), got {level}")
+        half_width = NormalDist().inv_cdf((1.0 + level) / 2.0) * self.sharpe_standard_error
+        return self.sharpe_ratio - half_width, self.sharpe_ratio + half_width
+
+    @property
+    def normality_p_value(self) -> float:
+        """Jarque-Bera p-value of the returns: below 0.01, normality is rejected."""
+        return jarque_bera(self.skewness, self.excess_kurtosis, self.periods)[1]
 
     def tail_risk(
         self, level: float = 0.95, method: VaRMethod | str = VaRMethod.HISTORICAL

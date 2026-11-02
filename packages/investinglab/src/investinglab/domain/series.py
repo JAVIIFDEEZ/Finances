@@ -27,6 +27,7 @@ from investinglab.analytics import (
     cumulative_returns,
     describe_returns,
     drawdown,
+    drawdown_episodes,
     log_returns,
     max_drawdown,
     simple_returns,
@@ -440,6 +441,13 @@ class PriceSeries:
     def max_drawdown(self) -> float:
         """Worst peak-to-trough decline (non-positive)."""
         return self.stats.max_drawdown
+
+    def drawdown_episodes(self, top: int | None = 5) -> pd.DataFrame:
+        """Deepest peak-to-recovery episodes of the prices, worst first.
+
+        See :func:`~investinglab.analytics.drawdown_episodes` for the columns.
+        """
+        return drawdown_episodes(self.prices, top=top)
 
     def metrics(
         self,
