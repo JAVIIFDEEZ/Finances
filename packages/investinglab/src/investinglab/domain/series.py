@@ -15,7 +15,7 @@ from __future__ import annotations
 import re
 from dataclasses import InitVar, dataclass, field
 from enum import StrEnum
-from typing import TYPE_CHECKING, Any, Final
+from typing import TYPE_CHECKING, Any, Final, Unpack
 
 import numpy as np
 import pandas as pd
@@ -50,6 +50,11 @@ if TYPE_CHECKING:
 
     from investinglab.domain.instruments import AssetClass, Instrument
     from investinglab.domain.money import Currency
+    from investinglab.reporting.entrypoints import (
+        MarkdownReport,
+        ReportOptions,
+        ReportSettings,
+    )
 
 __all__ = [
     "MIN_OBSERVATIONS",
@@ -497,6 +502,32 @@ class PriceSeries:
     def beta(self, benchmark: PriceSeries) -> float:
         """Sensitivity to ``benchmark`` on the dates where both have a return."""
         return beta(self.returns(), benchmark.returns())
+
+    # ── Reports (B1-T1 §4.5) ─────────────────────────────────────────
+
+    def report(
+        self, options: ReportOptions | None = None, **settings: Unpack[ReportSettings]
+    ) -> MarkdownReport:
+        """Markdown report of the series (B1-T1 §4.5).
+
+        Sections: data and provenance, return and risk (with the Sharpe ratio's confidence
+        interval), tail risk, drawdown episodes, Monte Carlo when requested, data quality,
+        diagnostics and methodology.
+
+        The text is bilingual (``language="es"`` by default, ``"en"`` available) and is an
+        ordinary ``str`` that notebooks render as formatted Markdown.
+
+        Args:
+            options: Report options (:class:`~investinglab.reporting.options.ReportOptions`).
+            **settings: Any option by name, overriding ``options``.
+
+        Examples:
+            >>> series.report(language="en", risk_free_rate=0.03).save("report.md")
+        """
+        # Lazy, documented exception to the layering (ADR-0017): presentation lives in reporting.
+        from investinglab.reporting.entrypoints import series_report  # noqa: PLC0415
+
+        return series_report(self, options, **settings)
 
     # ── Transformations (return new, validated series) ───────────────
 

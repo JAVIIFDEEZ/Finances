@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Final, Unpack
 
 import numpy as np
 import pandas as pd
@@ -36,6 +36,11 @@ if TYPE_CHECKING:
 
     from investinglab.domain.money import Currency
     from investinglab.domain.series import PriceSeries
+    from investinglab.reporting.entrypoints import (
+        MarkdownReport,
+        ReportOptions,
+        ReportSettings,
+    )
 
 __all__ = [
     "WEIGHT_TOLERANCE",
@@ -523,6 +528,33 @@ class Portfolio:
             start=pd.Timestamp(prices.index[-1]),
         )
         return simulate(inputs, settings)
+
+    # ── Reports (B1-T1 §4.5) ─────────────────────────────────────────
+
+    def report(
+        self, options: ReportOptions | None = None, **settings: Unpack[ReportSettings]
+    ) -> MarkdownReport:
+        """Markdown report of the portfolio (B1-T1 §4.5).
+
+        Sections: composition, return and risk, comparison with every holding over the
+        common period, tail risk, correlations, risk contributions, rebalancing, drawdowns,
+        calendars and valuation, Monte Carlo when requested, data quality, diagnostics and
+        methodology.
+
+        The text is bilingual (``language="es"`` by default, ``"en"`` available) and is an
+        ordinary ``str`` that notebooks render as formatted Markdown.
+
+        Args:
+            options: Report options (:class:`~investinglab.reporting.options.ReportOptions`).
+            **settings: Any option by name, overriding ``options``.
+
+        Examples:
+            >>> portfolio.report(language="en", risk_free_rate=0.03).save("report.md")
+        """
+        # Lazy, documented exception to the layering (ADR-0017): presentation lives in reporting.
+        from investinglab.reporting.entrypoints import portfolio_report  # noqa: PLC0415
+
+        return portfolio_report(self, options, **settings)
 
     def _simulation_rebalancing(self) -> tuple[int | None, float | None]:
         policy = self.rebalance
