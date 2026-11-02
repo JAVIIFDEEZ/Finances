@@ -52,6 +52,7 @@ if TYPE_CHECKING:
     from investinglab.domain.money import Currency
     from investinglab.reporting.entrypoints import (
         MarkdownReport,
+        PlotsReport,
         ReportOptions,
         ReportSettings,
     )
@@ -528,6 +529,22 @@ class PriceSeries:
         from investinglab.reporting.entrypoints import series_report  # noqa: PLC0415
 
         return series_report(self, options, **settings)
+
+    def plots_report(
+        self, options: ReportOptions | None = None, **settings: Unpack[ReportSettings]
+    ) -> PlotsReport:
+        """Charts of the series: price, drawdown, return distribution and rolling volatility.
+
+        Needs the ``plots`` extra. Returns a
+        :class:`~investinglab.reporting.plots.PlotsReport`: a mapping of named matplotlib
+        figures that can be saved with ``save(directory)``.
+
+        Examples:
+            >>> series.plots_report(language="en").save("charts/")
+        """
+        from investinglab.reporting.entrypoints import series_plots  # noqa: PLC0415
+
+        return series_plots(self, options, **settings)
 
     # ── Transformations (return new, validated series) ───────────────
 

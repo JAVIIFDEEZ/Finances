@@ -38,6 +38,7 @@ if TYPE_CHECKING:
     from investinglab.domain.series import PriceSeries
     from investinglab.reporting.entrypoints import (
         MarkdownReport,
+        PlotsReport,
         ReportOptions,
         ReportSettings,
     )
@@ -555,6 +556,23 @@ class Portfolio:
         from investinglab.reporting.entrypoints import portfolio_report  # noqa: PLC0415
 
         return portfolio_report(self, options, **settings)
+
+    def plots_report(
+        self, options: ReportOptions | None = None, **settings: Unpack[ReportSettings]
+    ) -> PlotsReport:
+        """Charts of the portfolio: growth, drawdown, correlations, risk and weights.
+
+        Growth versus every holding, drawdown, correlation heatmap, weight versus risk
+        contribution and effective weights against their targets. Needs the ``plots``
+        extra. Returns a :class:`~investinglab.reporting.plots.PlotsReport`: a mapping of
+        named matplotlib figures that can be saved with ``save(directory)``.
+
+        Examples:
+            >>> portfolio.plots_report(language="en").save("charts/")
+        """
+        from investinglab.reporting.entrypoints import portfolio_plots  # noqa: PLC0415
+
+        return portfolio_plots(self, options, **settings)
 
     def _simulation_rebalancing(self) -> tuple[int | None, float | None]:
         policy = self.rebalance

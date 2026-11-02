@@ -15,8 +15,11 @@ if TYPE_CHECKING:
     from matplotlib.figure import Figure
 
 __all__ = [
+    "BASELINE",
     "CATEGORICAL",
+    "DIVERGING",
     "GRID",
+    "MUTED",
     "SEQUENTIAL_BLUE",
     "SURFACE",
     "TEXT_PRIMARY",
@@ -29,6 +32,10 @@ SURFACE: Final = "#fcfcfb"
 TEXT_PRIMARY: Final = "#0b0b0b"
 TEXT_SECONDARY: Final = "#52514e"
 GRID: Final = "#e4e3df"
+BASELINE: Final = "#c3c2b7"
+"""Zero lines and axis baselines."""
+MUTED: Final = "#898781"
+"""Secondary marks without identity (e.g. holdings folded into "Others")."""
 
 CATEGORICAL: Final = (
     "#2a78d6",  # blue
@@ -50,6 +57,12 @@ SEQUENTIAL_BLUE: Final = {
     600: "#184f95",
 }
 """Steps of the single-hue sequential ramp (light → dark)."""
+
+DIVERGING: Final = ("#95161e", "#e4857e", "#f0efec", "#6da7ec", "#184f95")
+"""Red ↔ blue diverging ramp with a neutral grey midpoint (negative → zero → positive).
+
+Each arm keeps the blue ramp's OKLab lightness (0.43, 0.72) so neither sign dominates.
+"""
 
 
 def style_figure(figure: Figure) -> None:
