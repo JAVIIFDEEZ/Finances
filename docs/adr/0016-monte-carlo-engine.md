@@ -6,6 +6,10 @@ decision-makers: Javier Fernández
 
 # Motor Monte Carlo vectorizado con rebalanceo dentro de cada trayectoria
 
+> **Actualización (2026-11-02):** la excepción de capas de `plot()` se generaliza en
+> [ADR-0017](0017-bilingual-reports-and-charts.md): el dominio delega en un único módulo,
+> `investinglab.reporting.entrypoints`, y el gráfico pasa a ser bilingüe.
+
 ## Contexto y problema
 
 El taller B1-T1 (§4.4) exige una simulación de Monte Carlo como **método directo** de la
