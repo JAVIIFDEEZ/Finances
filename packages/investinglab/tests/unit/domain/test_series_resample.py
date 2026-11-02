@@ -3,8 +3,8 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
-from investinglab.domain import EXCHANGES, DomainError, Frequency, PriceSeries
-from support.factories import SYNTHETIC_SOURCE, make_instrument, make_series
+from investinglab.domain import EXCHANGES, DomainError, Frequency, InvalidSeriesError, PriceSeries
+from support.factories import SYNTHETIC_SOURCE, gbm_prices, make_instrument, make_series
 
 
 def _daily_ohlcv() -> PriceSeries:
@@ -121,3 +121,25 @@ def test_intraday_to_weekly_goes_through_sessions() -> None:
 def test_resampling_to_an_equal_or_finer_frequency_is_rejected(target: Frequency) -> None:
     with pytest.raises(DomainError, match="coarser"):
         make_series().resample(target)
+
+
+def test_a_partial_last_period_is_kept() -> None:
+    # The series ends on 5 March: March is still in progress.
+    index = pd.bdate_range("2024-01-01", "2024-03-05")
+    series = make_series(gbm_prices(len(index)), index=index)
+
+    monthly = series.resample("1mo")
+
+    assert list(monthly.bars.index) == list(
+        pd.DatetimeIndex(["2024-01-31", "2024-02-29", "2024-03-05"])
+    )
+    assert monthly.prices.iloc[-1] == series.prices.iloc[-1]
+
+
+def test_only_the_last_bar_may_be_closer_than_the_frequency() -> None:
+    ok = pd.DatetimeIndex(["2024-01-31", "2024-02-29", "2024-03-29", "2024-04-05"])
+    bad = pd.DatetimeIndex(["2024-01-31", "2024-02-05", "2024-03-29", "2024-04-30"])
+
+    make_series([1.0, 1.1, 1.2, 1.3], index=ok, frequency=Frequency.MONTH_1)
+    with pytest.raises(InvalidSeriesError, match="too close for frequency '1mo'"):
+        make_series([1.0, 1.1, 1.2, 1.3], index=bad, frequency=Frequency.MONTH_1)

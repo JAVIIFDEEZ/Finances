@@ -222,7 +222,12 @@ def _validate_index(index: pd.Index, frequency: Frequency, problems: list[str]) 
     if not index.is_monotonic_increasing:
         problems.append("index must be sorted in increasing time order")
     elif len(index) > 1 and not index.has_duplicates:
-        smallest_gap = index.to_series().diff().min()
+        gaps = index.to_series().diff().iloc[1:]
+        if Frequency.DAY_1.is_finer_than(frequency) and len(gaps) > 1:
+            # The last bar of a weekly/monthly/... series may cover a period still in progress
+            # (the current month so far): only that final gap may be shorter.
+            gaps = gaps.iloc[:-1]
+        smallest_gap = gaps.min()
         if smallest_gap < frequency.min_spacing:
             problems.append(
                 f"observations {smallest_gap} apart are too close for frequency "
