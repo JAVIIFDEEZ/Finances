@@ -18,6 +18,7 @@ from investinglab.analytics import (
     herfindahl_index,
     per_period_rate,
     sharpe_ratio,
+    sharpe_ratio_standard_error,
     sortino_ratio,
     value_at_risk,
 )
@@ -149,3 +150,36 @@ def test_cornish_fisher_is_close_to_gaussian_without_strong_skew() -> None:
     corrected = value_at_risk(returns, 0.95, VaRMethod.CORNISH_FISHER)
 
     assert corrected == pytest.approx(gaussian, rel=0.3)
+
+
+def test_sharpe_standard_error_reduces_to_lo_for_normal_returns() -> None:
+    sharpe, periods, ppy = 0.8, 756, 252.0
+    per_period = sharpe / math.sqrt(ppy)
+
+    error = sharpe_ratio_standard_error(sharpe, periods=periods, periods_per_year=ppy)
+
+    assert error == pytest.approx(math.sqrt((1 + per_period**2 / 2) / periods * ppy))
+
+
+def test_negative_skew_and_fat_tails_widen_the_sharpe_error() -> None:
+    base = sharpe_ratio_standard_error(1.0, periods=500, periods_per_year=252)
+    skewed = sharpe_ratio_standard_error(1.0, periods=500, periods_per_year=252, skewness=-1.0)
+    fat = sharpe_ratio_standard_error(1.0, periods=500, periods_per_year=252, excess_kurtosis=6.0)
+
+    assert skewed > base
+    assert fat > base
+
+
+def test_undefined_moments_count_as_normal() -> None:
+    assert sharpe_ratio_standard_error(
+        0.5, periods=100, periods_per_year=12, skewness=math.nan, excess_kurtosis=math.nan
+    ) == pytest.approx(sharpe_ratio_standard_error(0.5, periods=100, periods_per_year=12))
+
+
+@pytest.mark.parametrize(
+    ("sharpe", "periods", "ppy"), [(math.nan, 100, 252.0), (1.0, 1, 252.0), (1.0, 100, 0.0)]
+)
+def test_sharpe_standard_error_is_undefined_without_data(
+    sharpe: float, periods: int, ppy: float
+) -> None:
+    assert math.isnan(sharpe_ratio_standard_error(sharpe, periods=periods, periods_per_year=ppy))

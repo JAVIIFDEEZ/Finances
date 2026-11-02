@@ -32,6 +32,7 @@ __all__ = [
     "herfindahl_index",
     "per_period_rate",
     "sharpe_ratio",
+    "sharpe_ratio_standard_error",
     "sortino_ratio",
     "value_at_risk",
 ]
@@ -86,6 +87,31 @@ def sharpe_ratio(
     if std == 0.0 or not math.isfinite(std):
         return _NAN
     return float(excess.mean() / std * math.sqrt(periods_per_year))
+
+
+def sharpe_ratio_standard_error(
+    sharpe: float,
+    *,
+    periods: int,
+    periods_per_year: float,
+    skewness: float = 0.0,
+    excess_kurtosis: float = 0.0,
+) -> float:
+    """Standard error of an annualised Sharpe ratio estimated from ``periods`` returns.
+
+    Uses Mertens (2002), which extends Lo (2002) to skewed and fat-tailed returns:
+    ``Var(SR) = (1 + SR²/2 - S·SR + K/4·SR²) / n`` for the per-period ratio ``SR``,
+    skewness ``S`` and excess kurtosis ``K``. Undefined moments count as normal (0).
+    """
+    if periods < 2 or not math.isfinite(sharpe) or periods_per_year <= 0:  # noqa: PLR2004
+        return _NAN
+    per_period = sharpe / math.sqrt(periods_per_year)
+    skew = skewness if math.isfinite(skewness) else 0.0
+    kurt = excess_kurtosis if math.isfinite(excess_kurtosis) else 0.0
+    variance = (1.0 + per_period**2 / 2.0 - skew * per_period + kurt / 4.0 * per_period**2) / (
+        periods
+    )
+    return math.sqrt(max(variance, 0.0) * periods_per_year)
 
 
 def downside_deviation(returns: pd.Series | np.ndarray, *, target: float = 0.0) -> float:

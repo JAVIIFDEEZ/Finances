@@ -6,7 +6,13 @@ import numpy as np
 import pytest
 from scipy import stats
 
-from investinglab.analytics import annualize_mean, annualize_volatility, cagr, describe_returns
+from investinglab.analytics import (
+    annualize_mean,
+    annualize_volatility,
+    cagr,
+    describe_returns,
+    jarque_bera,
+)
 
 
 def test_describe_returns_matches_numpy_and_ignores_nan() -> None:
@@ -75,3 +81,26 @@ def test_underflowing_spread_has_no_shape_statistics() -> None:
 
     assert math.isnan(moments.skewness)
     assert math.isnan(moments.excess_kurtosis)
+
+
+def test_jarque_bera_matches_the_chi_squared_survival_function() -> None:
+    statistic, p_value = jarque_bera(-0.4, 2.5, 500)
+
+    assert statistic == pytest.approx(500 / 6 * (0.16 + 2.5**2 / 4))
+    assert p_value == pytest.approx(stats.chi2.sf(statistic, df=2))
+
+
+def test_jarque_bera_does_not_reject_normal_samples() -> None:
+    sample = np.random.default_rng(3).standard_normal(2_000)
+    moments = describe_returns(sample)
+
+    _, p_value = jarque_bera(moments.skewness, moments.excess_kurtosis, moments.count)
+
+    assert p_value > 0.01
+
+
+@pytest.mark.parametrize(("skewness", "kurtosis", "count"), [(math.nan, 0.0, 100), (0.1, 0.2, 3)])
+def test_jarque_bera_is_undefined_without_moments(
+    skewness: float, kurtosis: float, count: int
+) -> None:
+    assert all(math.isnan(v) for v in jarque_bera(skewness, kurtosis, count))
