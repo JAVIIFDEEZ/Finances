@@ -18,8 +18,9 @@ from investinglab.analytics.descriptive import (
     annualize_volatility,
     cagr,
     describe_returns,
+    jarque_bera,
 )
-from investinglab.analytics.drawdown import drawdown, max_drawdown
+from investinglab.analytics.drawdown import drawdown, drawdown_episodes, max_drawdown
 from investinglab.analytics.portfolio import RebalancedPath, rebalanced_path, risk_contributions
 from investinglab.analytics.returns import (
     cumulative_returns,
@@ -38,6 +39,7 @@ from investinglab.analytics.risk import (
     herfindahl_index,
     per_period_rate,
     sharpe_ratio,
+    sharpe_ratio_standard_error,
     sortino_ratio,
     value_at_risk,
 )
@@ -58,10 +60,12 @@ __all__ = [
     "describe_returns",
     "downside_deviation",
     "drawdown",
+    "drawdown_episodes",
     "effective_number_of_assets",
     "excess_returns",
     "herfindahl_index",
     "is_positive_semidefinite",
+    "jarque_bera",
     "ledoit_wolf",
     "log_returns",
     "max_drawdown",
@@ -70,6 +74,7 @@ __all__ = [
     "rebalanced_path",
     "risk_contributions",
     "sharpe_ratio",
+    "sharpe_ratio_standard_error",
     "simple_returns",
     "sortino_ratio",
     "total_return",

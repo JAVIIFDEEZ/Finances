@@ -87,6 +87,9 @@ classDiagram
         +beta(benchmark) float
         +quality(expected_sessions) DataQualityReport
         +monte_carlo(config) SimulationResult
+        +drawdown_episodes(top) DataFrame
+        +report(options) MarkdownReport
+        +plots_report(options) PlotsReport
     }
     class FxRates {
         +CurrencyPair pair
@@ -152,6 +155,8 @@ classDiagram
         +correlation(frequency) DataFrame
         +risk_contributions(frequency) DataFrame
         +monte_carlo(config) SimulationResult
+        +report(options) MarkdownReport
+        +plots_report(options) PlotsReport
     }
     class PortfolioBacktest {
         +returns Series
@@ -170,8 +175,11 @@ classDiagram
         +float calmar_ratio
         +float max_drawdown
         +tuple~TailRisk~ tail
+        +sharpe_standard_error float
+        +normality_p_value float
         +from_returns(returns, periods_per_year)$ RiskMetrics
         +tail_risk(level, method) TailRisk
+        +sharpe_confidence_interval(level) tuple
     }
     class TailRisk {
         +float level

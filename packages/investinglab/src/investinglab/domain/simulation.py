@@ -387,12 +387,13 @@ class SimulationResult:
         """Fan chart of the paths and histogram of terminal values with VaR/CVaR.
 
         Requires the ``plots`` extra (matplotlib). See
-        :func:`investinglab.reporting.simulation.simulation_figure` for the options.
+        :func:`investinglab.reporting.simulation.simulation_figure` for the options
+        (``level``, ``sample_paths``, ``bins``, ``title`` and ``language``).
         """
-        # Lazy, documented exception to the layering (ADR-0016): plotting lives in reporting.
-        from investinglab.reporting.simulation import simulation_figure  # noqa: PLC0415
+        # Lazy, documented exception to the layering (ADR-0016, ADR-0017).
+        from investinglab.reporting.entrypoints import simulation_plot  # noqa: PLC0415
 
-        return simulation_figure(self, **options)
+        return simulation_plot(self, **options)
 
 
 def _check_level(level: float) -> None:

@@ -26,7 +26,7 @@ def result() -> SimulationResult:
 
 
 def test_plot_draws_the_fan_and_the_terminal_distribution(result: SimulationResult) -> None:
-    figure = result.plot()
+    figure = result.plot(language="en")
 
     assert isinstance(figure, Figure)
     fan, hist = figure.axes
@@ -35,8 +35,8 @@ def test_plot_draws_the_fan_and_the_terminal_distribution(result: SimulationResu
     legend = fan.get_legend()
     assert legend is not None
     assert [text.get_text() for text in legend.get_texts()] == [
-        "5-95 %",
-        "25-75 %",
+        "5-95 percentiles",
+        "25-75 percentiles",
         "Median",
         "Initial value",
     ]
@@ -46,7 +46,7 @@ def test_plot_draws_the_fan_and_the_terminal_distribution(result: SimulationResu
 
 
 def test_risk_thresholds_are_labelled_on_the_histogram(result: SimulationResult) -> None:
-    figure = simulation_figure(result, level=0.99)
+    figure = simulation_figure(result, level=0.99, language="en")
 
     labels = [text.get_text() for text in figure.axes[1].texts]
     assert any(label.strip().startswith("Median") for label in labels)
@@ -55,12 +55,32 @@ def test_risk_thresholds_are_labelled_on_the_histogram(result: SimulationResult)
 
 
 def test_default_title_describes_the_simulation(result: SimulationResult) -> None:
-    figure = result.plot()
+    figure = result.plot(language="en")
 
     title = figure.get_suptitle()
-    assert "gbm" in title
+    assert "GBM" in title
     assert "500 paths" in title
     assert "40 periods" in title
+
+
+def test_charts_are_in_spanish_by_default(result: SimulationResult) -> None:
+    figure = result.plot()
+
+    fan, hist = figure.axes
+    assert fan.get_title(loc="left") == "Trayectorias simuladas del valor"
+    assert "500 trayectorias" in figure.get_suptitle()
+    assert "P(pérdida)" in figure.get_suptitle()
+    labels = [text.get_text() for text in hist.texts]
+    assert any("VaR 95\u00a0%" in label for label in labels)
+
+
+def test_figures_are_not_registered_with_pyplot(result: SimulationResult) -> None:
+    import matplotlib.pyplot as plt  # noqa: PLC0415
+
+    before = plt.get_fignums()
+    result.plot()
+
+    assert plt.get_fignums() == before
 
 
 def test_options_are_forwarded(result: SimulationResult) -> None:

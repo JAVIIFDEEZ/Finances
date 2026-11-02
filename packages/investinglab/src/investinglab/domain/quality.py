@@ -7,8 +7,9 @@ how serious it is and where, and leaves the data untouched.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
+from types import MappingProxyType
 from typing import TYPE_CHECKING, Final
 
 import pandas as pd
@@ -24,6 +25,8 @@ from investinglab.analytics.quality import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from investinglab.domain.series import PriceSeries
 
 # Column and adjustment labels (kept as plain values to avoid an import cycle with series).
@@ -93,14 +96,20 @@ class QualityIssue:
     Attributes:
         kind: What was detected.
         severity: How much it may distort the analysis.
-        message: Human-readable explanation.
+        message: Human-readable explanation (English).
         timestamps: Affected dates (empty for whole-series issues).
+        details: Figures behind the message (``count``, ``ratio``, ``years``...), so that
+            reports can phrase it in any language.
     """
 
     kind: IssueKind
     severity: Severity
     message: str
     timestamps: tuple[pd.Timestamp, ...] = ()
+    details: Mapping[str, float | str] = field(default_factory=dict, hash=False)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "details", MappingProxyType(dict(self.details)))
 
     @property
     def count(self) -> int:
@@ -211,6 +220,7 @@ def assess_quality(
                     Severity.WARNING if ratio > limits.missing_warning_ratio else Severity.INFO,
                     f"{len(missing)} market sessions without data ({ratio:.1%})",
                     _dates(missing),
+                    {"count": len(missing), "ratio": ratio},
                 )
             )
         extra = unexpected_sessions(sessions, pd.DatetimeIndex(expected_sessions))
@@ -221,6 +231,7 @@ def assess_quality(
                     Severity.WARNING,
                     f"{len(extra)} observations on non-trading days (wrong calendar or bad data?)",
                     _dates(extra),
+                    {"count": len(extra)},
                 )
             )
 
@@ -235,6 +246,7 @@ def assess_quality(
                 f"{len(flagged)} returns beyond {limits.outlier_zscore:g} robust standard "
                 "deviations (bad ticks or genuine shocks: review, not removed)",
                 _dates(flagged.index),
+                {"count": len(flagged), "threshold": limits.outlier_zscore},
             )
         )
 
@@ -249,6 +261,7 @@ def assess_quality(
                 f"{len(jumps)} price jumps with split-like ratios ({ratios}); "
                 + ("prices are not adjusted" if unadjusted else "check the adjustment"),
                 _dates(jumps.index),
+                {"count": len(jumps), "ratios": ratios, "adjusted": 0.0 if unadjusted else 1.0},
             )
         )
 
@@ -261,6 +274,7 @@ def assess_quality(
                 Severity.WARNING,
                 f"{len(runs)} runs of identical prices (longest: {longest} observations)",
                 tuple(start for start, _, _ in runs),
+                {"runs": len(runs), "longest": longest},
             )
         )
 
@@ -272,6 +286,7 @@ def assess_quality(
                 Severity.WARNING,
                 f"{len(violations)} bars where high/low contradict open/close",
                 _dates(violations),
+                {"count": len(violations)},
             )
         )
 
@@ -285,6 +300,7 @@ def assess_quality(
                     Severity.INFO,
                     f"{len(zero)} observations with zero volume",
                     _dates(zero),
+                    {"count": len(zero)},
                 )
             )
 
@@ -295,6 +311,7 @@ def assess_quality(
                 IssueKind.SHORT_HISTORY,
                 Severity.WARNING,
                 f"only {years:.2f} years of history; annualised statistics are unreliable",
+                details={"years": years},
             )
         )
 

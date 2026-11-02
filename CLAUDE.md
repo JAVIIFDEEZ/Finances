@@ -22,7 +22,7 @@ packages/investinglab/   núcleo: librería Python pura (usable desde un noteboo
     analytics/   núcleo funcional: cálculo numérico puro       ← capa más interna
     domain/      dataclasses frozen+slots, sin I/O (usa analytics)
     ports/       Protocols que el núcleo espera del exterior
-    reporting/   Markdown + matplotlib/seaborn
+    reporting/   informes Markdown bilingües (es/en) + gráficos matplotlib
     services/    casos de uso (orquestan puertos/analytics/reporting)
     adapters/    http/, providers/<proveedor>/, storage/ (implementan puertos)
     modules/     un subpaquete por bloque del máster + registro
@@ -37,8 +37,10 @@ docs/            Zensical: adr/, architecture/, plan/, reference/, modules/
 1. Dependencias siempre hacia dentro: `toolkit → modules → services | adapters → reporting |
    ports → domain → analytics`. `analytics` trabaja con arrays/series y no conoce el dominio.
 2. `domain` no importa I/O, frameworks, gráficos ni `config`. Única excepción, declarada en
-   `ignore_imports` ([ADR-0016](docs/adr/0016-monte-carlo-engine.md)): `SimulationResult.plot()`
-   importa `reporting.simulation` de forma diferida. matplotlib es el *extra* opcional `plots`.
+   `ignore_imports` ([ADR-0017](docs/adr/0017-bilingual-reports-and-charts.md)): `report()`,
+   `plots_report()` y `plot()` importan `investinglab.reporting.entrypoints` de forma diferida,
+   dentro del método. matplotlib es el *extra* opcional `plots`; los informes Markdown no lo
+   necesitan.
 3. `services` y `ports` dependen de abstracciones, nunca de `httpx`, `duckdb`, `yfinance`…
 4. Cero lógica de negocio en routers de la API: validar → llamar caso de uso → mapear schema.
 5. Nuevo proveedor = nuevo adaptador en `adapters/providers/<nombre>/` que implementa
@@ -71,6 +73,8 @@ docs/            Zensical: adr/, architecture/, plan/, reference/, modules/
   credenciales (`api_key=`, `token=`…) automáticamente; aun así, nunca registres secretos.
 - Idioma ([ADR-0004](docs/adr/0004-language-policy.md)): código, docstrings, commits y API en
   inglés; docs, ADRs y este fichero en español; UI e informes bilingües.
+- Textos de informes y gráficos: pares `(español, inglés)` en `reporting/i18n.py`; cifras con
+  `Translator.percent/number/date`, nunca con f-strings sueltas.
 
 ## Comandos
 

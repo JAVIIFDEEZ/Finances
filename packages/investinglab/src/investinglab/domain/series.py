@@ -15,7 +15,7 @@ from __future__ import annotations
 import re
 from dataclasses import InitVar, dataclass, field
 from enum import StrEnum
-from typing import TYPE_CHECKING, Any, Final
+from typing import TYPE_CHECKING, Any, Final, Unpack
 
 import numpy as np
 import pandas as pd
@@ -27,6 +27,7 @@ from investinglab.analytics import (
     cumulative_returns,
     describe_returns,
     drawdown,
+    drawdown_episodes,
     log_returns,
     max_drawdown,
     simple_returns,
@@ -49,6 +50,12 @@ if TYPE_CHECKING:
 
     from investinglab.domain.instruments import AssetClass, Instrument
     from investinglab.domain.money import Currency
+    from investinglab.reporting.entrypoints import (
+        MarkdownReport,
+        PlotsReport,
+        ReportOptions,
+        ReportSettings,
+    )
 
 __all__ = [
     "MIN_OBSERVATIONS",
@@ -222,7 +229,12 @@ def _validate_index(index: pd.Index, frequency: Frequency, problems: list[str]) 
     if not index.is_monotonic_increasing:
         problems.append("index must be sorted in increasing time order")
     elif len(index) > 1 and not index.has_duplicates:
-        smallest_gap = index.to_series().diff().min()
+        gaps = index.to_series().diff().iloc[1:]
+        if Frequency.DAY_1.is_finer_than(frequency) and len(gaps) > 1:
+            # The last bar of a weekly/monthly/... series may cover a period still in progress
+            # (the current month so far): only that final gap may be shorter.
+            gaps = gaps.iloc[:-1]
+        smallest_gap = gaps.min()
         if smallest_gap < frequency.min_spacing:
             problems.append(
                 f"observations {smallest_gap} apart are too close for frequency "
@@ -311,6 +323,9 @@ class PriceSeries:
     adjustment: PriceAdjustment = PriceAdjustment.RAW
     _bars: pd.DataFrame = field(init=False, repr=False)
     stats: SeriesStats = field(init=False)
+
+    # Pattern matching and introspection see attributes only: ``data`` is an InitVar.
+    __match_args__ = ("instrument", "frequency", "source")
 
     def __post_init__(self, data: pd.DataFrame) -> None:
         bars = _validated_bars(data, self.frequency, self.instrument.symbol)
@@ -433,6 +448,13 @@ class PriceSeries:
         """Worst peak-to-trough decline (non-positive)."""
         return self.stats.max_drawdown
 
+    def drawdown_episodes(self, top: int | None = 5) -> pd.DataFrame:
+        """Deepest peak-to-recovery episodes of the prices, worst first.
+
+        See :func:`~investinglab.analytics.drawdown_episodes` for the columns.
+        """
+        return drawdown_episodes(self.prices, top=top)
+
     def metrics(
         self,
         *,
@@ -481,6 +503,48 @@ class PriceSeries:
     def beta(self, benchmark: PriceSeries) -> float:
         """Sensitivity to ``benchmark`` on the dates where both have a return."""
         return beta(self.returns(), benchmark.returns())
+
+    # ── Reports (B1-T1 §4.5) ─────────────────────────────────────────
+
+    def report(
+        self, options: ReportOptions | None = None, **settings: Unpack[ReportSettings]
+    ) -> MarkdownReport:
+        """Markdown report of the series (B1-T1 §4.5).
+
+        Sections: data and provenance, return and risk (with the Sharpe ratio's confidence
+        interval), tail risk, drawdown episodes, Monte Carlo when requested, data quality,
+        diagnostics and methodology.
+
+        The text is bilingual (``language="es"`` by default, ``"en"`` available) and is an
+        ordinary ``str`` that notebooks render as formatted Markdown.
+
+        Args:
+            options: Report options (:class:`~investinglab.reporting.options.ReportOptions`).
+            **settings: Any option by name, overriding ``options``.
+
+        Examples:
+            >>> series.report(language="en", risk_free_rate=0.03).save("report.md")
+        """
+        # Lazy, documented exception to the layering (ADR-0017): presentation lives in reporting.
+        from investinglab.reporting.entrypoints import series_report  # noqa: PLC0415
+
+        return series_report(self, options, **settings)
+
+    def plots_report(
+        self, options: ReportOptions | None = None, **settings: Unpack[ReportSettings]
+    ) -> PlotsReport:
+        """Charts of the series: price, drawdown, return distribution and rolling volatility.
+
+        Needs the ``plots`` extra. Returns a
+        :class:`~investinglab.reporting.plots.PlotsReport`: a mapping of named matplotlib
+        figures that can be saved with ``save(directory)``.
+
+        Examples:
+            >>> series.plots_report(language="en").save("charts/")
+        """
+        from investinglab.reporting.entrypoints import series_plots  # noqa: PLC0415
+
+        return series_plots(self, options, **settings)
 
     # ── Transformations (return new, validated series) ───────────────
 

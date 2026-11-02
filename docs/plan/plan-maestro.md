@@ -24,7 +24,7 @@
 | 18 | Outliers | Se detectan y se reportan; nunca se borran. |
 | 20 | Auth | Better Auth (passkeys + TOTP obligatorio) en la web y verificación JWKS en la API. Detalle en la sección 8. |
 | 21 | Despliegue | Local con Docker Compose, diseñado *cloud-ready* (12-factor, almacenamiento de objetos para Parquet, secretos por entorno). |
-| 22 | Gráficos | La API devuelve **datos tipados**, nunca especificaciones de gráficos. El frontend pinta con ECharts y Lightweight Charts. Matplotlib/seaborn solo en el núcleo (`plots_report()` y exportación de informes). Plotly queda fuera. |
+| 22 | Gráficos | La API devuelve **datos tipados**, nunca especificaciones de gráficos. El frontend pinta con ECharts y Lightweight Charts. Matplotlib solo en el núcleo (`plots_report()` y exportación de informes); seaborn se descartó en F5 por no aportar sobre la paleta propia. Plotly queda fuera. |
 | 23 | Docs | Zensical + mkdocstrings-python. |
 | 26 | Enunciados | No se sube material de clase. `docs/enunciados/` se ignora en git; en el repo solo queda una matriz de trazabilidad con los requisitos redactada por nosotros. |
 
@@ -80,7 +80,7 @@ investinglab/
 │       │   ├── ports/                    # Protocols: proveedores, almacenamiento, reloj
 │       │   ├── services/                 # casos de uso: ingesta, routing, alineación, FX, carteras, calidad
 │       │   ├── analytics/                # returns, performance, risk, correlation, attribution, montecarlo/
-│       │   ├── reporting/                # markdown (Jinja2), plots (matplotlib/seaborn), i18n
+│       │   ├── reporting/                # Markdown tipado, gráficos (matplotlib), i18n es/en (ADR-0017)
 │       │   ├── adapters/
 │       │   │   ├── http/                 # cliente httpx común: reintentos, rate limit, logging, User-Agent
 │       │   │   ├── providers/            # yahoo/, alphavantage/, fred/, ecb/, … (uno por carpeta)

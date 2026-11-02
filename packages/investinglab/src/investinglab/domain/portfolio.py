@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Final, Unpack
 
 import numpy as np
 import pandas as pd
@@ -14,6 +14,7 @@ from investinglab.analytics import (
     correlation_from_covariance,
     covariance_matrix,
     drawdown,
+    drawdown_episodes,
     effective_number_of_assets,
     herfindahl_index,
     rebalanced_path,
@@ -35,6 +36,12 @@ if TYPE_CHECKING:
 
     from investinglab.domain.money import Currency
     from investinglab.domain.series import PriceSeries
+    from investinglab.reporting.entrypoints import (
+        MarkdownReport,
+        PlotsReport,
+        ReportOptions,
+        ReportSettings,
+    )
 
 __all__ = [
     "WEIGHT_TOLERANCE",
@@ -182,6 +189,10 @@ class PortfolioBacktest:
     def drawdown(self) -> pd.Series:
         """Decline of the portfolio value from its running peak."""
         return drawdown(self._values)
+
+    def drawdown_episodes(self, top: int | None = 5) -> pd.DataFrame:
+        """Deepest peak-to-recovery episodes of the portfolio value."""
+        return drawdown_episodes(self._values, top=top)
 
 
 @dataclass(frozen=True, slots=True)
@@ -518,6 +529,50 @@ class Portfolio:
             start=pd.Timestamp(prices.index[-1]),
         )
         return simulate(inputs, settings)
+
+    # ── Reports (B1-T1 §4.5) ─────────────────────────────────────────
+
+    def report(
+        self, options: ReportOptions | None = None, **settings: Unpack[ReportSettings]
+    ) -> MarkdownReport:
+        """Markdown report of the portfolio (B1-T1 §4.5).
+
+        Sections: composition, return and risk, comparison with every holding over the
+        common period, tail risk, correlations, risk contributions, rebalancing, drawdowns,
+        calendars and valuation, Monte Carlo when requested, data quality, diagnostics and
+        methodology.
+
+        The text is bilingual (``language="es"`` by default, ``"en"`` available) and is an
+        ordinary ``str`` that notebooks render as formatted Markdown.
+
+        Args:
+            options: Report options (:class:`~investinglab.reporting.options.ReportOptions`).
+            **settings: Any option by name, overriding ``options``.
+
+        Examples:
+            >>> portfolio.report(language="en", risk_free_rate=0.03).save("report.md")
+        """
+        # Lazy, documented exception to the layering (ADR-0017): presentation lives in reporting.
+        from investinglab.reporting.entrypoints import portfolio_report  # noqa: PLC0415
+
+        return portfolio_report(self, options, **settings)
+
+    def plots_report(
+        self, options: ReportOptions | None = None, **settings: Unpack[ReportSettings]
+    ) -> PlotsReport:
+        """Charts of the portfolio: growth, drawdown, correlations, risk and weights.
+
+        Growth versus every holding, drawdown, correlation heatmap, weight versus risk
+        contribution and effective weights against their targets. Needs the ``plots``
+        extra. Returns a :class:`~investinglab.reporting.plots.PlotsReport`: a mapping of
+        named matplotlib figures that can be saved with ``save(directory)``.
+
+        Examples:
+            >>> portfolio.plots_report(language="en").save("charts/")
+        """
+        from investinglab.reporting.entrypoints import portfolio_plots  # noqa: PLC0415
+
+        return portfolio_plots(self, options, **settings)
 
     def _simulation_rebalancing(self) -> tuple[int | None, float | None]:
         policy = self.rebalance

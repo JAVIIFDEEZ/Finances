@@ -101,6 +101,9 @@ class EconomicSeries:
     seasonal_adjustment: str | None = None
     _observations: pd.DataFrame = field(init=False, repr=False)
 
+    # Pattern matching and introspection see attributes only: ``data`` is an InitVar.
+    __match_args__ = ("series_id", "title", "units", "frequency", "source")
+
     def __post_init__(self, data: pd.DataFrame) -> None:
         object.__setattr__(self, "_observations", _validated_observations(data, self.series_id))
 

@@ -217,16 +217,23 @@ layers = [
 ]
 containers = []
 exhaustive = false
-# The only upward import: simulation results delegate their chart to reporting, lazily
-# (like pandas' .plot). ADR-0016.
-ignore_imports = ["investinglab.domain.simulation -> investinglab.reporting.simulation"]
+# The only upward imports: domain objects delegate report() / plots_report() / plot() to a
+# single reporting gateway, imported lazily inside the method (like pandas' .plot).
+# ADR-0016, ADR-0017.
+ignore_imports = [
+  "investinglab.domain.series -> investinglab.reporting.entrypoints",
+  "investinglab.domain.portfolio -> investinglab.reporting.entrypoints",
+  "investinglab.domain.simulation -> investinglab.reporting.entrypoints",
+]
 
 [[tool.importlinter.contracts]]
 name = "The domain is pure: no I/O, no frameworks, no plotting"
 type = "forbidden"
 source_modules = ["investinglab.domain"]
 ignore_imports = [
-  "investinglab.domain.simulation -> investinglab.reporting.simulation",
+  "investinglab.domain.series -> investinglab.reporting.entrypoints",
+  "investinglab.domain.portfolio -> investinglab.reporting.entrypoints",
+  "investinglab.domain.simulation -> investinglab.reporting.entrypoints",
   "investinglab.domain.simulation -> matplotlib",  # type of plot()'s return value only
 ]
 forbidden_modules = [

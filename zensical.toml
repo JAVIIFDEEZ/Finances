@@ -17,6 +17,7 @@ nav = [
     "architecture/domain.md",
     "architecture/ingestion.md",
     "architecture/simulation.md",
+    "architecture/reporting.md",
   ] },
   { "Decisiones (ADR)" = [
     "adr/index.md",
@@ -36,6 +37,7 @@ nav = [
     "adr/0014-currency-conversion-and-risk-free-rate.md",
     "adr/0015-data-quality-diagnostics.md",
     "adr/0016-monte-carlo-engine.md",
+    "adr/0017-bilingual-reports-and-charts.md",
   ] },
   { "Referencia API" = [
     "reference/index.md",

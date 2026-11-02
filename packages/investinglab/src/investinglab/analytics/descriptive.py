@@ -14,6 +14,7 @@ __all__ = [
     "annualize_volatility",
     "cagr",
     "describe_returns",
+    "jarque_bera",
 ]
 
 
@@ -121,3 +122,19 @@ def cagr(total_return: float, periods: int, periods_per_year: float) -> float:
     except OverflowError:
         # Annualising a tiny window (e.g. minutes of data) can exceed float range.
         return math.inf
+
+
+def jarque_bera(skewness: float, excess_kurtosis: float, count: int) -> tuple[float, float]:
+    """Jarque-Bera normality test from the sample moments of ``count`` returns.
+
+    ``JB = n / 6 * (S² + K² / 4)`` follows a chi-squared distribution with two degrees of
+    freedom under normality, whose survival function is ``exp(-JB / 2)``.
+
+    Returns:
+        ``(statistic, p_value)``; both ``nan`` when a moment is undefined. A small p-value
+        (e.g. below 0.01) rejects normality.
+    """
+    if count < 4 or not (math.isfinite(skewness) and math.isfinite(excess_kurtosis)):  # noqa: PLR2004
+        return float("nan"), float("nan")
+    statistic = count / 6.0 * (skewness**2 + excess_kurtosis**2 / 4.0)
+    return statistic, math.exp(-statistic / 2.0)
