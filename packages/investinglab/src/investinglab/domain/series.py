@@ -317,6 +317,9 @@ class PriceSeries:
     _bars: pd.DataFrame = field(init=False, repr=False)
     stats: SeriesStats = field(init=False)
 
+    # Pattern matching and introspection see attributes only: ``data`` is an InitVar.
+    __match_args__ = ("instrument", "frequency", "source")
+
     def __post_init__(self, data: pd.DataFrame) -> None:
         bars = _validated_bars(data, self.frequency, self.instrument.symbol)
         object.__setattr__(self, "_bars", bars)

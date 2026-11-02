@@ -72,6 +72,9 @@ class FxRates:
     data: InitVar[pd.Series]
     _rates: pd.Series = field(init=False, repr=False)
 
+    # Pattern matching and introspection see attributes only: ``data`` is an InitVar.
+    __match_args__ = ("pair", "source")
+
     def __post_init__(self, data: pd.Series) -> None:
         object.__setattr__(self, "_rates", _validated_rates(data, self.pair.symbol))
 

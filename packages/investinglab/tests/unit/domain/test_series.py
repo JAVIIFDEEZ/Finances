@@ -11,17 +11,27 @@ import pytest
 from investinglab.domain import (
     EUR,
     EXCHANGES,
+    USD,
     AssetClass,
+    CurrencyPair,
     DataSource,
     DomainError,
     Frequency,
+    FxRates,
     InvalidSeriesError,
     PriceAdjustment,
     PriceField,
     PriceSeries,
     ReturnKind,
 )
-from support.factories import SYNTHETIC_SOURCE, make_bars, make_instrument, make_series
+from support.factories import (
+    SYNTHETIC_SOURCE,
+    make_bars,
+    make_economic_series,
+    make_fx_series,
+    make_instrument,
+    make_series,
+)
 
 
 def _series(data: pd.DataFrame, frequency: Frequency = Frequency.DAY_1) -> PriceSeries:
@@ -302,3 +312,19 @@ def test_intraday_between_uses_session_dates_in_the_market_timezone() -> None:
     assert series.between(start=date(2024, 1, 3)).prices.iloc[0] == 10.0
     utc_bound = series.between(end=pd.Timestamp("2024-01-02 10:00", tz="UTC"))
     assert len(utc_bound) == 3
+
+
+def test_pattern_matching_uses_attributes_not_init_vars() -> None:
+    series = make_series()
+    economic = make_economic_series()
+    rates = FxRates.from_price_series(make_fx_series([1.1, 1.2, 1.3]), CurrencyPair(EUR, USD))
+
+    for value in (series, economic, rates):
+        assert all(hasattr(value, name) for name in type(value).__match_args__)
+    match series:
+        case PriceSeries(instrument, frequency, source):
+            assert (instrument, frequency, source) == (
+                series.instrument,
+                series.frequency,
+                series.source,
+            )
