@@ -54,6 +54,8 @@ class Settings(BaseSettings):
         log_format: Log renderer. Defaults to JSON outside local development.
         data_dir: Root directory of the local market-data cache and exports.
         cache_dir: Market-data cache directory (defaults to ``<data_dir>/cache``).
+        local_data_dir: Folder of the user's own price files and ``instruments.toml``; when
+            set, they are served by the ``files`` provider (offline data, broker exports).
         http_timeout_seconds: Timeout of every outbound HTTP request.
         http_max_attempts: Attempts per request, retries included, for transient errors.
         max_concurrency: Maximum number of series downloaded at the same time.
@@ -76,6 +78,7 @@ class Settings(BaseSettings):
     log_format: LogFormat | None = None
     data_dir: Path = Path("data")
     cache_dir: Path | None = None
+    local_data_dir: Path | None = None
     http_timeout_seconds: float = Field(default=30.0, gt=0, le=300)
     http_max_attempts: int = Field(default=4, ge=1, le=10)
     max_concurrency: int = Field(default=8, ge=1, le=64)
