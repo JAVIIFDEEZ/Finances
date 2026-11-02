@@ -24,12 +24,14 @@ packages/investinglab/   núcleo: librería Python pura (usable desde un noteboo
     ports/       Protocols que el núcleo espera del exterior
     reporting/   informes Markdown bilingües (es/en) + gráficos matplotlib
     services/    casos de uso (orquestan puertos/analytics/reporting)
-    adapters/    http/, providers/<proveedor>/, storage/ (implementan puertos)
-    modules/     un subpaquete por bloque del máster + registro
+    adapters/    http/, providers/<proveedor>/, storage/, calendars/, files/ (implementan puertos)
+    modules/     un subpaquete por bloque del máster + registro y trazabilidad
     config/      Settings (pydantic-settings) y logging (structlog)
-  tests/         unit/, property/, contract/, integration/, fixtures/
+    toolkit.py   fachada pública y composition root para notebooks (ADR-0018)
+  tests/         unit/, property/, contract/, integration/, fixtures/, support/
+notebooks/       demos ejecutables, versionadas SIN resultados
 apps/api/        FastAPI (fase F6)        apps/web/   Next.js (fase F8)
-docs/            Zensical: adr/, architecture/, plan/, reference/, modules/
+docs/            Zensical: guide/, adr/, architecture/, plan/, reference/, modules/
 ```
 
 ## Reglas de arquitectura (verificadas por `lint-imports`)
@@ -46,7 +48,9 @@ docs/            Zensical: adr/, architecture/, plan/, reference/, modules/
 5. Nuevo proveedor = nuevo adaptador en `adapters/providers/<nombre>/` que implementa
    `MarketDataProvider` y/o `EconomicDataProvider`, declara sus `ProviderCapabilities`, usa
    `HttpClient` para la red y se registra en `ProviderRegistry`. Nada más cambia.
-6. Nuevo bloque del máster = nuevo paquete en `modules/` que se registra. Lo reutilizable va al
+6. Nuevo bloque del máster = nuevo paquete en `modules/` que se registra con su `ModuleInfo`:
+   requisitos redactados por nosotros → código → tests (un test exige que todo exista; la
+   matriz de `docs/modules/` se regenera con `just traceability`). Lo reutilizable va al
    núcleo (`analytics`, `services`…), no se queda atrapado dentro del módulo.
 
 ## Reglas de datos (no negociables)
@@ -88,6 +92,7 @@ uv run just typecheck         # mypy --strict
 uv run just test [args]       # pytest con cobertura (umbral 90 %)
 uv run just test-fast [args]  # pytest -x sin cobertura
 uv run just docs              # web de documentación con recarga en vivo
+uv run just traceability      # regenerar docs/modules/ desde el registro de módulos
 ```
 
 ## Tests
@@ -100,6 +105,8 @@ uv run just docs              # web de documentación con recarga en vivo
   generan datos **sintéticos** con proveedor `synthetic`.
 - Property-based testing con `hypothesis` para estadísticos y Monte Carlo.
 - Marcadores: `integration` (BD, filesystem pesado) y `network` (nunca en CI).
+- Los notebooks se versionan sin resultados y un test los ejecuta de principio a fin con
+  ficheros sintéticos temporales (`tests/unit/test_notebooks.py`).
 
 ## Flujo de trabajo
 

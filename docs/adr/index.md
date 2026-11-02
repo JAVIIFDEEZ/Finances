@@ -24,6 +24,7 @@ actualiza el estado del antiguo.
 | [0015](0015-data-quality-diagnostics.md) | Diagnóstico de calidad de datos con calendarios oficiales | Aceptado |
 | [0016](0016-monte-carlo-engine.md) | Motor Monte Carlo vectorizado con rebalanceo dentro de cada trayectoria | Aceptado |
 | [0017](0017-bilingual-reports-and-charts.md) | Informes Markdown bilingües, gráficos de informe y delegación diferida del dominio | Aceptado |
+| [0018](0018-toolkit-facade-and-local-data.md) | Fachada Toolkit, datos locales y trazabilidad de los módulos | Aceptado |
 
 ## Cómo añadir un ADR
 

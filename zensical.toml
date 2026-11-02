@@ -12,12 +12,15 @@ copyright = "© InvestingLab — uso privado"
 nav = [
   { "Inicio" = "index.md" },
   { "Plan maestro" = "plan/plan-maestro.md" },
+  { "Guías" = ["guide/toolkit.md"] },
+  { "Módulos del máster" = ["modules/b1-toolkit.md"] },
   { "Arquitectura" = [
     "architecture/index.md",
     "architecture/domain.md",
     "architecture/ingestion.md",
     "architecture/simulation.md",
     "architecture/reporting.md",
+    "architecture/workflow.md",
   ] },
   { "Decisiones (ADR)" = [
     "adr/index.md",
@@ -38,14 +41,17 @@ nav = [
     "adr/0015-data-quality-diagnostics.md",
     "adr/0016-monte-carlo-engine.md",
     "adr/0017-bilingual-reports-and-charts.md",
+    "adr/0018-toolkit-facade-and-local-data.md",
   ] },
   { "Referencia API" = [
     "reference/index.md",
+    "reference/toolkit.md",
     "reference/domain.md",
     "reference/analytics.md",
     "reference/ports.md",
     "reference/services.md",
     "reference/reporting.md",
+    "reference/modules.md",
     "reference/adapters.md",
     "reference/config.md",
   ] },
