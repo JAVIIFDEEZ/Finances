@@ -18,6 +18,7 @@ nav = [
     "architecture/ingestion.md",
     "architecture/simulation.md",
     "architecture/reporting.md",
+    "architecture/workflow.md",
   ] },
   { "Decisiones (ADR)" = [
     "adr/index.md",

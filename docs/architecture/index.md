@@ -58,5 +58,4 @@ Las reglas no dependen de la disciplina: `import-linter` las comprueba en cada c
 - [Ingesta de datos de mercado y diagrama de secuencia](ingestion.md)
 - [Simulación de Monte Carlo y diagrama de flujo](simulation.md)
 - [Informes y gráficos](reporting.md)
-
-El diagrama de secuencia (ingesta → cartera → simulación → reporte) se añadirá con las fases F2–F5.
+- [Flujo completo: ingesta → cartera → simulación → informe](workflow.md)
