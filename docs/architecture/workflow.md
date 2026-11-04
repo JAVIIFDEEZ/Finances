@@ -68,5 +68,5 @@ sequenceDiagram
 | 7–8 | Los proveedores devuelven objetos del dominio ya validados, nunca *payloads* crudos ([ADR-0006](../adr/0006-strict-input-validation.md)). |
 | 13–15 | La conversión usa el último fixing publicado; sin fixing, la observación se descarta ([ADR-0014](../adr/0014-currency-conversion-and-risk-free-rate.md)). |
 | 18–19 | La simulación aplica la política de rebalanceo dentro de cada trayectoria ([ADR-0016](../adr/0016-monte-carlo-engine.md)). |
-| 21–22 | El tipo libre de riesgo es el conocido en cada fecha (ALFRED, [ADR-0009](../adr/0009-point-in-time-economic-series.md)); si no hay fuente, el informe lo advierte. |
+| 21–22 | El tipo libre de riesgo es el conocido en cada fecha (ALFRED, [ADR-0009](../adr/0009-point-in-time-economic-series.md)), en TAE según la convención de cada serie ([ADR-0020](../adr/0020-risk-free-rate-conventions.md)); si no hay fuente o no cubre todo el histórico, el informe lo advierte. |
 | 23 | La calidad se mide frente al calendario oficial de cada mercado ([ADR-0015](../adr/0015-data-quality-diagnostics.md)). |

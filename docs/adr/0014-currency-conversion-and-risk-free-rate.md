@@ -6,6 +6,10 @@ decision-makers: Javier Fernández
 
 # Conversión de divisas *as-of* y tipo libre de riesgo por divisa
 
+> **Actualización (2026-11-04):** cada serie del tipo libre de riesgo se convierte a TAE según
+> su convención (ACT/360 a un día en el €STR) y el informe avisa de los periodos sin tipo
+> conocido. Ver [ADR-0020](0020-risk-free-rate-conventions.md).
+
 ## Contexto y problema
 
 Una cartera de un inversor en euros mezcla activos en EUR (SAN.MC), USD (SPY) o GBP (VOD.L).

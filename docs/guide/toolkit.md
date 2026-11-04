@@ -123,9 +123,12 @@ activos usan divisas distintas, hay que indicar `base_currency`.
 
 * usa el tipo libre de riesgo *point-in-time* de la divisa (€STR o el tipo de depósito del BCE en
   EUR, T-Bill a 3 meses en USD), salvo que pases `risk_free_rate`;
+* convierte cada tipo a TAE según su convención: el €STR cotiza a un día en base ACT/360, así
+  que un 3,5 % equivale a un 3,61 % anual compuesto;
 * comprueba la calidad de los datos con el calendario oficial de cada mercado.
 
-Si no hay fuente para el tipo libre de riesgo, el informe lo indica en sus diagnósticos.
+Si no hay fuente para el tipo libre de riesgo, o si no cubre todo el histórico, el informe lo
+indica en sus diagnósticos. Un `risk_free_rate` constante se interpreta como TAE.
 
 ## Código asíncrono
 
