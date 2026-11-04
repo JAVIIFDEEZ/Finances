@@ -35,13 +35,17 @@ ECONOMIC_CAPABILITIES = ProviderCapabilities(datasets=frozenset({Dataset.ECONOMI
 
 @dataclass
 class FakeBarsProvider:
-    """Serves pre-built series; raises configured errors; records calls."""
+    """Serves pre-built series; raises configured errors; records calls.
+
+    With ``slice_requests`` it answers only the requested dates, like a real provider.
+    """
 
     name: str
     series: Mapping[str, PriceSeries] = field(default_factory=dict)
     errors: Mapping[str, ProviderError] = field(default_factory=dict)
     capabilities: ProviderCapabilities = BARS_CAPABILITIES
     delay: float = 0.0
+    slice_requests: bool = False
     calls: list[BarsRequest] = field(default_factory=list)
     in_flight: int = 0
     max_in_flight: int = 0
@@ -57,7 +61,10 @@ class FakeBarsProvider:
                 raise self.errors[request.symbol]
             if request.symbol not in self.series:
                 raise SymbolNotFoundError(self.name, f"unknown symbol {request.symbol}")
-            return self.series[request.symbol]
+            series = self.series[request.symbol]
+            if self.slice_requests:
+                return series.between(request.start, request.end)
+            return series
         finally:
             self.in_flight -= 1
 
