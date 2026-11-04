@@ -26,7 +26,7 @@ import math
 from dataclasses import dataclass, field
 from enum import StrEnum
 from types import MappingProxyType
-from typing import TYPE_CHECKING, TypedDict
+from typing import TYPE_CHECKING, Any, TypedDict
 
 import numpy as np
 import pandas as pd
@@ -55,6 +55,8 @@ from investinglab.domain.time import Frequency
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
+
+    from matplotlib.figure import Figure
 
     from investinglab.domain.portfolio import Portfolio
 
@@ -568,3 +570,15 @@ class EfficientFrontier:
                 "volatility": self.estimates.volatilities,
             }
         )
+
+    def plot(self, **options: Any) -> Figure:  # noqa: ANN401
+        """Chart of the frontier, the holdings, both optimal portfolios and the capital line.
+
+        Requires the ``plots`` extra (matplotlib). See
+        :func:`investinglab.reporting.optimization.frontier_figure` for the options
+        (``title`` and ``language``).
+        """
+        # Lazy, documented exception to the layering (ADR-0017, ADR-0023).
+        from investinglab.reporting.entrypoints import frontier_plot  # noqa: PLC0415
+
+        return frontier_plot(self, **options)

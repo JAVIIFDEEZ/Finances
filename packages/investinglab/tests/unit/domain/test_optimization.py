@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 
+import matplotlib as mpl
 import numpy as np
 import pandas as pd
 import pytest
@@ -331,6 +332,46 @@ def test_frontier_without_a_tangency_and_with_infeasible_bounds() -> None:
     assert flat.maximum_sharpe is None
     with pytest.raises(DomainError, match="Optimisation failed"):
         PORTFOLIO.efficient_frontier(max_weight=0.2)
+
+
+def test_frontier_chart_in_both_languages() -> None:
+    mpl.use("Agg")
+    frontier = PORTFOLIO.efficient_frontier(points=8, risk_free_rate=0.02)
+
+    spanish = frontier.plot()
+    english = frontier.plot(language="en", title="Custom")
+
+    axes = spanish.axes[0]
+    assert axes.get_title(loc="left") == "Frontera eficiente"
+    assert axes.get_xlabel() == "Volatilidad anual"
+    legend = axes.get_legend()
+    assert legend is not None
+    labels = [text.get_text() for text in legend.get_texts()]
+    assert labels == [
+        "Frontera eficiente",
+        "Activos",
+        "Mínima varianza",
+        "Línea del mercado de capitales",
+        "Máximo Sharpe",
+    ]
+    assert english.axes[0].get_title(loc="left") == "Custom"
+    assert english.axes[0].get_ylabel() == "Annual expected return"
+
+
+def test_frontier_chart_without_tangency_or_labels() -> None:
+    mpl.use("Agg")
+    many = [
+        make_series(gbm_prices(N, seed=30 + i), symbol=f"S{i:02d}", index=INDEX) for i in range(13)
+    ]
+    portfolio = Portfolio.equal_weight("Many", many)
+
+    figure = portfolio.efficient_frontier(points=4, risk_free_rate=1.0).plot()
+
+    axes = figure.axes[0]
+    assert not axes.texts  # too many holdings to label
+    legend = axes.get_legend()
+    assert legend is not None
+    assert len(legend.get_texts()) == 3
 
 
 # ── Rebuilding portfolios ────────────────────────────────────────────

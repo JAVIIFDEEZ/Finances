@@ -1,9 +1,10 @@
 """The only reporting module the domain may call (lazily, ADR-0017).
 
-``PriceSeries.report()``, ``Portfolio.plots_report()``, ``SimulationResult.plot()`` and
-friends import this module inside the method, so the domain package never loads reporting
-(or matplotlib) at import time. Chart functions import matplotlib only when called, so
-Markdown reports work without the optional ``plots`` extra.
+``PriceSeries.report()``, ``Portfolio.plots_report()``, ``SimulationResult.plot()``,
+``EfficientFrontier.plot()`` and friends import this module inside the method, so the
+domain package never loads reporting (or matplotlib) at import time. Chart functions
+import matplotlib only when called, so Markdown reports work without the optional
+``plots`` extra.
 """
 
 from __future__ import annotations
@@ -17,6 +18,7 @@ from investinglab.reporting.plots import PlotsReport
 if TYPE_CHECKING:
     from matplotlib.figure import Figure
 
+    from investinglab.domain.optimization import EfficientFrontier
     from investinglab.domain.portfolio import Portfolio
     from investinglab.domain.series import PriceSeries
     from investinglab.domain.simulation import SimulationResult
@@ -27,6 +29,7 @@ __all__ = [
     "PlotsReport",
     "ReportOptions",
     "ReportSettings",
+    "frontier_plot",
     "portfolio_plots",
     "portfolio_report",
     "series_plots",
@@ -85,6 +88,16 @@ def portfolio_plots(
         raise ImportError(PLOTS_EXTRA_HINT) from error
 
     return build(portfolio, ReportOptions.resolve(options, settings))
+
+
+def frontier_plot(frontier: EfficientFrontier, **options: Any) -> Figure:  # noqa: ANN401
+    """Risk-return chart of an efficient frontier (needs the ``plots`` extra)."""
+    try:
+        from investinglab.reporting.optimization import frontier_figure  # noqa: PLC0415
+    except ModuleNotFoundError as error:
+        raise ImportError(PLOTS_EXTRA_HINT) from error
+
+    return frontier_figure(frontier, **options)
 
 
 def simulation_plot(result: SimulationResult, **options: Any) -> Figure:  # noqa: ANN401
