@@ -1,8 +1,8 @@
 """Monte Carlo simulation of assets and portfolios (ADR-0016).
 
 The simulation is parametrisable (paths, horizon, return and volatility assumptions, model,
-seed), reproducible, vectorised and memory-bounded. The same rebalancing policy used for the
-historical analysis is applied inside every simulated path.
+seed), reproducible, vectorised and memory-bounded (ADR-0019). The same rebalancing policy
+used for the historical analysis is applied inside every simulated path.
 
 Calibration works on **log returns per period** of the series' frequency:
 
@@ -41,6 +41,7 @@ if TYPE_CHECKING:
     from matplotlib.figure import Figure
 
 __all__ = [
+    "MAX_CHUNK_CELLS",
     "MAX_SIMULATED_POINTS",
     "CovarianceEstimator",
     "DriftAssumption",
@@ -53,7 +54,14 @@ __all__ = [
 ]
 
 MAX_SIMULATED_POINTS: Final = 20_000_000
-"""Upper bound of ``n_paths * horizon`` (≈160 MB of float64 value paths)."""
+"""Upper bound of ``n_paths * horizon``: the value paths kept (≈160 MB of float64)."""
+
+MAX_CHUNK_CELLS: Final = 4_000_000
+"""Upper bound of ``paths * horizon * assets`` generated at once (≈32 MB per float64 array).
+
+The per-asset returns are the largest arrays of a simulation; they only exist for one chunk
+of paths at a time, so this bound (not the number of assets) sets the working memory.
+"""
 
 _Z_95: Final = 1.959963984540054
 
@@ -125,7 +133,8 @@ class SimulationConfig:
         seed: Random seed; the same seed and configuration give the same result.
         initial_value: Value at the start of every path.
         confidence_levels: Levels for VaR and CVaR.
-        chunk_size: Paths simulated at once (bounds the memory used).
+        chunk_size: Maximum paths simulated at once. Long horizons and many assets use
+            smaller chunks (see :meth:`paths_per_chunk`).
     """
 
     n_paths: int = 10_000
@@ -176,6 +185,30 @@ class SimulationConfig:
             problems.append("chunk_size must be at least 100")
         if problems:
             raise DomainError("Invalid simulation configuration: " + "; ".join(problems))
+
+    def paths_per_chunk(self, assets: int) -> int:
+        """Paths generated at once when simulating ``assets`` assets.
+
+        ``chunk_size`` is an upper bound: the chunk shrinks until its per-asset returns fit
+        in :data:`MAX_CHUNK_CELLS`. When the paths are split into several chunks and
+        antithetic variates are used, the chunk is even so every path keeps its mirror.
+
+        Raises:
+            DomainError: If there are no assets, or if a single path of ``horizon x assets``
+                cells exceeds the bound.
+        """
+        if assets < 1:
+            raise DomainError("A simulation needs at least one asset")
+        cells_per_path = self.horizon * assets
+        paths = min(self.chunk_size, self.n_paths, MAX_CHUNK_CELLS // cells_per_path)
+        if paths < 1:
+            raise DomainError(
+                f"horizon x assets = {cells_per_path:,} exceeds the memory bound of "
+                f"{MAX_CHUNK_CELLS:,} cells: shorten the horizon or simulate fewer assets"
+            )
+        if self.antithetic and 1 < paths < self.n_paths:
+            paths -= paths % 2
+        return paths
 
 
 @dataclass(frozen=True, slots=True)
@@ -514,9 +547,16 @@ def _bootstrap_rows(complete: pd.DataFrame, calibration: Calibration) -> np.ndar
 def simulate(inputs: SimulationInputs, config: SimulationConfig) -> SimulationResult:
     """Run a Monte Carlo simulation of an asset or a portfolio.
 
-    Paths are generated in chunks of ``config.chunk_size`` so memory stays bounded; the
-    random stream depends only on the seed and the configuration.
+    Paths are generated in chunks (:meth:`SimulationConfig.paths_per_chunk`): the per-asset
+    returns only exist for one chunk at a time and just the portfolio value paths are kept,
+    so memory stays bounded whatever the number of assets. The random stream depends only
+    on the seed, the configuration and the number of assets.
+
+    Raises:
+        DomainError: If the history cannot calibrate the model or a single path does not
+            fit in the memory bound.
     """
+    chunk = config.paths_per_chunk(inputs.prices.shape[1])
     calibration, complete = calibrate(inputs, config)
     rng = np.random.default_rng(config.seed)
     bootstrap_rows = (
@@ -525,8 +565,9 @@ def simulate(inputs: SimulationInputs, config: SimulationConfig) -> SimulationRe
         else None
     )
     values = np.empty((config.n_paths, config.horizon + 1))
-    for start in range(0, config.n_paths, config.chunk_size):
-        size = min(config.chunk_size, config.n_paths - start)
+    max_drawdowns = np.empty(config.n_paths)
+    for start in range(0, config.n_paths, chunk):
+        size = min(chunk, config.n_paths - start)
         if bootstrap_rows is not None:
             indices = stationary_bootstrap_indices(
                 len(bootstrap_rows),
@@ -555,17 +596,20 @@ def simulate(inputs: SimulationInputs, config: SimulationConfig) -> SimulationRe
                 rng=rng,
                 antithetic=config.antithetic,
             )
-        values[start : start + size] = rebalanced_values(
-            np.expm1(shocks),
+        np.expm1(shocks, out=shocks)  # log -> simple returns, without another copy
+        block = values[start : start + size]
+        block[:] = rebalanced_values(
+            shocks,
             calibration.weights,
             initial_value=config.initial_value,
             rebalance_every=inputs.rebalance_every,
             band=inputs.band,
         )
+        max_drawdowns[start : start + size] = path_max_drawdowns(block)
     return SimulationResult(
         config=config,
         calibration=calibration,
         start=inputs.start,
         _values=values,
-        _max_drawdowns=path_max_drawdowns(values),
+        _max_drawdowns=max_drawdowns,
     )

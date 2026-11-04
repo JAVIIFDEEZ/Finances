@@ -63,6 +63,7 @@ from investinglab.domain.series import (
     SeriesStats,
 )
 from investinglab.domain.simulation import (
+    MAX_CHUNK_CELLS,
     MAX_SIMULATED_POINTS,
     CovarianceEstimator,
     DriftAssumption,
@@ -91,6 +92,7 @@ __all__ = [
     "FX_SCHEDULE",
     "GBP",
     "JPY",
+    "MAX_CHUNK_CELLS",
     "MAX_SIMULATED_POINTS",
     "MIN_OBSERVATIONS",
     "USD",

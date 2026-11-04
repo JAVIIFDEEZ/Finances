@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import math
+import tracemalloc
 from statistics import NormalDist
 
 import numpy as np
 import pandas as pd
 import pytest
 
+from investinglab.analytics.montecarlo import path_max_drawdowns
 from investinglab.domain import (
     CovarianceEstimator,
     DomainError,
@@ -18,8 +20,10 @@ from investinglab.domain import (
     SimulationConfig,
     SimulationModel,
     VolatilityAssumption,
+    simulation,
 )
 from investinglab.domain.simulation import (
+    MAX_CHUNK_CELLS,
     SimulationInputs,
     _bootstrap_rows,
     calibrate,
@@ -243,6 +247,67 @@ def test_chunking_does_not_change_gaussian_paths() -> None:
     chunked = _asset().monte_carlo(SimulationConfig(n_paths=1_000, horizon=10, chunk_size=300))
 
     assert np.allclose(whole.values(), chunked.values())
+
+
+# ── Memory bound ─────────────────────────────────────────────────────
+
+
+def test_chunks_shrink_with_the_horizon_and_the_number_of_assets() -> None:
+    config = SimulationConfig(n_paths=10_000, horizon=252, chunk_size=2_000)
+    antithetic = SimulationConfig(n_paths=10_000, horizon=252, antithetic=True)
+
+    assert config.paths_per_chunk(1) == 2_000
+    assert config.paths_per_chunk(10) == MAX_CHUNK_CELLS // 2_520 == 1_587
+    assert antithetic.paths_per_chunk(10) == 1_586  # even: every path keeps its mirror
+    assert SimulationConfig(n_paths=150, horizon=252).paths_per_chunk(1) == 150
+
+
+def test_a_path_that_cannot_fit_in_memory_is_rejected() -> None:
+    config = SimulationConfig(n_paths=100, horizon=200_000)
+
+    with pytest.raises(DomainError, match="memory bound"):
+        config.paths_per_chunk(21)
+    with pytest.raises(DomainError, match="at least one asset"):
+        config.paths_per_chunk(0)
+
+
+def test_the_cell_bound_splits_paths_without_changing_gaussian_results(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = SimulationConfig(n_paths=500, horizon=20)
+    whole = _portfolio().monte_carlo(config)
+
+    monkeypatch.setattr(simulation, "MAX_CHUNK_CELLS", 2 * 20 * 30)
+    chunked = _portfolio().monte_carlo(config)
+
+    assert config.paths_per_chunk(2) == 30
+    assert np.allclose(whole.values(), chunked.values(), rtol=1e-12)
+    assert np.allclose(chunked.max_drawdowns, path_max_drawdowns(chunked.values()))
+
+
+def test_working_memory_does_not_grow_with_the_number_of_assets() -> None:
+    assets = 40
+    prices = pd.DataFrame({f"S{i}": gbm_prices(N, seed=i) for i in range(assets)}, index=INDEX)
+    inputs = SimulationInputs(
+        prices=prices,
+        weights=np.full(assets, 1 / assets),
+        periods_per_year=252.0,
+        rebalance_every=None,
+        band=None,
+        start=INDEX[-1],
+    )
+    config = SimulationConfig(n_paths=1_000, horizon=252)  # 10M cells: chunked
+
+    tracemalloc.start()
+    try:
+        simulate(inputs, config)
+        _, peak = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()
+
+    # A few working arrays of MAX_CHUNK_CELLS float64 cells (32 MB each); generating every
+    # path at once would need several 80 MB arrays.
+    assert peak < 5 * MAX_CHUNK_CELLS * 8
 
 
 def test_paths_without_volatility_or_drift_stay_flat() -> None:
