@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from investinglab.analytics import VaRMethod
+from investinglab.analytics import VaRMethod, sharpe_ratio_standard_error
 from investinglab.domain import DomainError, RiskMetrics
 from support.factories import gbm_prices, make_series
 
@@ -59,6 +59,36 @@ def test_point_in_time_risk_free_series() -> None:
     metrics = RiskMetrics.from_returns(RETURNS, periods_per_year=252, risk_free_rate=rates)
 
     assert metrics.risk_free_rate == pytest.approx(0.04)
+    assert metrics.risk_free_periods == 6
+    assert metrics.risk_free_coverage == 1.0
+
+
+def test_periods_without_a_known_rate_are_counted_not_filled() -> None:
+    rates = pd.Series([0.03, 0.03, 0.03, 0.03], index=INDEX[2:])  # published later
+
+    metrics = RiskMetrics.from_returns(RETURNS, periods_per_year=252, risk_free_rate=rates)
+    covered = RiskMetrics.from_returns(RETURNS.iloc[2:], periods_per_year=252, risk_free_rate=rates)
+
+    assert metrics.periods == 6
+    assert metrics.risk_free_periods == 4
+    assert metrics.risk_free_coverage == pytest.approx(4 / 6)
+    assert metrics.risk_free_rate == pytest.approx(0.03)
+    assert metrics.sharpe_ratio == pytest.approx(covered.sharpe_ratio)  # same 4 returns
+    assert metrics.sharpe_standard_error == pytest.approx(
+        sharpe_ratio_standard_error(
+            metrics.sharpe_ratio,
+            periods=4,
+            periods_per_year=252,
+            skewness=metrics.skewness,
+            excess_kurtosis=metrics.excess_kurtosis,
+        )
+    )
+
+
+def test_constant_rates_cover_every_period() -> None:
+    metrics = RiskMetrics.from_returns(RETURNS, periods_per_year=252, risk_free_rate=0.02)
+
+    assert metrics.risk_free_periods == metrics.periods == 6
 
 
 def test_two_returns_are_required() -> None:

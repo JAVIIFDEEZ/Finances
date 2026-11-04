@@ -216,7 +216,7 @@ def metrics_diagnostics(
     zero_risk_free: bool,
     subject: str | None = None,
 ) -> list[Diagnostic]:
-    """Statistical reliability of the metrics: Sharpe uncertainty, normality, tail depth."""
+    """Reliability of the metrics: Sharpe uncertainty, normality, tail depth, risk-free rate."""
     found: list[Diagnostic] = []
     low, high = metrics.sharpe_confidence_interval(0.95)
     if math.isfinite(low) and math.isfinite(high) and low <= 0.0 <= high:
@@ -251,6 +251,19 @@ def metrics_diagnostics(
                 Severity.INFO,
                 tr.text("diag.thin_tail", level=level_label(level, tr), count=tr.integer(tail)),
                 tr.text("diag.thin_tail.advice"),
+                subject,
+            )
+        )
+    if metrics.risk_free_periods < metrics.periods:
+        found.append(
+            Diagnostic(
+                Severity.WARNING,
+                tr.text(
+                    "diag.partial_risk_free",
+                    known=tr.integer(metrics.risk_free_periods),
+                    periods=tr.integer(metrics.periods),
+                ),
+                tr.text("diag.partial_risk_free.advice"),
                 subject,
             )
         )

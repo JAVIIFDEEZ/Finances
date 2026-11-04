@@ -420,6 +420,26 @@ _CATALOGUE: Final[Mapping[str, tuple[str, str]]] = MappingProxyType(
             "Amplía el histórico o usa un nivel de confianza menor.",
             "Extend the history or use a lower confidence level.",
         ),
+        "diag.partial_risk_free": (
+            (
+                "El tipo libre de riesgo solo se conoce en {known} de {periods} periodos: "
+                "Sharpe y Sortino se calculan con esos {known}."
+            ),
+            (
+                "The risk-free rate is known for only {known} of {periods} periods: Sharpe and "
+                "Sortino use those {known}."
+            ),
+        ),
+        "diag.partial_risk_free.advice": (
+            (
+                "Añade una serie de tipos que cubra el principio del histórico o empieza el "
+                "análisis cuando ya se publicaba el tipo."
+            ),
+            (
+                "Add a rate series that covers the start of the history, or start the analysis "
+                "once the rate was being published."
+            ),
+        ),
         "diag.zero_risk_free": (
             "Sharpe y Sortino se calculan con un tipo libre de riesgo del 0\u00a0%.",
             "Sharpe and Sortino use a 0% risk-free rate.",

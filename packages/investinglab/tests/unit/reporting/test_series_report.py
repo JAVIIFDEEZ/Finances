@@ -177,6 +177,20 @@ def test_point_in_time_risk_free_series_is_accepted() -> None:
     report = series.report(language="en", risk_free_rate=rates)
 
     assert "| Average risk-free rate (effective annual) | 3.00% |" in report
+    assert "risk-free rate is known for only" not in report
+
+
+def test_a_risk_free_series_that_starts_late_is_reported() -> None:
+    series = _series()
+    rates = pd.Series(0.03, index=series.prices.index[100:])
+
+    report = series.report(language="en", risk_free_rate=rates)
+    spanish = series.report(risk_free_rate=rates)
+
+    known = len(rates)  # every return from the 100th one on
+    periods = len(series.prices) - 1
+    assert f"The risk-free rate is known for only {known:,} of {periods:,} periods" in report
+    assert f"solo se conoce en {known:,} de {periods:,} periodos".replace(",", ".") in spanish
 
 
 def test_a_clean_series_has_no_warnings() -> None:

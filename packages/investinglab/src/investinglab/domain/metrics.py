@@ -68,7 +68,10 @@ class RiskMetrics:
         positive_ratio: Share of periods with a positive return.
         skewness: Sample skewness of returns.
         excess_kurtosis: Sample excess kurtosis of returns.
-        risk_free_rate: Average annual risk-free rate used (decimal).
+        risk_free_rate: Average effective annual risk-free rate used (decimal).
+        risk_free_periods: Returns with a known risk-free rate: the sample of the Sharpe and
+            Sortino ratios. Fewer than ``periods`` when the rate series starts later than
+            the returns (nothing is filled in).
         tail: VaR and CVaR for every requested level and method.
     """
 
@@ -89,14 +92,20 @@ class RiskMetrics:
     skewness: float
     excess_kurtosis: float
     risk_free_rate: float
+    risk_free_periods: int
     tail: tuple[TailRisk, ...]
+
+    @property
+    def risk_free_coverage(self) -> float:
+        """Share of the returns with a known risk-free rate (1 when the rate is constant)."""
+        return self.risk_free_periods / self.periods
 
     @property
     def sharpe_standard_error(self) -> float:
         """Standard error of :attr:`sharpe_ratio` (Mertens, 2002: skewness and kurtosis aware)."""
         return sharpe_ratio_standard_error(
             self.sharpe_ratio,
-            periods=self.periods,
+            periods=self.risk_free_periods,
             periods_per_year=self.periods_per_year,
             skewness=self.skewness,
             excess_kurtosis=self.excess_kurtosis,
@@ -147,8 +156,10 @@ class RiskMetrics:
         Args:
             returns: Simple returns per period (NaN values are ignored).
             periods_per_year: Annualisation factor of the returns' frequency.
-            risk_free_rate: Annual risk-free rate in decimal form: a constant or a series
-                of rates known at each date (point-in-time), aligned on the returns.
+            risk_free_rate: Effective annual (compounded) risk-free rate in decimal form: a
+                constant or a series of rates known at each date (point-in-time), aligned on
+                the returns. Dates without a known rate are left out of Sharpe and Sortino
+                and counted in :attr:`risk_free_periods`.
             levels: Confidence levels for VaR and CVaR.
             methods: Estimation methods for VaR and CVaR.
 
@@ -162,9 +173,11 @@ class RiskMetrics:
         if isinstance(risk_free_rate, pd.Series):
             annual_rf = risk_free_rate.reindex(clean.index)
             average_rf = float(annual_rf.mean())
+            known_rf = int(annual_rf.notna().sum())
         else:
             annual_rf = risk_free_rate
             average_rf = float(risk_free_rate)
+            known_rf = len(clean)
         rf_per_period = per_period_rate(annual_rf, periods_per_year)
 
         moments = describe_returns(clean)
@@ -207,5 +220,6 @@ class RiskMetrics:
             skewness=moments.skewness,
             excess_kurtosis=moments.excess_kurtosis,
             risk_free_rate=average_rf,
+            risk_free_periods=known_rf,
             tail=tail,
         )
