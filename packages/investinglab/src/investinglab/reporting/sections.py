@@ -398,12 +398,22 @@ def write_simulation(
 
 
 def write_methodology(
-    doc: MarkdownBuilder, tr: Translator, *, periods_per_year: float, portfolio: bool
+    doc: MarkdownBuilder,
+    tr: Translator,
+    *,
+    periods_per_year: float,
+    portfolio: bool,
+    union_calendar: bool = False,
 ) -> None:
-    """Conventions behind every figure of the report."""
+    """Conventions behind every figure of the report.
+
+    ``union_calendar`` says that a multi-market portfolio annualises with the density of
+    its union calendar instead of a market schedule.
+    """
+    annualisation = "method.annualisation.union" if union_calendar else "method.annualisation"
     items = [
         tr.text("method.returns"),
-        tr.text("method.annualisation", periods=tr.number(periods_per_year, 0)),
+        tr.text(annualisation, periods=tr.number(periods_per_year, 0)),
         tr.text("method.sharpe"),
         tr.text("method.var"),
         tr.text("method.quality"),

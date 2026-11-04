@@ -749,6 +749,18 @@ _CATALOGUE: Final[Mapping[str, tuple[str, str]]] = MappingProxyType(
                 "annualised return is compound (geometric)."
             ),
         ),
+        "method.annualisation.union": (
+            (
+                "Anualización con {periods} periodos por año, la densidad observada en el "
+                "calendario unión de los mercados de la cartera (más sesiones que cualquiera de "
+                "ellos por separado); la rentabilidad anualizada es compuesta (geométrica)."
+            ),
+            (
+                "Annualised with {periods} periods per year, the density observed on the union "
+                "calendar of the portfolio's markets (more sessions than any of them alone); the "
+                "annualised return is compound (geometric)."
+            ),
+        ),
         "method.sharpe": (
             (
                 "Sharpe y Sortino miden el exceso de rentabilidad sobre el tipo libre de riesgo "

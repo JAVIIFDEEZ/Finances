@@ -143,6 +143,23 @@ def test_mixed_hours_use_weekly_returns() -> None:
     assert "use weekly returns to avoid the bias of non-synchronous closes" in report
 
 
+def test_multi_market_portfolios_explain_their_union_calendar() -> None:
+    madrid = _asset("SAN.MC", 1)
+    new_york = _asset("SPY", 2, exchange=EXCHANGES["XNYS"])
+    portfolio = Portfolio.from_weights("Global", [madrid, new_york], [0.5, 0.5])
+
+    report = portfolio.report(language="en")
+
+    periods = f"{portfolio.periods_per_year:,.0f}"
+    assert portfolio.periods_per_year > 252  # synthetic weekdays: no shared holidays
+    assert (
+        f"Annualised with {periods} periods per year, the density observed on the union" in report
+    )
+    assert "Annualised with 252 periods per year for the market" in _portfolio().report(
+        language="en"
+    )
+
+
 def test_same_offset_markets_are_synchronous() -> None:
     madrid = _asset("SAN.MC", 1)
     frankfurt = _asset("SAP.DE", 2, exchange=EXCHANGES["XETR"])
