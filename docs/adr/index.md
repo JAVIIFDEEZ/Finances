@@ -29,6 +29,7 @@ actualiza el estado del antiguo.
 | [0020](0020-risk-free-rate-conventions.md) | Tipo libre de riesgo en TAE según la convención de cada serie | Aceptado |
 | [0021](0021-union-calendar-annualisation-and-portfolio-memo.md) | Anualización con el calendario unión y memoria del historial de la cartera | Aceptado |
 | [0022](0022-same-origin-redirects-and-error-hygiene.md) | Redirecciones dentro del origen y errores sin credenciales | Aceptado |
+| [0023](0023-portfolio-optimization.md) | Optimización de carteras: objetivos, estimadores y resolución | Aceptado |
 
 ## Cómo añadir un ADR
 

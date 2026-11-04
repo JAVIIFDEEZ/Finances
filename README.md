@@ -27,6 +27,7 @@ hexagonal verificada en CI, tipado estricto y tests de propiedades.
 | **Series y carteras** | `PriceSeries` y `Portfolio` inmutables con estadísticos al crearse. Rebalanceo periódico, por bandas o comprar y mantener. Conversión de divisas *as-of*. Correlaciones y contribución al riesgo (Euler). |
 | **Riesgo** | Sharpe (con su intervalo de confianza), Sortino y Calmar. VaR/CVaR histórico, normal y Cornish-Fisher. Episodios de caída. Tipo libre de riesgo *point-in-time*. |
 | **Monte Carlo** | GBM multivariante, t de Student y *bootstrap* estacionario. Variables antitéticas, Ledoit-Wolf, rebalanceo dentro de cada trayectoria y VaR con intervalo de confianza. |
+| **Optimización** | Mínima varianza, máximo Sharpe y rentabilidad objetivo con límites por activo; paridad de riesgo, HRP e inversa de la volatilidad. Rentabilidades de equilibrio y vistas de Black-Litterman. Frontera eficiente con gráfico. |
 | **Informes** | `report()` en Markdown (español o inglés) con diagnósticos que explican la fiabilidad de las cifras; `plots_report()` con los gráficos. |
 
 Nunca se inventan datos:
@@ -91,7 +92,7 @@ Formato completo, columnas reconocidas y opciones: [guía del Toolkit](docs/guid
 
 ```
 packages/investinglab/src/investinglab/
-  analytics/   cálculo numérico puro (retornos, riesgo, Monte Carlo)   ← capa más interna
+  analytics/   cálculo numérico puro (retornos, riesgo, Monte Carlo, optimización)   ← capa más interna
   domain/      objetos inmutables y validados, sin I/O
   ports/       contratos que el núcleo espera del exterior
   reporting/   informes Markdown bilingües y gráficos

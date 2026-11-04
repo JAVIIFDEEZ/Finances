@@ -224,6 +224,7 @@ ignore_imports = [
   "investinglab.domain.series -> investinglab.reporting.entrypoints",
   "investinglab.domain.portfolio -> investinglab.reporting.entrypoints",
   "investinglab.domain.simulation -> investinglab.reporting.entrypoints",
+  "investinglab.domain.optimization -> investinglab.reporting.entrypoints",
 ]
 
 [[tool.importlinter.contracts]]
@@ -234,7 +235,9 @@ ignore_imports = [
   "investinglab.domain.series -> investinglab.reporting.entrypoints",
   "investinglab.domain.portfolio -> investinglab.reporting.entrypoints",
   "investinglab.domain.simulation -> investinglab.reporting.entrypoints",
+  "investinglab.domain.optimization -> investinglab.reporting.entrypoints",
   "investinglab.domain.simulation -> matplotlib",  # type of plot()'s return value only
+  "investinglab.domain.optimization -> matplotlib",  # type of plot()'s return value only
 ]
 forbidden_modules = [
   "investinglab.config",

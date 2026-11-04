@@ -22,4 +22,6 @@ Los informes no necesitan matplotlib; los gráficos requieren el *extra* `plots`
 
 ::: investinglab.reporting.simulation
 
+::: investinglab.reporting.optimization
+
 ::: investinglab.reporting.theme

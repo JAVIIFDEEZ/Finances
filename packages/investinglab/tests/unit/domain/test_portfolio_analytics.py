@@ -69,6 +69,13 @@ def test_daily_rebalancing_keeps_constant_weights() -> None:
     assert returns.to_numpy() == pytest.approx(expected)
 
 
+def test_turnover_is_reported_per_period() -> None:
+    backtest = _portfolio(RebalancePolicy.periodic(Frequency.MONTH_1)).backtest()
+
+    assert backtest.turnover.sum() == pytest.approx(backtest.total_turnover)
+    assert (backtest.turnover >= 0).all()
+
+
 def test_threshold_policy_uses_its_band() -> None:
     tight = _portfolio(RebalancePolicy.threshold(0.01)).backtest()
     loose = _portfolio(RebalancePolicy.threshold(0.5)).backtest()
