@@ -45,6 +45,7 @@ nav = [
     "adr/0019-bounded-memory-and-incremental-cache.md",
     "adr/0020-risk-free-rate-conventions.md",
     "adr/0021-union-calendar-annualisation-and-portfolio-memo.md",
+    "adr/0022-same-origin-redirects-and-error-hygiene.md",
   ] },
   { "Referencia API" = [
     "reference/index.md",

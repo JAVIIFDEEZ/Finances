@@ -22,6 +22,7 @@ from investinglab.ports import (
 )
 
 BASE = "https://api.example.test"
+FAKE_KEY = "super-secret"  # pragma: allowlist secret
 
 
 class _Sleeps:
@@ -105,8 +106,78 @@ async def test_timeouts_become_unavailable_errors() -> None:
     respx.get(f"{BASE}/series").mock(side_effect=httpx.ReadTimeout("slow"))
 
     async with _client(_Sleeps(), attempts=1) as client:
-        with pytest.raises(ProviderUnavailableError, match="timeout"):
-            await client.get_json("/series")
+        with pytest.raises(ProviderUnavailableError, match=r"timeout on /series \(ReadTimeout\)"):
+            await client.get_json("/series", {"api_key": FAKE_KEY})
+
+
+@pytest.mark.parametrize(
+    "failure", [httpx.ReadTimeout("slow"), httpx.ConnectError("refused")], ids=str
+)
+@respx.mock
+async def test_translated_errors_do_not_chain_the_request(failure: httpx.HTTPError) -> None:
+    respx.get(f"{BASE}/series").mock(side_effect=failure)
+
+    async with _client(_Sleeps(), attempts=1) as client:
+        with pytest.raises(ProviderUnavailableError) as caught:
+            await client.get_json("/series", {"api_key": FAKE_KEY})
+
+    # The httpx exception keeps the request URL, credentials included: never attach it.
+    assert caught.value.__cause__ is None
+    assert caught.value.__suppress_context__
+    assert FAKE_KEY not in str(caught.value)
+
+
+# ── Redirects ────────────────────────────────────────────────────────
+
+
+@respx.mock
+async def test_redirects_within_the_provider_are_followed() -> None:
+    respx.get(f"{BASE}/old").respond(301, headers={"Location": "/new?id=X"})
+    respx.get(f"{BASE}/new").respond(json={"ok": True})
+
+    async with _client(_Sleeps()) as client:
+        assert await client.get_json("/old", {"id": "X"}) == {"ok": True}
+
+
+@respx.mock
+async def test_upgrades_to_https_are_followed() -> None:
+    respx.get("http://api.example.test/old").respond(
+        308, headers={"Location": "https://api.example.test/old"}
+    )
+    respx.get(f"{BASE}/old").respond(json={"ok": True})
+
+    async with HttpClient("example", base_url="http://api.example.test") as client:
+        assert await client.get_json("/old") == {"ok": True}
+
+
+@pytest.mark.parametrize(
+    "location",
+    [
+        f"https://elsewhere.test/collect?api_key={FAKE_KEY}",
+        f"http://api.example.test/series?api_key={FAKE_KEY}",  # downgrade to plain HTTP
+        f"https://api.example.test:8443/series?api_key={FAKE_KEY}",
+    ],
+)
+@respx.mock
+async def test_redirects_that_would_leak_credentials_are_refused(location: str) -> None:
+    respx.get(f"{BASE}/series").respond(302, headers={"Location": location})
+    elsewhere = respx.get(url__regex=r"^(?!https://api\.example\.test/series).*").respond(json={})
+
+    async with _client(_Sleeps()) as client:
+        with pytest.raises(ProviderDataError, match="refused") as caught:
+            await client.get_json("/series", {"api_key": FAKE_KEY})
+
+    assert not elsewhere.called
+    assert FAKE_KEY not in str(caught.value)
+
+
+@respx.mock
+async def test_redirect_loops_are_data_errors() -> None:
+    respx.get(f"{BASE}/loop").respond(302, headers={"Location": "/loop"})
+
+    async with _client(_Sleeps()) as client:
+        with pytest.raises(ProviderDataError, match="more than 5 redirects"):
+            await client.get_json("/loop")
 
 
 @pytest.mark.parametrize(

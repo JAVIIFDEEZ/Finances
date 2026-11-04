@@ -92,3 +92,23 @@ def test_noisy_http_loggers_are_quietened() -> None:
 
     assert logging.getLogger("httpx").level == logging.WARNING
     assert logging.getLogger("httpcore").level == logging.WARNING
+
+
+FAKE_KEY = "super-secret"  # pragma: allowlist secret
+
+
+def _download() -> None:
+    raise ValueError(f"GET https://api.example.test/series?api_key={FAKE_KEY} failed")
+
+
+def test_credentials_in_tracebacks_are_masked(capsys: pytest.CaptureFixture[str]) -> None:
+    configure_logging(LogLevel.INFO, LogFormat.JSON)
+
+    try:
+        _download()
+    except ValueError:
+        get_logger("investinglab.test").exception("download_failed")
+
+    output = capsys.readouterr().err
+    assert FAKE_KEY not in output
+    assert "api_key=***" in json.loads(output.strip())["exception"]

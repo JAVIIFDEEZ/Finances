@@ -82,6 +82,7 @@ def configure_logging(
         processors=[
             structlog.stdlib.ProcessorFormatter.remove_processors_meta,
             structlog.processors.format_exc_info,
+            redact_secrets,  # again: the traceback text only exists from here on
             renderer,
         ],
     )

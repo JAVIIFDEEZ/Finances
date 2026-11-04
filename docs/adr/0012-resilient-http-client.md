@@ -6,6 +6,11 @@ decision-makers: Javier Fernández
 
 # Cliente HTTP común: reintentos, cuotas e higiene de secretos
 
+> **Actualización (2026-11-04):** tercera capa de higiene: las redirecciones solo se siguen
+> dentro del origen del proveedor, los errores traducidos no encadenan la excepción de httpx
+> y las trazas de los logs también se enmascaran. Ver
+> [ADR-0022](0022-same-origin-redirects-and-error-hygiene.md).
+
 ## Contexto y problema
 
 Cada proveedor con API REST necesita lo mismo:

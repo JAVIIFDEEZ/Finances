@@ -18,7 +18,7 @@ actualiza el estado del antiguo.
 | [0009](0009-point-in-time-economic-series.md) | Series macroeconómicas bitemporales (*point-in-time*) | Aceptado |
 | [0010](0010-multi-provider-ingestion.md) | Ingesta multifuente: puertos, registro, routing con *fallback* y lotes | Aceptado |
 | [0011](0011-parquet-duckdb-cache.md) | Caché de datos de mercado en Parquet consultada con DuckDB | Aceptado, ampliado por [0019](0019-bounded-memory-and-incremental-cache.md) |
-| [0012](0012-resilient-http-client.md) | Cliente HTTP común: reintentos, cuotas e higiene de secretos | Aceptado |
+| [0012](0012-resilient-http-client.md) | Cliente HTTP común: reintentos, cuotas e higiene de secretos | Aceptado, ampliado por [0022](0022-same-origin-redirects-and-error-hygiene.md) |
 | [0013](0013-risk-metrics-and-portfolio-engine.md) | Métricas de riesgo, correlaciones y motor de valoración de carteras | Aceptado, ampliado por [0021](0021-union-calendar-annualisation-and-portfolio-memo.md) |
 | [0014](0014-currency-conversion-and-risk-free-rate.md) | Conversión de divisas *as-of* y tipo libre de riesgo por divisa | Aceptado, ampliado por [0020](0020-risk-free-rate-conventions.md) |
 | [0015](0015-data-quality-diagnostics.md) | Diagnóstico de calidad de datos con calendarios oficiales | Aceptado |
@@ -28,6 +28,7 @@ actualiza el estado del antiguo.
 | [0019](0019-bounded-memory-and-incremental-cache.md) | Memoria acotada en la simulación y caché incremental verificada | Aceptado |
 | [0020](0020-risk-free-rate-conventions.md) | Tipo libre de riesgo en TAE según la convención de cada serie | Aceptado |
 | [0021](0021-union-calendar-annualisation-and-portfolio-memo.md) | Anualización con el calendario unión y memoria del historial de la cartera | Aceptado |
+| [0022](0022-same-origin-redirects-and-error-hygiene.md) | Redirecciones dentro del origen y errores sin credenciales | Aceptado |
 
 ## Cómo añadir un ADR
 

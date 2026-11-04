@@ -4,7 +4,10 @@
   connection errors, 5xx, 429), honouring ``Retry-After`` when the provider sends it.
 * **Rate limiting** per provider: every configured quota is respected before each call.
 * **Error translation** to the port's :mod:`investinglab.ports.errors` types.
-* **Secret hygiene**: credentials in query parameters are redacted from logs and errors.
+* **Secret hygiene**: credentials in query parameters are redacted from logs and errors,
+  translated errors do not chain the httpx exception (it carries the full URL), and
+  redirects are only followed within the provider's origin, so a key in the query string
+  never reaches another host.
 """
 
 from __future__ import annotations
@@ -50,6 +53,7 @@ SECRET_PARAMETERS: Final = frozenset(
     {"api_key", "apikey", "key", "token", "access_token", "secret", "password"}
 )
 USER_AGENT: Final = f"InvestingLab/{__version__} (+https://github.com/JAVIIFDEEZ/Finances)"
+MAX_REDIRECTS: Final = 5
 
 type QueryValue = str | int | float | bool | None
 type QueryParams = Mapping[str, QueryValue]
@@ -114,6 +118,8 @@ class HttpClient:
             headers={"User-Agent": USER_AGENT, **(headers or {})},
             transport=transport,
             follow_redirects=True,
+            max_redirects=MAX_REDIRECTS,
+            event_hooks={"response": [self._refuse_foreign_redirect]},
         )
 
     @property
@@ -173,14 +179,22 @@ class HttpClient:
             await limiter.acquire()
         query = {k: v for k, v in (params or {}).items() if v is not None}
         started = time.perf_counter()
+        # httpx exceptions keep the request, whose URL holds the credentials: they are
+        # translated without chaining them (``from None``).
         try:
             response = await self._client.get(path, params=query)
         except httpx.TimeoutException as error:
-            raise ProviderUnavailableError(self._provider, f"timeout on {path}") from error
+            raise ProviderUnavailableError(
+                self._provider, f"timeout on {path} ({type(error).__name__})"
+            ) from None
         except httpx.TransportError as error:
             raise ProviderUnavailableError(
                 self._provider, f"connection error on {path}: {type(error).__name__}"
-            ) from error
+            ) from None
+        except httpx.TooManyRedirects:
+            raise ProviderDataError(
+                self._provider, f"more than {MAX_REDIRECTS} redirects on {path}"
+            ) from None
         log.debug(
             "http_request",
             provider=self._provider,
@@ -191,6 +205,22 @@ class HttpClient:
         )
         self._raise_for_status(response, path)
         return response
+
+    async def _refuse_foreign_redirect(self, response: httpx.Response) -> None:
+        """Stop a redirect that would leave the provider's origin (httpx response hook).
+
+        Credentials travel in the query string, and a redirect keeps it: following one to
+        another host, or from HTTPS down to HTTP, would hand them over.
+        """
+        if not response.has_redirect_location:
+            return
+        target = response.url.join(response.headers["Location"])
+        if not _keeps_origin(response.url, target):
+            raise ProviderDataError(
+                self._provider,
+                f"redirect from {response.url.path} to {target.scheme}://{target.host} "
+                "refused: credentials never leave the provider",
+            )
 
     def _raise_for_status(self, response: httpx.Response, path: str) -> None:
         status = response.status_code
@@ -227,6 +257,16 @@ class HttpClient:
             error=type(error).__name__,
             detail=str(error),
         )
+
+
+def _keeps_origin(source: httpx.URL, target: httpx.URL) -> bool:
+    """Same scheme, host and port, or the same host upgraded from HTTP to HTTPS."""
+    if target.host != source.host:
+        return False
+    if target.scheme == source.scheme:
+        return target.port == source.port
+    upgrade = (source.scheme, target.scheme) == ("http", "https")
+    return upgrade and source.port is None and target.port is None
 
 
 def _retry_after(response: httpx.Response) -> float | None:
