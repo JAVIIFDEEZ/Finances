@@ -2,7 +2,9 @@
 
 Shocks are generated for many paths at once with NumPy (no loop per path). Only the time
 dimension is iterated where the dynamics require it (rebalancing a portfolio), and always
-vectorised across paths and assets.
+vectorised across paths and assets. Kernels work in place where they can: a
+``(paths, horizon, assets)`` array is the largest object of a simulation, so every extra
+copy of it counts.
 
 Conventions: returns are per period; ``mean`` and ``covariance`` describe **log** returns
 (discrete-time geometric Brownian motion when the shocks are Gaussian).
@@ -62,7 +64,9 @@ def normal_log_returns(
     """
     factor = cholesky_factor(covariance)
     shocks = _standard_normals(rng, n_paths, horizon, len(mean), antithetic=antithetic)
-    return np.asarray(mean + shocks @ factor.T, dtype="float64")
+    returns = np.asarray(shocks @ factor.T, dtype="float64")
+    returns += mean
+    return returns
 
 
 def student_t_log_returns(
@@ -92,8 +96,10 @@ def student_t_log_returns(
     if antithetic:
         half = (n_paths + 1) // 2
         mixing = np.concatenate([mixing[:half], mixing[:half]])[:n_paths]
-    scale = np.sqrt((degrees_of_freedom - 2) / mixing)
-    return np.asarray(mean + (normals * scale) @ factor.T, dtype="float64")
+    normals *= np.sqrt((degrees_of_freedom - 2) / mixing)
+    returns = np.asarray(normals @ factor.T, dtype="float64")
+    returns += mean
+    return returns
 
 
 def stationary_bootstrap_indices(
@@ -149,7 +155,9 @@ def rebalanced_values(
     n_paths, horizon, _ = simple_returns.shape
     targets = np.asarray(target_weights, dtype="float64")
     if rebalance_every is None and band is None:
-        growth = np.cumprod(1.0 + simple_returns, axis=1) @ targets
+        cumulative = simple_returns + 1.0
+        np.cumprod(cumulative, axis=1, out=cumulative)
+        growth = cumulative @ targets
         values = np.empty((n_paths, horizon + 1))
         values[:, 0] = 1.0
         values[:, 1:] = growth

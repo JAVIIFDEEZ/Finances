@@ -1,7 +1,8 @@
 # Ingesta de datos de mercado
 
 Flujo de una petición de precios ([ADR-0010](../adr/0010-multi-provider-ingestion.md),
-[ADR-0011](../adr/0011-parquet-duckdb-cache.md), [ADR-0012](../adr/0012-resilient-http-client.md)).
+[ADR-0011](../adr/0011-parquet-duckdb-cache.md), [ADR-0012](../adr/0012-resilient-http-client.md),
+[ADR-0019](../adr/0019-bounded-memory-and-incremental-cache.md)).
 
 ## Diagrama de secuencia
 
@@ -18,11 +19,16 @@ sequenceDiagram
 
     U->>S: get_many_bars([SAN.MC, ^IBEX, SPY…])
     loop cada símbolo (concurrencia ≤ max_concurrency)
-        S->>C: load_bars(request)
+        S->>C: load_bars(request) en un hilo
         alt entrada fresca que cubre la petición
             C-->>S: CachedBars
             S-->>S: recortar a [start, end]
-        else sin caché válida
+        else entrada caducada o corta por el final
+            S->>P1: fetch_bars(desde las 5 últimas barras guardadas)
+            P1-->>S: tramo nuevo
+            S-->>S: ¿coincide el solape? Sí: añadir. No: descargar todo el rango
+            S->>C: save_bars(serie ampliada) en un hilo
+        else sin entrada o falta historia anterior
             S->>R: bars_candidates(request)
             R-->>S: [P1, P2] por preferencia y capacidades
             S->>P1: fetch_bars(request)
@@ -35,7 +41,7 @@ sequenceDiagram
                 S->>P2: fetch_bars(request)
                 P2-->>S: PriceSeries validada
             end
-            S->>C: save_bars(series, cobertura)
+            S->>C: save_bars(series, cobertura) en un hilo
         end
     end
     S-->>U: BatchResult(succeeded, failed)
@@ -50,7 +56,7 @@ sequenceDiagram
 | `MarketDataProvider`, `EconomicDataProvider` | `ports` | Contrato de los adaptadores: devuelven objetos del dominio |
 | `ProviderError` y subclases | `ports` | Errores homogéneos con `retryable` |
 | `ProviderRegistry` | `services` | Registro y orden de preferencia |
-| `MarketDataService` | `services` | Caché → candidatos → *fallback* → `DataUnavailableError` / `BatchResult` |
+| `MarketDataService` | `services` | Caché (con ampliación verificada) → candidatos → *fallback* → `DataUnavailableError` / `BatchResult` |
 | `HttpClient` | `adapters/http` | Reintentos, cuotas, traducción de errores, secretos fuera de los logs |
 | `ParquetSeriesStore` | `adapters/storage` | Caché autodescriptiva, escritura atómica, catálogo con DuckDB |
 

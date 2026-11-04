@@ -6,6 +6,10 @@ decision-makers: Javier Fernández
 
 # Caché de datos de mercado en Parquet consultada con DuckDB
 
+> **Actualización (2026-11-04):** una entrada caducada ya no se descarga entera: se amplía
+> con el tramo que falta tras verificar un solape. Las lecturas y escrituras se hacen fuera
+> del bucle de eventos. Ver [ADR-0019](0019-bounded-memory-and-incremental-cache.md).
+
 ## Contexto y problema
 
 Las APIs gratuitas tienen cuotas muy bajas (Alpha Vantage: 25 peticiones al día) y Yahoo

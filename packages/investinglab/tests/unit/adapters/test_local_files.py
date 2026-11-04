@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import threading
+from typing import TYPE_CHECKING, Any
 
 import pandas as pd
 import pytest
 
+from investinglab.adapters.files import SeriesImporter
 from investinglab.adapters.providers.files import CATALOGUE_FILE, LocalFilesProvider
 from investinglab.domain import AssetClass, DomainError, Frequency
 from investinglab.ports import (
@@ -18,6 +20,8 @@ from support.factories import business_days, gbm_prices
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+    from investinglab.domain import PriceSeries
 
 CATALOGUE = """
 ["SYN.MC"]
@@ -41,10 +45,21 @@ def _folder(tmp_path: Path, catalogue: str = CATALOGUE) -> Path:
     return tmp_path
 
 
-async def test_serves_the_catalogued_files(tmp_path: Path) -> None:
+async def test_serves_the_catalogued_files(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     provider = LocalFilesProvider(_folder(tmp_path))
+    threads: list[str] = []
+    read = SeriesImporter.from_file
+
+    def recording(self: SeriesImporter, *args: Any, **kwargs: Any) -> PriceSeries:
+        threads.append(threading.current_thread().name)
+        return read(self, *args, **kwargs)
+
+    monkeypatch.setattr(SeriesImporter, "from_file", recording)
 
     series = await provider.fetch_bars(BarsRequest("SYN.MC", start=business_days(60)[10].date()))
+
+    assert threads
+    assert threading.current_thread().name not in threads  # file I/O off the event loop
 
     assert isinstance(provider, MarketDataProvider)
     assert provider.name == "files"

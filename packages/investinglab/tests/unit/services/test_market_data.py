@@ -1,10 +1,20 @@
 from __future__ import annotations
 
+import threading
 from datetime import UTC, date, datetime, timedelta
 
+import pandas as pd
 import pytest
 
-from investinglab.domain import DomainError, Frequency, InvalidSeriesError
+from investinglab.domain import (
+    EXCHANGES,
+    USD,
+    DataSource,
+    DomainError,
+    Frequency,
+    InvalidSeriesError,
+    PriceSeries,
+)
 from investinglab.ports import (
     AuthenticationError,
     BarsRequest,
@@ -21,7 +31,8 @@ from investinglab.services import (
     MarketDataService,
     ProviderRegistry,
 )
-from support.factories import make_economic_series, make_series
+from investinglab.services.market_data import _overlap_start
+from support.factories import business_days, gbm_prices, make_economic_series, make_series
 from support.fakes import FakeBarsProvider, FakeEconomicProvider, InMemoryStore
 
 NOW = datetime(2026, 10, 31, 12, 0, tzinfo=UTC)
@@ -154,6 +165,160 @@ async def test_cache_write_failures_do_not_lose_the_data() -> None:
     provider = FakeBarsProvider("primary", {"SPY": SPY})
 
     assert await _service(provider, store=store).get_bars(BarsRequest("SPY")) == SPY
+
+
+async def test_unreadable_cache_entries_are_cache_misses() -> None:
+    store = InMemoryStore(now=NOW, fail_reads=True)
+    bars = FakeBarsProvider("primary", {"SPY": SPY})
+    economic = FakeEconomicProvider("fred", {"SYNTH_RATE": make_economic_series()})
+    service = _service(bars, economic, store=store)
+
+    assert await service.get_bars(BarsRequest("SPY")) == SPY
+    assert len(await service.get_economic_series(EconomicRequest("SYNTH_RATE"))) == 3
+
+
+async def test_cache_io_runs_off_the_event_loop() -> None:
+    store = InMemoryStore(now=NOW)
+    bars = FakeBarsProvider("primary", {"SPY": SPY})
+    economic = FakeEconomicProvider("fred", {"SYNTH_RATE": make_economic_series()})
+    service = _service(bars, economic, store=store)
+
+    await service.get_bars(BarsRequest("SPY"))
+    await service.get_economic_series(EconomicRequest("SYNTH_RATE"))
+
+    assert len(store.threads) == 4  # one read and one write per series
+    assert threading.current_thread().name not in store.threads
+
+
+# ── Incremental cache (ADR-0019) ─────────────────────────────────────
+
+DAYS = business_days(30)
+HISTORY = make_series(gbm_prices(30, seed=3), symbol="SPY", index=DAYS, ohlc=True)
+
+
+def _stale(series: PriceSeries, coverage: BarsRequest) -> InMemoryStore:
+    store = InMemoryStore(now=NOW - timedelta(days=2))
+    store.save_bars(series, coverage)
+    return store
+
+
+def _ranges(provider: FakeBarsProvider) -> list[tuple[date | None, date | None]]:
+    return [(call.start, call.end) for call in provider.calls]
+
+
+async def test_stale_entries_download_only_the_missing_tail() -> None:
+    store = _stale(HISTORY.between(end=DAYS[19]), BarsRequest("SPY"))
+    provider = FakeBarsProvider("primary", {"SPY": HISTORY}, slice_requests=True)
+
+    series = await _service(provider, store=store).get_bars(BarsRequest("SPY"))
+
+    assert _ranges(provider) == [(DAYS[15].date(), None)]  # the last 5 cached bars again
+    assert series.bars.equals(HISTORY.bars)
+    entry = store.bars["SPY", Frequency.DAY_1]
+    assert entry.coverage == BarsRequest("SPY")
+    assert entry.series.bars.equals(HISTORY.bars)
+
+
+async def test_a_partial_last_bar_is_replaced_by_the_download() -> None:
+    cached = HISTORY.between(end=DAYS[19])
+    bars = cached.bars
+    bars.iloc[-1] *= 1.01  # captured during the session
+    store = _stale(cached.with_bars(bars), BarsRequest("SPY"))
+    provider = FakeBarsProvider("primary", {"SPY": HISTORY}, slice_requests=True)
+
+    series = await _service(provider, store=store).get_bars(BarsRequest("SPY"))
+
+    assert len(provider.calls) == 1
+    assert series.bars.equals(HISTORY.bars)
+
+
+async def test_a_readjusted_history_is_downloaded_again_in_full() -> None:
+    cached = HISTORY.between(end=DAYS[19])
+    store = _stale(cached.with_bars(cached.bars * 0.98), BarsRequest("SPY"))  # pre-dividend
+    provider = FakeBarsProvider("primary", {"SPY": HISTORY}, slice_requests=True)
+
+    series = await _service(provider, store=store).get_bars(BarsRequest("SPY"))
+
+    assert _ranges(provider) == [(DAYS[15].date(), None), (None, None)]
+    assert series.bars.equals(HISTORY.bars)
+
+
+async def test_bars_from_another_provider_are_never_mixed() -> None:
+    cached = HISTORY.between(end=DAYS[19])
+    retired = DataSource("retired", NOW - timedelta(days=30))
+    store = _stale(cached.with_bars(cached.bars, source=retired), BarsRequest("SPY"))
+    provider = FakeBarsProvider("primary", {"SPY": HISTORY}, slice_requests=True)
+
+    series = await _service(provider, store=store).get_bars(BarsRequest("SPY"))
+
+    assert len(provider.calls) == 2
+    assert series.source == HISTORY.source
+    assert series.bars.equals(HISTORY.bars)
+
+
+async def test_requests_beyond_the_cached_end_extend_the_entry() -> None:
+    store = InMemoryStore(now=NOW)
+    store.save_bars(HISTORY.between(end=DAYS[19]), BarsRequest("SPY", end=DAYS[19].date()))
+    provider = FakeBarsProvider("primary", {"SPY": HISTORY}, slice_requests=True)
+    service = _service(provider, store=store)
+
+    series = await service.get_bars(BarsRequest("SPY", start=DAYS[10].date(), end=DAYS[25].date()))
+    again = await service.get_bars(BarsRequest("SPY", end=DAYS[25].date()))
+
+    assert len(series) == 16
+    assert _ranges(provider) == [(DAYS[15].date(), DAYS[25].date())]
+    assert len(again) == 26  # served by the extended entry
+
+
+async def test_requests_for_older_history_replace_the_entry_with_a_superset() -> None:
+    store = InMemoryStore(now=NOW)
+    store.save_bars(HISTORY.between(start=DAYS[10]), BarsRequest("SPY", start=DAYS[10].date()))
+    provider = FakeBarsProvider("primary", {"SPY": HISTORY}, slice_requests=True)
+    service = _service(provider, store=store)
+
+    older = await service.get_bars(BarsRequest("SPY", start=DAYS[2].date(), end=DAYS[5].date()))
+    latest = await service.get_bars(BarsRequest("SPY", start=DAYS[20].date()))
+
+    assert len(older) == 4
+    assert len(latest) == 10
+    assert _ranges(provider) == [(DAYS[2].date(), None)]
+    assert store.bars["SPY", Frequency.DAY_1].coverage == BarsRequest("SPY", start=DAYS[2].date())
+
+
+async def test_the_overlap_ends_at_the_requested_end() -> None:
+    # The provider sent more than the cached coverage: the overlap still ends at its end.
+    store = _stale(HISTORY, BarsRequest("SPY", end=DAYS[10].date()))
+    provider = FakeBarsProvider("primary", {"SPY": HISTORY}, slice_requests=True)
+
+    series = await _service(provider, store=store).get_bars(BarsRequest("SPY", end=DAYS[10].date()))
+
+    assert _ranges(provider) == [(DAYS[6].date(), DAYS[10].date())]
+    assert len(series) == 11
+
+
+async def test_too_few_cached_bars_to_overlap_means_a_full_download() -> None:
+    store = _stale(HISTORY.between(start=DAYS[9]), BarsRequest("SPY", end=DAYS[10].date()))
+    provider = FakeBarsProvider("primary", {"SPY": HISTORY}, slice_requests=True)
+
+    await _service(provider, store=store).get_bars(BarsRequest("SPY", end=DAYS[10].date()))
+
+    assert _ranges(provider) == [(None, DAYS[10].date())]
+
+
+def test_intraday_overlaps_start_on_the_venue_session_date() -> None:
+    # 01:00 UTC on 5 March is still the evening of 4 March in New York.
+    index = pd.date_range("2024-03-04 20:00", periods=10, freq="1h", tz="UTC")
+    intraday = make_series(
+        gbm_prices(10),
+        symbol="SPY",
+        index=index,
+        frequency=Frequency.HOUR_1,
+        currency=USD,
+        exchange=EXCHANGES["XNYS"],
+    )
+
+    assert _overlap_start(intraday, None) == date(2024, 3, 4)
+    assert _overlap_start(intraday, date(2024, 3, 3)) is None
 
 
 @pytest.mark.parametrize(

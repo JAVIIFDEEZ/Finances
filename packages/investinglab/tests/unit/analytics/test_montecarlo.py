@@ -177,11 +177,14 @@ RETURNS = np.array(
 
 
 def test_buy_and_hold_lets_weights_drift() -> None:
-    values = rebalanced_values(RETURNS, np.array([0.5, 0.5]), initial_value=100.0)
+    returns = RETURNS.copy()
+
+    values = rebalanced_values(returns, np.array([0.5, 0.5]), initial_value=100.0)
 
     # Path 0: 50 * 1.1 * 1.1 + 50 * 0.9 * 0.9 = 60.5 + 40.5.
     assert values[0].tolist() == pytest.approx([100.0, 100.0, 101.0])
     assert values[1].tolist() == pytest.approx([100.0, 100.0, 125.0])
+    assert np.array_equal(returns, RETURNS)  # works on its own copy
 
 
 def test_constant_mix_rebalances_every_step() -> None:

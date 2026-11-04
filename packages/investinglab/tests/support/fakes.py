@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import threading
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -34,13 +35,17 @@ ECONOMIC_CAPABILITIES = ProviderCapabilities(datasets=frozenset({Dataset.ECONOMI
 
 @dataclass
 class FakeBarsProvider:
-    """Serves pre-built series; raises configured errors; records calls."""
+    """Serves pre-built series; raises configured errors; records calls.
+
+    With ``slice_requests`` it answers only the requested dates, like a real provider.
+    """
 
     name: str
     series: Mapping[str, PriceSeries] = field(default_factory=dict)
     errors: Mapping[str, ProviderError] = field(default_factory=dict)
     capabilities: ProviderCapabilities = BARS_CAPABILITIES
     delay: float = 0.0
+    slice_requests: bool = False
     calls: list[BarsRequest] = field(default_factory=list)
     in_flight: int = 0
     max_in_flight: int = 0
@@ -56,7 +61,10 @@ class FakeBarsProvider:
                 raise self.errors[request.symbol]
             if request.symbol not in self.series:
                 raise SymbolNotFoundError(self.name, f"unknown symbol {request.symbol}")
-            return self.series[request.symbol]
+            series = self.series[request.symbol]
+            if self.slice_requests:
+                return series.between(request.start, request.end)
+            return series
         finally:
             self.in_flight -= 1
 
@@ -82,25 +90,32 @@ class FakeEconomicProvider:
 
 @dataclass
 class InMemoryStore:
-    """Minimal SeriesStore keeping entries in dictionaries."""
+    """Minimal SeriesStore keeping entries in dictionaries; records the calling threads."""
 
     now: datetime
     bars: dict[tuple[str, Frequency], CachedBars] = field(default_factory=dict)
     economic: dict[str, CachedEconomicSeries] = field(default_factory=dict)
+    fail_reads: bool = False
     fail_writes: bool = False
+    threads: list[str] = field(default_factory=list)
 
     def load_bars(self, request: BarsRequest) -> CachedBars | None:
+        self._enter(write=False)
         return self.bars.get((request.symbol, request.frequency))
 
     def save_bars(self, series: PriceSeries, coverage: BarsRequest) -> None:
-        if self.fail_writes:
-            raise OSError("disk full")
+        self._enter(write=True)
         self.bars[series.symbol, series.frequency] = CachedBars(series, coverage, self.now)
 
     def load_economic(self, request: EconomicRequest) -> CachedEconomicSeries | None:
+        self._enter(write=False)
         return self.economic.get(request.series_id)
 
     def save_economic(self, series: EconomicSeries, coverage: EconomicRequest) -> None:
-        if self.fail_writes:
-            raise OSError("disk full")
+        self._enter(write=True)
         self.economic[series.series_id] = CachedEconomicSeries(series, coverage, self.now)
+
+    def _enter(self, *, write: bool) -> None:
+        self.threads.append(threading.current_thread().name)
+        if self.fail_writes if write else self.fail_reads:
+            raise OSError("disk full" if write else "unreadable")

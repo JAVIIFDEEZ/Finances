@@ -29,8 +29,10 @@ registra las fuentes disponibles en este orden de prioridad:
 2. Los **ficheros locales** de `INVESTINGLAB_LOCAL_DATA_DIR`, si está definida.
 3. Los proveedores remotos (Yahoo, Alpha Vantage, FRED/ALFRED, BCE), que llegan con la fase F2b.
 
-Lo descargado se guarda en la caché Parquet (`INVESTINGLAB_DATA_DIR/cache`). Usa `refresh=True`
-para ignorarla.
+Lo descargado se guarda en la caché Parquet (`INVESTINGLAB_DATA_DIR/cache`). Cuando una
+entrada caduca, solo se descarga el tramo nuevo y se comprueba que las últimas barras
+guardadas no han cambiado. Si un dividendo o un *split* reajustó la historia, se descarga
+todo de nuevo. Usa `refresh=True` para ignorar la caché.
 
 ### Ficheros locales
 
