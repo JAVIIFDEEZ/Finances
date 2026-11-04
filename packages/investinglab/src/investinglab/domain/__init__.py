@@ -36,6 +36,15 @@ from investinglab.domain.money import (
     QuoteUnit,
     parse_quote_currency,
 )
+from investinglab.domain.optimization import (
+    EfficientFrontier,
+    Estimates,
+    Objective,
+    OptimizationConfig,
+    OptimizationResult,
+    ReturnModel,
+    View,
+)
 from investinglab.domain.panel import AlignedPanel, AlignmentMethod, align
 from investinglab.domain.portfolio import (
     WEIGHT_TOLERANCE,
@@ -114,6 +123,8 @@ __all__ = [
     "DomainError",
     "DriftAssumption",
     "EconomicSeries",
+    "EfficientFrontier",
+    "Estimates",
     "Exchange",
     "Frequency",
     "FxRates",
@@ -127,6 +138,9 @@ __all__ = [
     "InvestingLabError",
     "IssueKind",
     "MarketSchedule",
+    "Objective",
+    "OptimizationConfig",
+    "OptimizationResult",
     "Portfolio",
     "PortfolioBacktest",
     "PriceAdjustment",
@@ -139,6 +153,7 @@ __all__ = [
     "RebalanceKind",
     "RebalancePolicy",
     "ReturnKind",
+    "ReturnModel",
     "RiskEstimate",
     "RiskMetrics",
     "SeriesStats",
@@ -148,6 +163,7 @@ __all__ = [
     "SimulationResult",
     "TailRisk",
     "UnknownCurrencyError",
+    "View",
     "VolatilityAssumption",
     "align",
     "assess_quality",

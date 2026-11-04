@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from typing import TYPE_CHECKING, Final, Unpack
 
@@ -22,6 +22,18 @@ from investinglab.analytics import (
 )
 from investinglab.domain.errors import DomainError, InvalidPortfolioError
 from investinglab.domain.metrics import DEFAULT_CONFIDENCE_LEVELS, RiskMetrics
+from investinglab.domain.optimization import (
+    EfficientFrontier,
+    Estimates,
+    Objective,
+    OptimizationConfig,
+    OptimizationInputs,
+    OptimizationResult,
+    OptimizationSettings,
+    estimate,
+    frontier_points,
+    solve,
+)
 from investinglab.domain.panel import AlignedPanel, AlignmentMethod, align
 from investinglab.domain.simulation import (
     SimulationConfig,
@@ -567,6 +579,101 @@ class Portfolio:
             start=pd.Timestamp(prices.index[-1]),
         )
         return simulate(inputs, settings)
+
+    # ── Optimisation (ADR-0023) ──────────────────────────────────────
+
+    def with_weights(self, weights: Mapping[str, float], *, name: str | None = None) -> Portfolio:
+        """The same holdings with other target weights (same currency and rebalancing).
+
+        Raises:
+            InvalidPortfolioError: If the weights miss a holding, name an unknown symbol or
+                do not sum to 1.
+        """
+        return Portfolio.from_weights(
+            name or self.name,
+            self.series,
+            weights,
+            base_currency=self.base_currency,
+            rebalance=self.rebalance,
+            allow_short=self.allow_short or any(weight < 0 for weight in weights.values()),
+        )
+
+    def optimize(
+        self,
+        config: OptimizationConfig | None = None,
+        **settings: Unpack[OptimizationSettings],
+    ) -> OptimizationResult:
+        """Weights that best meet an objective, estimated from the holdings' history.
+
+        Pass an :class:`~investinglab.domain.optimization.OptimizationConfig` and/or override
+        any of its fields as keywords.
+
+        Raises:
+            DomainError: If the configuration is invalid, the history too short or the
+                problem infeasible.
+
+        Examples:
+            >>> portfolio.optimize(objective="max_sharpe", max_weight=0.4).weights
+            >>> portfolio.optimize(objective="risk_parity").portfolio.report()
+        """
+        resolved = replace(config or OptimizationConfig(), **settings)  # type: ignore[arg-type]
+        estimates = estimate(self._optimization_inputs(resolved), resolved)
+        return self._optimization_result(resolved, estimates, solve(estimates, resolved))
+
+    def efficient_frontier(
+        self,
+        config: OptimizationConfig | None = None,
+        *,
+        points: int = 30,
+        **settings: Unpack[OptimizationSettings],
+    ) -> EfficientFrontier:
+        """The minimum-variance frontier, from the global minimum to the highest return.
+
+        The objective is ignored; estimators, views and weight bounds are used as given.
+
+        Raises:
+            DomainError: If the inputs cannot be estimated or the bounds are infeasible.
+        """
+        resolved = replace(config or OptimizationConfig(), **settings)  # type: ignore[arg-type]
+        minimum_config = replace(resolved, objective=Objective.MIN_VARIANCE, target_return=None)
+        estimates = estimate(self._optimization_inputs(minimum_config), minimum_config)
+        minimum = self._optimization_result(
+            minimum_config, estimates, solve(estimates, minimum_config)
+        )
+        sharpe_config = replace(minimum_config, objective=Objective.MAX_SHARPE)
+        try:
+            best: OptimizationResult | None = self._optimization_result(
+                sharpe_config, estimates, solve(estimates, sharpe_config)
+            )
+        except DomainError:
+            best = None  # no portfolio expects more than the risk-free rate
+        return EfficientFrontier(
+            config=minimum_config,
+            estimates=estimates,
+            points=frontier_points(estimates, minimum_config, points),
+            minimum_variance=minimum,
+            maximum_sharpe=best,
+        )
+
+    def _optimization_inputs(self, config: OptimizationConfig) -> OptimizationInputs:
+        frequency = config.frequency or self.frequency
+        returns = self.asset_returns(frequency)
+        common = returns.notna().cummax().all(axis=1)  # every holding has started trading
+        periods = max(h.series.instrument.schedule.periods_per_year(frequency) for h in self)
+        return OptimizationInputs(
+            returns=returns.loc[common], weights=self.weights, periods_per_year=periods
+        )
+
+    def _optimization_result(
+        self, config: OptimizationConfig, estimates: Estimates, weights: np.ndarray
+    ) -> OptimizationResult:
+        optimised = dict(zip(estimates.symbols, weights.tolist(), strict=True))
+        return OptimizationResult(
+            config=config,
+            portfolio=self.with_weights(optimised),
+            estimates=estimates,
+            previous_weights=self.weights,
+        )
 
     # ── Reports (B1-T1 §4.5) ─────────────────────────────────────────
 
