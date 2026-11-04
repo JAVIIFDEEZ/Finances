@@ -323,9 +323,28 @@ class _EventLoopThread:
         )
         self._thread.start()
 
-    def run[T](self, coroutine: Coroutine[Any, Any, T]) -> T:
+    def run[T](self, coroutine: Coroutine[Any, Any, T], timeout: float | None = None) -> T:
+        """Run ``coroutine`` on the private loop and wait for its result.
+
+        When the wait ends early, because ``timeout`` seconds passed or the user
+        interrupted it (Ctrl+C, the stop button of a notebook), the coroutine is cancelled:
+        nothing keeps downloading in the background.
+
+        Raises:
+            TimeoutError: If the coroutine did not finish within ``timeout`` seconds.
+        """
         future: Future[T] = asyncio.run_coroutine_threadsafe(coroutine, self._loop)
-        return future.result()
+        try:
+            return future.result(timeout)
+        except TimeoutError:
+            if future.done():  # finished right at the deadline, or failed on its own
+                return future.result()
+            future.cancel()
+            message = f"Cancelled after {timeout:g} s without finishing"
+            raise TimeoutError(message) from None
+        except BaseException:
+            future.cancel()  # interrupted: stop the work instead of leaving it running
+            raise
 
     def close(self) -> None:
         self._loop.call_soon_threadsafe(self._loop.stop)
@@ -336,13 +355,21 @@ class _EventLoopThread:
 class Toolkit:
     """Synchronous facade for notebooks and scripts (same methods as :class:`AsyncToolkit`).
 
+    Interrupting a call (Ctrl+C, the stop button of a notebook) cancels the work in
+    progress, and ``timeout`` bounds how long a call may take.
+
     Args:
         inner: The asynchronous toolkit to drive.
+        timeout: Longest a call may run before it is cancelled, in seconds (``None``
+            waits until it ends).
     """
 
-    def __init__(self, inner: AsyncToolkit) -> None:
+    def __init__(self, inner: AsyncToolkit, *, timeout: float | None = None) -> None:
+        if timeout is not None and not timeout > 0:
+            raise DomainError("timeout must be positive")
         self._inner = inner
         self._runner = _EventLoopThread()
+        self._timeout = timeout
         self._closed = False
 
     @classmethod
@@ -353,8 +380,13 @@ class Toolkit:
         providers: Iterable[Provider] = (),
         cache: bool = True,
     ) -> Toolkit:
-        """Wire every adapter from the configuration (see :meth:`AsyncToolkit.from_settings`)."""
-        return cls(AsyncToolkit.from_settings(settings, providers=providers, cache=cache))
+        """Wire every adapter from the configuration (see :meth:`AsyncToolkit.from_settings`).
+
+        The call timeout comes from ``toolkit_timeout_seconds``.
+        """
+        resolved = settings or get_settings()
+        inner = AsyncToolkit.from_settings(resolved, providers=providers, cache=cache)
+        return cls(inner, timeout=resolved.toolkit_timeout_seconds)
 
     @property
     def asynchronous(self) -> AsyncToolkit:
@@ -376,7 +408,7 @@ class Toolkit:
         refresh: bool = False,
     ) -> PriceSeries:
         """One price series (see :meth:`AsyncToolkit.series`)."""
-        return self._runner.run(
+        return self._run(
             self._inner.series(symbol, start=start, end=end, frequency=frequency, refresh=refresh)
         )
 
@@ -390,7 +422,7 @@ class Toolkit:
         refresh: bool = False,
     ) -> BatchResult[PriceSeries]:
         """Several series downloaded concurrently (see :meth:`AsyncToolkit.many`)."""
-        return self._runner.run(
+        return self._run(
             self._inner.many(symbols, start=start, end=end, frequency=frequency, refresh=refresh)
         )
 
@@ -407,7 +439,7 @@ class Toolkit:
         allow_short: bool = False,
     ) -> Portfolio:
         """Download, convert and build a portfolio (see :meth:`AsyncToolkit.portfolio`)."""
-        return self._runner.run(
+        return self._run(
             self._inner.portfolio(
                 name,
                 weights,
@@ -422,7 +454,7 @@ class Toolkit:
 
     def risk_free(self, currency: Currency | str, dates: pd.DatetimeIndex) -> pd.Series:
         """Point-in-time risk-free rates (see :meth:`AsyncToolkit.risk_free`)."""
-        return self._runner.run(self._inner.risk_free(currency, dates))
+        return self._run(self._inner.risk_free(currency, dates))
 
     def load(self, path: str | Path, **spec: Any) -> PriceSeries:  # noqa: ANN401
         """Import a CSV or Parquet file (see :meth:`AsyncToolkit.load`)."""
@@ -443,7 +475,10 @@ class Toolkit:
         **settings: Unpack[ReportSettings],
     ) -> MarkdownReport:
         """Enriched report (see :meth:`AsyncToolkit.report`)."""
-        return self._runner.run(self._inner.report(subject, options, **settings))
+        return self._run(self._inner.report(subject, options, **settings))
+
+    def _run[T](self, coroutine: Coroutine[Any, Any, T]) -> T:
+        return self._runner.run(coroutine, self._timeout)
 
     def close(self) -> None:
         """Release network clients and stop the private event loop (idempotent)."""

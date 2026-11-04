@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import threading
+import time
+from concurrent.futures import Future
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -18,7 +21,7 @@ from investinglab.domain import (
     PriceSeries,
 )
 from investinglab.services import DataUnavailableError
-from investinglab.toolkit import AsyncToolkit, Toolkit
+from investinglab.toolkit import AsyncToolkit, Toolkit, _EventLoopThread
 from support.factories import (
     business_days,
     gbm_prices,
@@ -219,3 +222,77 @@ async def test_async_toolkit_context_manager(tmp_path: Path) -> None:
 
     assert series.symbol == "A.MC"
     assert provider.closed == [True]
+
+
+# ── Interruptions and timeouts ───────────────────────────────────────
+
+
+def test_a_call_that_takes_too_long_is_cancelled(tmp_path: Path) -> None:
+    slow = FakeBarsProvider("slow", {"A.MC": A}, delay=30.0)
+    settings = _settings(tmp_path, toolkit_timeout_seconds=0.2)
+
+    with Toolkit.from_settings(settings, providers=[slow], cache=False) as tk:
+        with pytest.raises(TimeoutError, match=r"Cancelled after 0\.2 s"):
+            tk.series("A.MC")
+        deadline = time.monotonic() + 5
+        while slow.in_flight and time.monotonic() < deadline:
+            time.sleep(0.01)
+
+    assert slow.calls
+    assert slow.in_flight == 0  # the download was cancelled, not left running
+
+
+def test_an_interrupted_call_is_cancelled(monkeypatch: pytest.MonkeyPatch) -> None:
+    runner = _EventLoopThread()
+    started, cancelled = threading.Event(), threading.Event()
+
+    async def download() -> None:
+        started.set()
+        try:
+            await asyncio.sleep(3_600)
+        except asyncio.CancelledError:
+            cancelled.set()
+            raise
+
+    def interrupted(self: Future[None], timeout: float | None = None) -> None:
+        started.wait(5)
+        raise KeyboardInterrupt  # Ctrl+C while the notebook waits
+
+    monkeypatch.setattr(Future, "result", interrupted)
+    try:
+        with pytest.raises(KeyboardInterrupt):
+            runner.run(download())
+        assert cancelled.wait(5)
+    finally:
+        monkeypatch.undo()
+        runner.close()
+
+
+def test_a_call_finishing_at_the_deadline_keeps_its_result(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runner = _EventLoopThread()
+    original = Future.result
+
+    def at_the_deadline(self: Future[int], timeout: float | None = None) -> int:
+        if timeout is None:
+            return original(self)
+        original(self)  # the result arrives...
+        raise TimeoutError  # ...just as the wait gives up
+
+    async def answer() -> int:
+        return 42
+
+    monkeypatch.setattr(Future, "result", at_the_deadline)
+    try:
+        assert runner.run(answer(), timeout=1.0) == 42
+    finally:
+        monkeypatch.undo()
+        runner.close()
+
+
+def test_the_timeout_must_be_positive(tmp_path: Path) -> None:
+    inner = AsyncToolkit.from_settings(_settings(tmp_path), cache=False)
+
+    with pytest.raises(DomainError, match="timeout must be positive"):
+        Toolkit(inner, timeout=0.0)

@@ -136,5 +136,11 @@ indica en sus diagnósticos. Un `risk_free_rate` constante se interpreta como TA
 con su propio bucle de eventos. Desde código asíncrono, usa `AsyncToolkit` (los mismos métodos,
 con `await`) o `tk.asynchronous`.
 
+Si interrumpes una celda (el botón de parar o Ctrl+C), la operación en curso se cancela: no se
+queda descargando en segundo plano. Para acotar cuánto puede durar cada llamada, define
+`INVESTINGLAB_TOOLKIT_TIMEOUT_SECONDS` o pasa `Toolkit(..., timeout=segundos)`; al agotarse,
+la operación se cancela y se lanza `TimeoutError`. Por defecto no hay límite, porque cada
+petición HTTP ya tiene el suyo.
+
 Cierra el `Toolkit` al terminar, con `close()` o con un bloque `with`, para liberar las
 conexiones de red.

@@ -59,6 +59,9 @@ class Settings(BaseSettings):
         http_timeout_seconds: Timeout of every outbound HTTP request.
         http_max_attempts: Attempts per request, retries included, for transient errors.
         max_concurrency: Maximum number of series downloaded at the same time.
+        toolkit_timeout_seconds: Longest a synchronous ``Toolkit`` call may run before it is
+            cancelled; ``None`` waits until it ends (every HTTP request still has its own
+            timeout).
         fred_api_key: FRED/ALFRED API key (free at fred.stlouisfed.org).
         alphavantage_api_key: Alpha Vantage API key (free at alphavantage.co).
     """
@@ -82,6 +85,7 @@ class Settings(BaseSettings):
     http_timeout_seconds: float = Field(default=30.0, gt=0, le=300)
     http_max_attempts: int = Field(default=4, ge=1, le=10)
     max_concurrency: int = Field(default=8, ge=1, le=64)
+    toolkit_timeout_seconds: float | None = Field(default=None, gt=0)
     fred_api_key: SecretStr | None = None
     alphavantage_api_key: SecretStr | None = None
 

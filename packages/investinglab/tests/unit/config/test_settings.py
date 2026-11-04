@@ -29,6 +29,16 @@ def test_reads_prefixed_environment_variables(monkeypatch: pytest.MonkeyPatch) -
     assert settings.data_dir == Path("/srv/investinglab")
 
 
+def test_toolkit_calls_have_no_timeout_unless_configured(monkeypatch: pytest.MonkeyPatch) -> None:
+    assert Settings().toolkit_timeout_seconds is None
+
+    monkeypatch.setenv("INVESTINGLAB_TOOLKIT_TIMEOUT_SECONDS", "120")
+
+    assert Settings().toolkit_timeout_seconds == 120.0
+    with pytest.raises(ValidationError):
+        Settings(toolkit_timeout_seconds=0)
+
+
 def test_reads_dotenv_file_in_working_directory() -> None:
     Path(".env").write_text("INVESTINGLAB_ENVIRONMENT=staging\n", encoding="utf-8")
 
