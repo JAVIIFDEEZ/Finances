@@ -149,6 +149,28 @@ def test_the_union_density_never_falls_below_the_schedule() -> None:
     assert _two_markets(sparse).periods_per_year == 252
 
 
+# ── Memoisation ──────────────────────────────────────────────────────
+
+
+def test_the_history_is_computed_once_and_shared() -> None:
+    portfolio = _portfolio()
+
+    assert portfolio.backtest() is portfolio.backtest()
+    assert portfolio.aligned() is portfolio.aligned("union")
+    assert portfolio.backtest(initial_value=2.0) is not portfolio.backtest()
+    assert portfolio.backtest(initial_value=2.0).values.iloc[0] == 2.0
+    assert portfolio.returns().equals(portfolio.backtest().returns)
+
+
+def test_cached_results_cannot_be_altered_from_outside() -> None:
+    portfolio = _portfolio()
+    values = portfolio.value_history()
+
+    values.iloc[:] = 0.0
+
+    assert portfolio.value_history().iloc[-1] > 0
+
+
 def test_correlation_daily_and_weekly() -> None:
     portfolio = _portfolio()
 

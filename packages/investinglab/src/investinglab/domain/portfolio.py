@@ -229,6 +229,9 @@ class Portfolio:
     * every series is expressed in ``base_currency`` (convert foreign assets first; the
       conversion keeps currency risk inside the returns).
 
+    The portfolio is immutable, so its derived history (aligned panel, backtests) is
+    computed once and reused by reports, charts and metrics.
+
     Args:
         name: Portfolio name.
         holdings: Positions and target weights.
@@ -242,6 +245,9 @@ class Portfolio:
     base_currency: Currency
     rebalance: RebalancePolicy = RebalancePolicy(RebalanceKind.PERIODIC, Frequency.MONTH_1)
     allow_short: bool = False
+    _memo: dict[tuple[object, ...], object] = field(
+        default_factory=dict, init=False, repr=False, compare=False
+    )
 
     def __post_init__(self) -> None:
         holdings = tuple(self.holdings)
@@ -387,7 +393,11 @@ class Portfolio:
 
     def aligned(self, method: AlignmentMethod | str = AlignmentMethod.UNION) -> AlignedPanel:
         """Holdings' prices and returns on a common time axis (no data is invented)."""
-        return align(self.series, method)
+        key = ("aligned", AlignmentMethod(method))
+        panel = self._memo.get(key)
+        if not isinstance(panel, AlignedPanel):
+            panel = self._memo[key] = align(self.series, method)
+        return panel
 
     @property
     def periods_per_year(self) -> float:
@@ -439,6 +449,10 @@ class Portfolio:
         """
         if not initial_value > 0:
             raise DomainError("initial_value must be positive")
+        key = ("backtest", float(initial_value), AlignmentMethod(method))
+        cached = self._memo.get(key)
+        if isinstance(cached, PortfolioBacktest):
+            return cached
         panel = self.aligned(method)
         start = panel.common_start()
         returns = panel.returns.loc[start:]
@@ -450,7 +464,7 @@ class Portfolio:
             band=policy.band if policy.kind is RebalanceKind.THRESHOLD else None,
             initial_value=initial_value,
         )
-        return PortfolioBacktest(
+        backtest = PortfolioBacktest(
             _returns=path.returns,
             _values=path.values,
             _weights=path.weights,
@@ -458,6 +472,8 @@ class Portfolio:
             _staleness=panel.staleness().loc[start:],
             rebalance_dates=path.rebalanced,
         )
+        self._memo[key] = backtest
+        return backtest
 
     def returns(self) -> pd.Series:
         """Historical portfolio returns under the rebalancing policy."""
