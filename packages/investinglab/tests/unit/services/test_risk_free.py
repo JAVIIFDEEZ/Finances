@@ -6,7 +6,17 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from investinglab.domain import EUR, GBP, USD, DomainError, EconomicSeries, Frequency
+from investinglab.domain import (
+    EUR,
+    GBP,
+    OVERNIGHT_ACT_360,
+    USD,
+    DayCount,
+    DomainError,
+    EconomicSeries,
+    Frequency,
+    RateConvention,
+)
 from investinglab.ports import ProviderUnavailableError
 from investinglab.services import (
     DEFAULT_RISK_FREE_SERIES,
@@ -14,6 +24,7 @@ from investinglab.services import (
     MarketDataService,
     ProviderRegistry,
     RiskFreeRateService,
+    RiskFreeSource,
 )
 from support.factories import SYNTHETIC_SOURCE
 from support.fakes import FakeEconomicProvider
@@ -42,10 +53,14 @@ ESTR = _economic(
 )
 
 
-def _service(provider: FakeEconomicProvider) -> RiskFreeRateService:
+def _service(provider: FakeEconomicProvider, **options: object) -> RiskFreeRateService:
     registry = ProviderRegistry()
     registry.register(provider)
-    return RiskFreeRateService(MarketDataService(registry, clock=lambda: NOW))
+    return RiskFreeRateService(MarketDataService(registry, clock=lambda: NOW), **options)  # type: ignore[arg-type]
+
+
+def _overnight(*quoted: float) -> list[float]:
+    return [OVERNIGHT_ACT_360.effective_annual(rate) for rate in quoted]
 
 
 async def test_preferred_series_with_fallback_before_it_existed() -> None:
@@ -55,7 +70,7 @@ async def test_preferred_series_with_fallback_before_it_existed() -> None:
     rates = await _service(provider).annual_rates(EUR, dates)
 
     assert np.isnan(rates.iloc[0])  # nothing published yet
-    assert rates.iloc[1:].tolist() == pytest.approx([-0.004, -0.005, -0.0054])
+    assert rates.iloc[1:].tolist() == pytest.approx(_overnight(-0.004, -0.005, -0.0054))
     assert rates.name == "risk_free_EUR"
 
 
@@ -65,10 +80,24 @@ async def test_usd_uses_treasury_bills() -> None:
 
     rates = await service.annual_rates(USD, pd.DatetimeIndex(["2024-01-05"]))
 
-    assert rates.iloc[0] == pytest.approx(0.0525)
+    # A bond-equivalent yield of 5.25 % on a three-month bill, rolled for a year.
+    assert rates.iloc[0] == pytest.approx((1 + 0.0525 * 91 / 365) ** (365 / 91) - 1)
     assert service.supports(USD)
     assert not service.supports(GBP)
-    assert DEFAULT_RISK_FREE_SERIES[EUR][0] == "ECBESTRVOLWGTTRMDMNRT"
+    assert DEFAULT_RISK_FREE_SERIES[EUR][0].series_id == "ECBESTRVOLWGTTRMDMNRT"
+
+
+async def test_each_series_uses_its_own_convention() -> None:
+    gilts = _economic("GILT1Y", [("2024-01-02", "2024-01-03", 4.0)])
+    annual = RateConvention(DayCount.ACT_365, term_days=365)
+    service = _service(
+        FakeEconomicProvider("fred", {"GILT1Y": gilts}),
+        series={GBP: (RiskFreeSource("GILT1Y", annual),)},
+    )
+
+    rates = await service.annual_rates(GBP, pd.DatetimeIndex(["2024-01-05"]))
+
+    assert rates.iloc[0] == pytest.approx(0.04)
 
 
 async def test_partial_failures_still_use_the_available_series() -> None:
@@ -80,7 +109,7 @@ async def test_partial_failures_still_use_the_available_series() -> None:
 
     rates = await _service(provider).annual_rates(EUR, pd.DatetimeIndex(["2019-12-02"]))
 
-    assert rates.iloc[0] == pytest.approx(-0.005)
+    assert rates.iloc[0] == pytest.approx(_overnight(-0.005)[0])
 
 
 async def test_all_series_failing() -> None:

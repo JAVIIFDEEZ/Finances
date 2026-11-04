@@ -61,8 +61,8 @@ class ReportOptions:
     Attributes:
         language: ``es`` (default) or ``en``.
         title: Custom title; a descriptive one is used when ``None``.
-        risk_free_rate: Annual risk-free rate (decimal) for Sharpe and Sortino: a constant
-            or the point-in-time series known at each date.
+        risk_free_rate: Effective annual risk-free rate (decimal) for Sharpe and Sortino: a
+            constant or the point-in-time series known at each date.
         confidence_levels: Levels for VaR and CVaR.
         top_drawdowns: Number of drawdown episodes listed.
         quality: Precomputed data-quality report(s), e.g. checked against the official

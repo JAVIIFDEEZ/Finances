@@ -78,7 +78,7 @@ def test_figures_match_the_domain_metrics() -> None:
     assert f"| Sharpe ratio | {metrics.sharpe_ratio:.2f} |" in report
     assert f"| Annualised volatility | {metrics.annualized_volatility * 100:.1f}% |" in report
     assert f"| Maximum drawdown | {metrics.max_drawdown * 100:.1f}% |" in report
-    assert "| Average risk-free rate | 2.00% |" in report
+    assert "| Average risk-free rate (effective annual) | 2.00% |" in report
     assert "0% risk-free" not in report
 
 
@@ -176,7 +176,7 @@ def test_point_in_time_risk_free_series_is_accepted() -> None:
 
     report = series.report(language="en", risk_free_rate=rates)
 
-    assert "| Average risk-free rate | 3.00% |" in report
+    assert "| Average risk-free rate (effective annual) | 3.00% |" in report
 
 
 def test_a_clean_series_has_no_warnings() -> None:

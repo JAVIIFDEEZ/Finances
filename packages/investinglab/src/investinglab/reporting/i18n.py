@@ -229,7 +229,10 @@ _CATALOGUE: Final[Mapping[str, tuple[str, str]]] = MappingProxyType(
             "Normalidad (p-valor de Jarque-Bera)",
             "Normality (Jarque-Bera p-value)",
         ),
-        "metric.risk_free": ("Tipo libre de riesgo medio (anual)", "Average risk-free rate"),
+        "metric.risk_free": (
+            "Tipo libre de riesgo medio (TAE)",
+            "Average risk-free rate (effective annual)",
+        ),
         # ── Tail risk ────────────────────────────────────────────────
         "tail.level": ("Confianza", "Confidence"),
         "tail.method": ("Método", "Method"),
@@ -729,13 +732,15 @@ _CATALOGUE: Final[Mapping[str, tuple[str, str]]] = MappingProxyType(
         "method.sharpe": (
             (
                 "Sharpe y Sortino miden el exceso de rentabilidad sobre el tipo libre de riesgo "
-                "conocido en cada fecha; el intervalo del Sharpe usa el error estándar de Mertens "
+                "conocido en cada fecha, en TAE según la convención de cada serie (ACT/360 en el "
+                "mercado monetario); el intervalo del Sharpe usa el error estándar de Mertens "
                 "(2002), que tiene en cuenta la asimetría y la curtosis."
             ),
             (
                 "Sharpe and Sortino measure the excess return over the risk-free rate known at "
-                "each date; the Sharpe interval uses the Mertens (2002) standard error, which "
-                "accounts for skewness and kurtosis."
+                "each date, as an effective annual rate under each series' convention (ACT/360 "
+                "in money markets); the Sharpe interval uses the Mertens (2002) standard error, "
+                "which accounts for skewness and kurtosis."
             ),
         ),
         "method.var": (
