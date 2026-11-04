@@ -22,6 +22,7 @@ if TYPE_CHECKING:
 
 NOTEBOOKS = Path(__file__).resolve().parents[4] / "notebooks"
 DEMO = NOTEBOOKS / "b1_toolkit_demo.ipynb"
+OPTIMIZATION = NOTEBOOKS / "portfolio_optimization_demo.ipynb"
 SYMBOLS = ("SAN.MC", "ITX.MC", "IBE.MC", "BBVA.MC")
 
 
@@ -61,14 +62,18 @@ def synthetic_folder(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterato
     get_settings.cache_clear()
 
 
-def test_the_demo_notebook_runs_end_to_end(synthetic_folder: Path) -> None:
+def _run(path: Path) -> dict[str, Any]:
     namespace: dict[str, Any] = {"__name__": "__notebook__"}
-
-    for number, cell in enumerate(_cells(DEMO)):
+    for number, cell in enumerate(_cells(path)):
         if cell["cell_type"] != "code":
             continue
         source = "".join(cell["source"])
-        exec(compile(source, f"{DEMO.name}[{number}]", "exec"), namespace)  # noqa: S102
+        exec(compile(source, f"{path.name}[{number}]", "exec"), namespace)  # noqa: S102
+    return namespace
+
+
+def test_the_demo_notebook_runs_end_to_end(synthetic_folder: Path) -> None:
+    namespace = _run(DEMO)
 
     assert namespace["batch"].ok
     assert namespace["cartera"].symbols == SYMBOLS
@@ -80,3 +85,19 @@ def test_the_demo_notebook_runs_end_to_end(synthetic_folder: Path) -> None:
         .read_text(encoding="utf-8")
         .startswith("# Núcleo portfolio report")
     )
+
+
+def test_the_optimization_notebook_runs_end_to_end(synthetic_folder: Path) -> None:
+    namespace = _run(OPTIMIZATION)
+
+    assert namespace["tangente"].weights.max() <= 0.5 + 1e-9
+    assert list(namespace["comparativa"].columns) == [
+        "Mínima varianza",
+        "Paridad de riesgo",
+        "HRP",
+        "Inversa de la volatilidad",
+    ]
+    assert namespace["frontera"].maximum_sharpe is not None
+    assert namespace["con_vistas"].weights.sum() == pytest.approx(1.0)
+    report = Path("salidas/tangente.md").read_text(encoding="utf-8")
+    assert report.startswith("# Informe de la cartera Núcleo")
