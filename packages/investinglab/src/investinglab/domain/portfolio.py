@@ -455,7 +455,8 @@ class Portfolio:
         """Performance and risk metrics of the historical portfolio returns.
 
         Args:
-            risk_free_rate: Annual risk-free rate (decimal), constant or point-in-time series.
+            risk_free_rate: Effective annual risk-free rate (decimal), constant or
+                point-in-time series (see :class:`~investinglab.domain.RateConvention`).
             levels: Confidence levels for VaR and CVaR.
         """
         return RiskMetrics.from_returns(

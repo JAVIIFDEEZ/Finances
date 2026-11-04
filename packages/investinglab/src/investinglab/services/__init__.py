@@ -11,7 +11,11 @@ from investinglab.services.market_data import (
 )
 from investinglab.services.quality import DataQualityService
 from investinglab.services.registry import ProviderRegistry
-from investinglab.services.risk_free import DEFAULT_RISK_FREE_SERIES, RiskFreeRateService
+from investinglab.services.risk_free import (
+    DEFAULT_RISK_FREE_SERIES,
+    RiskFreeRateService,
+    RiskFreeSource,
+)
 
 __all__ = [
     "DEFAULT_RISK_FREE_SERIES",
@@ -25,5 +29,6 @@ __all__ = [
     "MarketDataService",
     "ProviderRegistry",
     "RiskFreeRateService",
+    "RiskFreeSource",
     "yahoo_style_fx_symbol",
 ]

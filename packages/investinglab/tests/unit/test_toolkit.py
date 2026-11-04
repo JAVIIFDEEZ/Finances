@@ -10,6 +10,7 @@ import pytest
 from investinglab.config import Settings
 from investinglab.domain import (
     EUR,
+    OVERNIGHT_ACT_360,
     USD,
     DomainError,
     Frequency,
@@ -100,7 +101,8 @@ def test_missing_holdings_abort_the_portfolio(toolkit: Toolkit) -> None:
 def test_reports_use_the_point_in_time_risk_free_rate(toolkit: Toolkit) -> None:
     report = toolkit.report(A, language="en")
 
-    assert "| Average risk-free rate | 3.50% |" in report
+    # €STR at 3.5 % (ACT/360, overnight) is an effective 3.61 % a year.
+    assert "| Average risk-free rate (effective annual) | 3.61% |" in report
     assert "0% risk-free" not in report
     assert "Data was checked against the official market sessions" in report
 
@@ -108,7 +110,7 @@ def test_reports_use_the_point_in_time_risk_free_rate(toolkit: Toolkit) -> None:
 def test_explicit_rates_are_respected(toolkit: Toolkit) -> None:
     report = toolkit.report(A, language="en", risk_free_rate=0.01)
 
-    assert "| Average risk-free rate | 1.00% |" in report
+    assert "| Average risk-free rate (effective annual) | 1.00% |" in report
 
 
 def test_portfolio_reports_are_enriched_too(toolkit: Toolkit) -> None:
@@ -116,7 +118,7 @@ def test_portfolio_reports_are_enriched_too(toolkit: Toolkit) -> None:
 
     report = toolkit.report(portfolio, language="en")
 
-    assert "| Average risk-free rate | 3.50% |" in report
+    assert "| Average risk-free rate (effective annual) | 3.61% |" in report
 
 
 def test_without_a_rate_source_the_report_says_so(tmp_path: Path) -> None:
@@ -178,7 +180,7 @@ def test_quality_uses_the_official_calendar(toolkit: Toolkit) -> None:
 def test_risk_free_rates_on_demand(toolkit: Toolkit) -> None:
     rates = toolkit.risk_free("EUR", pd.DatetimeIndex(INDEX[:5]))
 
-    assert rates.tolist() == pytest.approx([0.035] * 5)
+    assert rates.tolist() == pytest.approx([OVERNIGHT_ACT_360.effective_annual(0.035)] * 5)
 
 
 def test_the_sync_toolkit_works_inside_a_running_event_loop(toolkit: Toolkit) -> None:

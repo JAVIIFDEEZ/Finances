@@ -53,6 +53,7 @@ from investinglab.domain.quality import (
     Severity,
     assess_quality,
 )
+from investinglab.domain.rates import OVERNIGHT_ACT_360, DayCount, RateConvention
 from investinglab.domain.series import (
     MIN_OBSERVATIONS,
     DataSource,
@@ -95,6 +96,7 @@ __all__ = [
     "MAX_CHUNK_CELLS",
     "MAX_SIMULATED_POINTS",
     "MIN_OBSERVATIONS",
+    "OVERNIGHT_ACT_360",
     "USD",
     "WEIGHT_TOLERANCE",
     "AlignedPanel",
@@ -106,6 +108,7 @@ __all__ = [
     "CurrencyPair",
     "DataQualityReport",
     "DataSource",
+    "DayCount",
     "DomainError",
     "DriftAssumption",
     "EconomicSeries",
@@ -130,6 +133,7 @@ __all__ = [
     "QualityIssue",
     "QualityThresholds",
     "QuoteUnit",
+    "RateConvention",
     "RebalanceKind",
     "RebalancePolicy",
     "ReturnKind",

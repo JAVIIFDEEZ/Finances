@@ -464,7 +464,8 @@ class PriceSeries:
         """Performance and risk metrics (Sharpe, Sortino, Calmar, VaR/CVaR...).
 
         Args:
-            risk_free_rate: Annual risk-free rate (decimal), constant or point-in-time series.
+            risk_free_rate: Effective annual risk-free rate (decimal), constant or
+                point-in-time series (see :class:`~investinglab.domain.RateConvention`).
             levels: Confidence levels for VaR and CVaR.
         """
         return RiskMetrics.from_returns(
