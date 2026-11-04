@@ -8,6 +8,8 @@
 
 ::: investinglab.domain.simulation
 
+::: investinglab.domain.optimization
+
 ::: investinglab.domain.fx
 
 ::: investinglab.domain.quality

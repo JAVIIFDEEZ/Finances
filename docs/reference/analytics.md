@@ -14,4 +14,6 @@
 
 ::: investinglab.analytics.montecarlo
 
+::: investinglab.analytics.optimization
+
 ::: investinglab.analytics.quality
