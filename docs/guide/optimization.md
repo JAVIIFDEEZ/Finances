@@ -7,9 +7,9 @@ detrás ([ADR-0023](../adr/0023-portfolio-optimization.md)).
 ```python
 resultado = cartera.optimize(objective="max_sharpe", max_weight=0.4, risk_free_rate=0.03)
 
-resultado.weights             # pesos optimizados
-resultado.summary()           # pesos antes y después, rentabilidad, volatilidad y riesgo
-resultado.sharpe_ratio        # Sharpe ex ante
+resultado.weights  # pesos optimizados
+resultado.summary()  # pesos antes y después, rentabilidad, volatilidad y riesgo
+resultado.sharpe_ratio  # Sharpe ex ante
 resultado.portfolio.report()  # la cartera optimizada, con su informe completo
 ```
 
@@ -35,7 +35,7 @@ Los tres primeros admiten límites por activo:
 ```python
 cartera.optimize(min_weight=0.05, max_weight=0.35)
 cartera.optimize(objective="max_sharpe", max_weight={"SAN.MC": 0.2})  # solo un activo
-cartera.optimize(objective="max_sharpe", min_weight=-0.3)             # con cortos
+cartera.optimize(objective="max_sharpe", min_weight=-0.3)  # con cortos
 ```
 
 ```python
@@ -66,7 +66,7 @@ cartera.optimize(
     objective="max_sharpe",
     expected_returns="equilibrium",
     views=[
-        View.absolute("IBE.MC", 0.08),                         # IBE rentará un 8 %
+        View.absolute("IBE.MC", 0.08),  # IBE rentará un 8 %
         View.relative("ITX.MC", "SAN.MC", 0.02, uncertainty=0.0004),
     ],
 )
@@ -91,10 +91,10 @@ Las estimaciones empiezan cuando cotizan todos los activos y nunca se rellenan h
 ```python
 frontera = cartera.efficient_frontier(points=40, risk_free_rate=0.03, max_weight=0.5)
 
-frontera.points            # rentabilidad, volatilidad, Sharpe y pesos de cada punto
+frontera.points  # rentabilidad, volatilidad, Sharpe y pesos de cada punto
 frontera.minimum_variance  # cartera de mínima varianza
-frontera.maximum_sharpe    # cartera tangente (None si nada bate al tipo libre de riesgo)
-frontera.plot()            # gráfico en español; plot(language="en") en inglés
+frontera.maximum_sharpe  # cartera tangente (None si nada bate al tipo libre de riesgo)
+frontera.plot()  # gráfico en español; plot(language="en") en inglés
 ```
 
 El gráfico muestra la frontera, cada activo, las dos carteras óptimas y la línea del mercado

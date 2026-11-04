@@ -57,12 +57,13 @@ repos:
         name: ruff check
         entry: uv run --frozen ruff check --fix --exit-non-zero-on-fix
         language: system
-        types_or: [python, pyi]
+        # Same files as `just lint` and CI: notebooks and Markdown code blocks too.
+        types_or: [python, pyi, jupyter, markdown]
       - id: ruff-format
         name: ruff format
         entry: uv run --frozen ruff format
         language: system
-        types_or: [python, pyi]
+        types_or: [python, pyi, jupyter, markdown]
       - id: import-linter
         name: import-linter (architecture contracts)
         entry: uv run --frozen lint-imports
