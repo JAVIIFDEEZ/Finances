@@ -9,6 +9,10 @@ decision-makers: Javier Fernández
 > **Actualización (2026-11-02):** la excepción de capas de `plot()` se generaliza en
 > [ADR-0017](0017-bilingual-reports-and-charts.md): el dominio delega en un único módulo,
 > `investinglab.reporting.entrypoints`, y el gráfico pasa a ser bilingüe.
+>
+> **Actualización (2026-11-04):** el tamaño del lote también cuenta los activos
+> (`MAX_CHUNK_CELLS`); `chunk_size` pasa a ser un máximo. Ver
+> [ADR-0019](0019-bounded-memory-and-incremental-cache.md).
 
 ## Contexto y problema
 
