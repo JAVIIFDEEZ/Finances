@@ -16,6 +16,8 @@ resultado.portfolio.report()  # la cartera optimizada, con su informe completo
 `resultado.portfolio` es una `Portfolio` normal: mismos activos, divisa y política de
 rebalanceo. Puedes hacerle un informe, un backtest o un Monte Carlo como a cualquier otra.
 
+La demo completa está en `notebooks/portfolio_optimization_demo.ipynb`.
+
 ## Objetivos
 
 | `objective` | Qué busca | Usa rentabilidades esperadas |
