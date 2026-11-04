@@ -339,5 +339,12 @@ def build_portfolio_report(portfolio: Portfolio, options: ReportOptions) -> Mark
     doc.heading(tr.text("section.diagnostics"))
     write_diagnostics(doc, diagnostics, tr, scoped=True)
     doc.heading(tr.text("section.methodology"))
-    write_methodology(doc, tr, periods_per_year=portfolio.periods_per_year, portfolio=True)
+    schedule = max(holding.series.periods_per_year for holding in portfolio)
+    write_methodology(
+        doc,
+        tr,
+        periods_per_year=portfolio.periods_per_year,
+        portfolio=True,
+        union_calendar=portfolio.periods_per_year > schedule,
+    )
     return doc.build()

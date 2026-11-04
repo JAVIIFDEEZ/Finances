@@ -29,7 +29,7 @@ from investinglab.domain.simulation import (
     SimulationResult,
     simulate,
 )
-from investinglab.domain.time import Frequency
+from investinglab.domain.time import CALENDAR_YEAR_DAYS, Frequency
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator, Mapping, Sequence
@@ -212,6 +212,10 @@ class Holding:
         return self.series.symbol
 
 
+MIN_UNION_YEARS: Final = 1.0
+"""History needed before a multi-market daily portfolio annualises with its union calendar."""
+
+
 @dataclass(frozen=True, slots=True, eq=False)
 class Portfolio:
     """A portfolio of instruments with validated target weights.
@@ -224,6 +228,9 @@ class Portfolio:
     * every series has the same frequency;
     * every series is expressed in ``base_currency`` (convert foreign assets first; the
       conversion keeps currency risk inside the returns).
+
+    The portfolio is immutable, so its derived history (aligned panel, backtests) is
+    computed once and reused by reports, charts and metrics.
 
     Args:
         name: Portfolio name.
@@ -238,6 +245,9 @@ class Portfolio:
     base_currency: Currency
     rebalance: RebalancePolicy = RebalancePolicy(RebalanceKind.PERIODIC, Frequency.MONTH_1)
     allow_short: bool = False
+    _memo: dict[tuple[object, ...], object] = field(
+        default_factory=dict, init=False, repr=False, compare=False
+    )
 
     def __post_init__(self) -> None:
         holdings = tuple(self.holdings)
@@ -383,12 +393,33 @@ class Portfolio:
 
     def aligned(self, method: AlignmentMethod | str = AlignmentMethod.UNION) -> AlignedPanel:
         """Holdings' prices and returns on a common time axis (no data is invented)."""
-        return align(self.series, method)
+        key = ("aligned", AlignmentMethod(method))
+        panel = self._memo.get(key)
+        if not isinstance(panel, AlignedPanel):
+            panel = self._memo[key] = align(self.series, method)
+        return panel
 
     @property
     def periods_per_year(self) -> float:
-        """Annualisation factor: the densest holding's (the union calendar is at least as dense)."""
-        return max(h.series.periods_per_year for h in self.holdings)
+        """Annualisation factor of the portfolio's return calendar.
+
+        The portfolio is valued on the union of its holdings' calendars. On one market,
+        that is the market's schedule (252 equity sessions, 365 crypto days...). Daily
+        holdings on several markets trade on more dates than any of them, because a Madrid
+        holiday can be a New York session: with at least :data:`MIN_UNION_YEARS` of common
+        history, the factor is the density observed on the union calendar, never below
+        the densest schedule.
+        """
+        schedule = max(h.series.periods_per_year for h in self.holdings)
+        markets = {(h.series.instrument.exchange, h.series.timezone) for h in self.holdings}
+        if self.frequency is not Frequency.DAY_1 or len(markets) < 2:  # noqa: PLR2004
+            return schedule
+        panel = self.aligned()
+        dates = panel.index[panel.index >= panel.common_start()]
+        years = (dates[-1] - dates[0]).days / CALENDAR_YEAR_DAYS
+        if years < MIN_UNION_YEARS:
+            return schedule
+        return max(schedule, (len(dates) - 1) / years)
 
     @property
     def herfindahl_index(self) -> float:
@@ -418,6 +449,10 @@ class Portfolio:
         """
         if not initial_value > 0:
             raise DomainError("initial_value must be positive")
+        key = ("backtest", float(initial_value), AlignmentMethod(method))
+        cached = self._memo.get(key)
+        if isinstance(cached, PortfolioBacktest):
+            return cached
         panel = self.aligned(method)
         start = panel.common_start()
         returns = panel.returns.loc[start:]
@@ -429,7 +464,7 @@ class Portfolio:
             band=policy.band if policy.kind is RebalanceKind.THRESHOLD else None,
             initial_value=initial_value,
         )
-        return PortfolioBacktest(
+        backtest = PortfolioBacktest(
             _returns=path.returns,
             _values=path.values,
             _weights=path.weights,
@@ -437,6 +472,8 @@ class Portfolio:
             _staleness=panel.staleness().loc[start:],
             rebalance_dates=path.rebalanced,
         )
+        self._memo[key] = backtest
+        return backtest
 
     def returns(self) -> pd.Series:
         """Historical portfolio returns under the rebalancing policy."""

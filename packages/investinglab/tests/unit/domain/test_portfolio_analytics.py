@@ -7,6 +7,7 @@ import pandas as pd
 import pytest
 
 from investinglab.domain import (
+    CALENDAR_YEAR_DAYS,
     EXCHANGES,
     DomainError,
     Frequency,
@@ -101,6 +102,73 @@ def test_portfolio_metrics() -> None:
     assert metrics.periods == len(INDEX) - 1
     assert metrics.periods_per_year == 252
     assert metrics.tail_risk(0.95).value_at_risk > 0
+
+
+# ── Annualisation on the union calendar ──────────────────────────────
+
+TWO_YEARS = pd.bdate_range("2023-01-02", "2024-12-31")
+MADRID_HOLIDAYS = pd.DatetimeIndex(["2023-04-07", "2023-04-10", "2023-12-26", "2024-03-29"])
+NEW_YORK_HOLIDAYS = pd.DatetimeIndex(["2023-01-16", "2023-07-04", "2023-11-23", "2024-07-04"])
+
+
+def _two_markets(years: pd.DatetimeIndex = TWO_YEARS) -> Portfolio:
+    madrid = years.difference(MADRID_HOLIDAYS)
+    new_york = years.difference(NEW_YORK_HOLIDAYS)
+    san = make_series(gbm_prices(len(madrid), seed=9), symbol="SAN.MC", index=madrid)
+    spy = make_series(
+        gbm_prices(len(new_york), seed=10),
+        symbol="SPY",
+        index=new_york,
+        exchange=EXCHANGES["XNYS"],
+    )
+    return Portfolio.from_weights("Two markets", [san, spy], [0.5, 0.5])
+
+
+def test_several_markets_annualise_with_the_density_of_their_union_calendar() -> None:
+    portfolio = _two_markets()
+
+    sessions = len(TWO_YEARS)  # every weekday: one market or the other is open
+    years = (TWO_YEARS[-1] - TWO_YEARS[0]).days / CALENDAR_YEAR_DAYS
+    assert portfolio.periods_per_year == pytest.approx((sessions - 1) / years)
+    assert portfolio.periods_per_year > 260
+    metrics = portfolio.metrics()
+    assert metrics.periods_per_year == portfolio.periods_per_year
+    assert metrics.annualized_volatility == pytest.approx(
+        portfolio.returns().std() * math.sqrt(portfolio.periods_per_year)
+    )
+
+
+def test_one_market_and_short_histories_keep_the_schedule() -> None:
+    assert _portfolio().periods_per_year == 252  # a single market
+    assert _two_markets(TWO_YEARS[:200]).periods_per_year == 252  # less than a year
+
+
+def test_the_union_density_never_falls_below_the_schedule() -> None:
+    sparse = TWO_YEARS[::2]  # a data gap every other day, on both markets
+
+    assert _two_markets(sparse).periods_per_year == 252
+
+
+# ── Memoisation ──────────────────────────────────────────────────────
+
+
+def test_the_history_is_computed_once_and_shared() -> None:
+    portfolio = _portfolio()
+
+    assert portfolio.backtest() is portfolio.backtest()
+    assert portfolio.aligned() is portfolio.aligned("union")
+    assert portfolio.backtest(initial_value=2.0) is not portfolio.backtest()
+    assert portfolio.backtest(initial_value=2.0).values.iloc[0] == 2.0
+    assert portfolio.returns().equals(portfolio.backtest().returns)
+
+
+def test_cached_results_cannot_be_altered_from_outside() -> None:
+    portfolio = _portfolio()
+    values = portfolio.value_history()
+
+    values.iloc[:] = 0.0
+
+    assert portfolio.value_history().iloc[-1] > 0
 
 
 def test_correlation_daily_and_weekly() -> None:

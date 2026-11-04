@@ -17,6 +17,7 @@ from investinglab.domain.simulation import (
     DriftAssumption,
     SimulationResult,
 )
+from investinglab.domain.time import CALENDAR_YEAR_DAYS
 from investinglab.reporting.diagnostics import Diagnostic, issue_message, level_label
 from investinglab.reporting.i18n import MISSING
 from investinglab.reporting.markdown import Align
@@ -51,7 +52,7 @@ _LR = (Align.LEFT, Align.RIGHT)
 
 def span_years(start: pd.Timestamp, end: pd.Timestamp) -> float:
     """Calendar years between two timestamps."""
-    return (pd.Timestamp(end) - pd.Timestamp(start)).days / 365.25
+    return (pd.Timestamp(end) - pd.Timestamp(start)).days / CALENDAR_YEAR_DAYS
 
 
 def resolve_simulation(
@@ -397,12 +398,22 @@ def write_simulation(
 
 
 def write_methodology(
-    doc: MarkdownBuilder, tr: Translator, *, periods_per_year: float, portfolio: bool
+    doc: MarkdownBuilder,
+    tr: Translator,
+    *,
+    periods_per_year: float,
+    portfolio: bool,
+    union_calendar: bool = False,
 ) -> None:
-    """Conventions behind every figure of the report."""
+    """Conventions behind every figure of the report.
+
+    ``union_calendar`` says that a multi-market portfolio annualises with the density of
+    its union calendar instead of a market schedule.
+    """
+    annualisation = "method.annualisation.union" if union_calendar else "method.annualisation"
     items = [
         tr.text("method.returns"),
-        tr.text("method.annualisation", periods=tr.number(periods_per_year, 0)),
+        tr.text(annualisation, periods=tr.number(periods_per_year, 0)),
         tr.text("method.sharpe"),
         tr.text("method.var"),
         tr.text("method.quality"),
