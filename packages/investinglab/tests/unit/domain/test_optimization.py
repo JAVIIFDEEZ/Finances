@@ -19,6 +19,7 @@ from investinglab.domain import (
     ReturnModel,
     View,
 )
+from investinglab.domain.optimization import Estimates, frontier_points
 from support.factories import business_days, gbm_prices, make_series
 
 N = 504
@@ -103,6 +104,8 @@ def test_assumed_expected_returns() -> None:
     assert result.estimates.expected_returns.to_dict() == pytest.approx(assumed)
     with pytest.raises(DomainError, match="no value for"):
         PORTFOLIO.optimize(expected_returns={"CALM": 0.03})
+    with pytest.raises(DomainError, match="must be finite"):
+        PORTFOLIO.optimize(expected_returns={**assumed, "MID": math.nan})
 
 
 def test_equilibrium_returns_make_the_current_weights_optimal() -> None:
@@ -387,3 +390,26 @@ def test_with_weights_keeps_holdings_currency_and_policy() -> None:
     assert rebuilt.rebalance == PORTFOLIO.rebalance
     assert short.allow_short
     assert isinstance(rebuilt.weights, pd.Series)
+
+
+def test_frontier_points_report_infeasible_bounds() -> None:
+    estimates = PORTFOLIO.optimize().estimates
+
+    with pytest.raises(DomainError, match="Efficient frontier failed"):
+        frontier_points(estimates, OptimizationConfig(max_weight=0.2), 5)
+
+
+def test_a_riskless_portfolio_has_no_sharpe_ratio() -> None:
+    symbols = list(SYMBOLS)
+    riskless = Estimates(
+        expected_returns=pd.Series(0.03, index=symbols),
+        covariance=pd.DataFrame(0.0, index=symbols, columns=symbols),
+        observations=10,
+    )
+
+    result = OptimizationResult(
+        OptimizationConfig(), PORTFOLIO, riskless, previous_weights=PORTFOLIO.weights
+    )
+
+    assert result.volatility == 0.0
+    assert math.isnan(result.sharpe_ratio)

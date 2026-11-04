@@ -367,7 +367,7 @@ def estimate(inputs: OptimizationInputs, config: OptimizationConfig) -> Estimate
             raise DomainError(f"expected_returns has no value for {missing}")
         mean = np.array([model[symbol] for symbol in symbols])
     if not np.isfinite(mean).all():
-        raise DomainError("Some holdings have no return in the period: no expected return")
+        raise DomainError("Every expected return must be finite")
     if config.views:
         picks, view_returns, uncertainties = _views(config.views, symbols)
         default = np.diag(picks @ (config.tau * covariance) @ picks.T)
@@ -421,7 +421,7 @@ def solve(estimates: Estimates, config: OptimizationConfig) -> np.ndarray:
                 weights = hierarchical_risk_parity_weights(covariance)
             case Objective.INVERSE_VOLATILITY:
                 weights = inverse_volatility_weights(covariance)
-            case Objective.EQUAL_WEIGHT:
+            case Objective.EQUAL_WEIGHT:  # pragma: no branch - the last objective
                 weights = np.full(len(symbols), 1.0 / len(symbols))
     except OptimizationError as error:
         raise DomainError(f"Optimisation failed: {error}") from error
