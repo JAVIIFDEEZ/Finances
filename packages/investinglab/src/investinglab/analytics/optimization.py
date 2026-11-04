@@ -499,10 +499,12 @@ def black_litterman(
     )
     if omega.shape != (q.size, q.size):
         raise OptimizationError(f"The view uncertainty must be {q.size}x{q.size}")
-    try:
-        gain = np.linalg.solve(projected @ pick.T + omega, projected).T
-    except np.linalg.LinAlgError as error:
-        raise OptimizationError("The views are redundant or contradictory") from error
+    system = projected @ pick.T + omega
+    # Checked through the numerical rank: whether LU meets an exactly zero pivot on a
+    # singular system depends on the BLAS kernel, so LinAlgError alone is not reliable.
+    if np.linalg.matrix_rank(system) < q.size:
+        raise OptimizationError("The views are redundant or contradictory")
+    gain = np.linalg.solve(system, projected).T
     posterior = pi + gain @ (q - pick @ pi)
     posterior_covariance = matrix + scaled - gain @ projected
     return posterior, np.asarray((posterior_covariance + posterior_covariance.T) / 2)

@@ -280,3 +280,28 @@ def test_a_failed_solver_is_reported_not_returned(monkeypatch: pytest.MonkeyPatc
 
     with pytest.raises(OptimizationError, match="did not converge: Iteration limit reached"):
         min_variance_weights(COV)
+
+
+def test_numerically_redundant_views_are_rejected_on_every_platform() -> None:
+    # The second view is the first one up to rounding: on some BLAS kernels LU never meets an
+    # exactly zero pivot here, so solving silently returned a meaningless posterior.
+    covariance = np.array(
+        [
+            [0.11293943583593873, -0.01085696181285801, -0.09963689405396661, 0.00913945504075693],
+            [-0.01085696181285801, 0.04485510108127424, -0.00699090510542078, 0.02493382325171485],
+            [-0.09963689405396661, -0.00699090510542078, 0.12066247526810192, -0.02076974543210706],
+            [0.00913945504075693, 0.02493382325171485, -0.02076974543210706, 0.01891476621675805],
+        ]
+    )
+    picks = np.array(
+        [
+            [0.48194538850678587, -0.2385536065733667, 0.9577587029597641, -0.19980212906658],
+            [0.4819453885067864, -0.23855360657336697, 0.9577587029597652, -0.1998021290665802],
+            [1.545820851212812, 0.5451055226876446, -0.505228735614018, -0.1828389745977349],
+        ]
+    )
+
+    with pytest.raises(OptimizationError, match="redundant"):
+        black_litterman(
+            np.zeros(4), covariance, picks, [0.10, 0.20, 0.0], uncertainty=np.zeros((3, 3))
+        )
