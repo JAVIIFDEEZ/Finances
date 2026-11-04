@@ -44,6 +44,8 @@ __all__ = [
 ]
 
 _FEASIBILITY: Final = 1e-7
+_PURE_NEWTON: Final = 1e-8
+"""Newton decrement² below which full Newton steps converge quadratically on their own."""
 _FTOL: Final = 1e-14
 _MAX_ITERATIONS: Final = 1_000
 
@@ -377,14 +379,19 @@ def risk_budget_weights(
         if float(np.abs(gradient).max()) < tolerance:
             return np.asarray(y / y.sum(), dtype="float64")
         step = np.linalg.solve(scaled + np.diag(shares / y**2), gradient)
-        descent, current, length = float(gradient @ step), value(y), 1.0
-        candidate = y - step
-        while (candidate <= 0).any() or value(candidate) > current - 1e-4 * length * descent:
-            length /= 2
-            candidate = y - length * step
-            if length < 1e-12:  # noqa: PLR2004 - no representable decrease left
-                break
-        y = candidate
+        decrement = float(gradient @ step)  # squared Newton decrement: twice the expected gain
+        length = 1.0
+        while (y - length * step <= 0).any():  # stay inside the domain y > 0
+            length /= 2  # pragma: no cover - safety net: never needed from the start point
+        if decrement > _PURE_NEWTON:
+            # Damped phase: backtrack until the decrease is sufficient (Armijo). Close to the
+            # optimum the decrease is too small to measure, so full steps are taken instead.
+            current = value(y)
+            while (
+                value(y - length * step) > current - 1e-4 * length * decrement and length > 1e-12  # noqa: PLR2004 - a step that small is negligible anyway
+            ):
+                length /= 2  # pragma: no cover - safety net: full steps suffice in practice
+        y = y - length * step
     raise OptimizationError("Risk budgeting did not converge")
 
 

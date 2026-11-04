@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import numpy as np
 import pytest
 
+from investinglab.analytics import optimization
 from investinglab.analytics.optimization import (
     OptimizationError,
     black_litterman,
@@ -267,3 +270,13 @@ def test_invalid_views_are_rejected(
 ) -> None:
     with pytest.raises(OptimizationError, match=message):
         black_litterman(MEAN, COV, picks, views, **options)  # type: ignore[arg-type]
+
+
+def test_a_failed_solver_is_reported_not_returned(monkeypatch: pytest.MonkeyPatch) -> None:
+    def failed(*args: object, **kwargs: object) -> SimpleNamespace:
+        return SimpleNamespace(x=np.zeros(3), message="Iteration limit reached")
+
+    monkeypatch.setattr(optimization, "minimize", failed)
+
+    with pytest.raises(OptimizationError, match="did not converge: Iteration limit reached"):
+        min_variance_weights(COV)
