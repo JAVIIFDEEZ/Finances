@@ -106,8 +106,25 @@ async def test_timeouts_become_unavailable_errors() -> None:
     respx.get(f"{BASE}/series").mock(side_effect=httpx.ReadTimeout("slow"))
 
     async with _client(_Sleeps(), attempts=1) as client:
-        with pytest.raises(ProviderUnavailableError, match="timeout"):
-            await client.get_json("/series")
+        with pytest.raises(ProviderUnavailableError, match=r"timeout on /series \(ReadTimeout\)"):
+            await client.get_json("/series", {"api_key": FAKE_KEY})
+
+
+@pytest.mark.parametrize(
+    "failure", [httpx.ReadTimeout("slow"), httpx.ConnectError("refused")], ids=str
+)
+@respx.mock
+async def test_translated_errors_do_not_chain_the_request(failure: httpx.HTTPError) -> None:
+    respx.get(f"{BASE}/series").mock(side_effect=failure)
+
+    async with _client(_Sleeps(), attempts=1) as client:
+        with pytest.raises(ProviderUnavailableError) as caught:
+            await client.get_json("/series", {"api_key": FAKE_KEY})
+
+    # The httpx exception keeps the request URL, credentials included: never attach it.
+    assert caught.value.__cause__ is None
+    assert caught.value.__suppress_context__
+    assert FAKE_KEY not in str(caught.value)
 
 
 # ── Redirects ────────────────────────────────────────────────────────

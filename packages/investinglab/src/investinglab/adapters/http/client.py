@@ -5,8 +5,9 @@
 * **Rate limiting** per provider: every configured quota is respected before each call.
 * **Error translation** to the port's :mod:`investinglab.ports.errors` types.
 * **Secret hygiene**: credentials in query parameters are redacted from logs and errors,
-  and redirects are only followed within the provider's origin, so a key in the query
-  string never reaches another host.
+  translated errors do not chain the httpx exception (it carries the full URL), and
+  redirects are only followed within the provider's origin, so a key in the query string
+  never reaches another host.
 """
 
 from __future__ import annotations
@@ -178,14 +179,18 @@ class HttpClient:
             await limiter.acquire()
         query = {k: v for k, v in (params or {}).items() if v is not None}
         started = time.perf_counter()
+        # httpx exceptions keep the request, whose URL holds the credentials: they are
+        # translated without chaining them (``from None``).
         try:
             response = await self._client.get(path, params=query)
         except httpx.TimeoutException as error:
-            raise ProviderUnavailableError(self._provider, f"timeout on {path}") from error
+            raise ProviderUnavailableError(
+                self._provider, f"timeout on {path} ({type(error).__name__})"
+            ) from None
         except httpx.TransportError as error:
             raise ProviderUnavailableError(
                 self._provider, f"connection error on {path}: {type(error).__name__}"
-            ) from error
+            ) from None
         except httpx.TooManyRedirects:
             raise ProviderDataError(
                 self._provider, f"more than {MAX_REDIRECTS} redirects on {path}"
