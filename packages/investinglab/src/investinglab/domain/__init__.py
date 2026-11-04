@@ -75,6 +75,7 @@ from investinglab.domain.simulation import (
     VolatilityAssumption,
 )
 from investinglab.domain.time import (
+    CALENDAR_YEAR_DAYS,
     CRYPTO_SCHEDULE,
     EQUITY_SCHEDULE,
     FX_SCHEDULE,
@@ -83,6 +84,7 @@ from investinglab.domain.time import (
 )
 
 __all__ = [
+    "CALENDAR_YEAR_DAYS",
     "CHF",
     "CRYPTO_SCHEDULE",
     "DEFAULT_CONFIDENCE_LEVELS",

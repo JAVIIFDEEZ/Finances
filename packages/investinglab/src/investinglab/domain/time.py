@@ -14,18 +14,23 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import Final
 
 import pandas as pd
 
 from investinglab.domain.errors import DomainError
 
 __all__ = [
+    "CALENDAR_YEAR_DAYS",
     "CRYPTO_SCHEDULE",
     "EQUITY_SCHEDULE",
     "FX_SCHEDULE",
     "Frequency",
     "MarketSchedule",
 ]
+
+CALENDAR_YEAR_DAYS: Final = 365.25
+"""Average calendar days in a year, leap years included: elapsed days to years."""
 
 
 class Frequency(StrEnum):

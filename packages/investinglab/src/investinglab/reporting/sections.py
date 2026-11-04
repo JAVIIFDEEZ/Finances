@@ -17,6 +17,7 @@ from investinglab.domain.simulation import (
     DriftAssumption,
     SimulationResult,
 )
+from investinglab.domain.time import CALENDAR_YEAR_DAYS
 from investinglab.reporting.diagnostics import Diagnostic, issue_message, level_label
 from investinglab.reporting.i18n import MISSING
 from investinglab.reporting.markdown import Align
@@ -51,7 +52,7 @@ _LR = (Align.LEFT, Align.RIGHT)
 
 def span_years(start: pd.Timestamp, end: pd.Timestamp) -> float:
     """Calendar years between two timestamps."""
-    return (pd.Timestamp(end) - pd.Timestamp(start)).days / 365.25
+    return (pd.Timestamp(end) - pd.Timestamp(start)).days / CALENDAR_YEAR_DAYS
 
 
 def resolve_simulation(

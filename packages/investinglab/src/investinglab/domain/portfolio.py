@@ -29,7 +29,7 @@ from investinglab.domain.simulation import (
     SimulationResult,
     simulate,
 )
-from investinglab.domain.time import Frequency
+from investinglab.domain.time import CALENDAR_YEAR_DAYS, Frequency
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator, Mapping, Sequence
@@ -212,6 +212,10 @@ class Holding:
         return self.series.symbol
 
 
+MIN_UNION_YEARS: Final = 1.0
+"""History needed before a multi-market daily portfolio annualises with its union calendar."""
+
+
 @dataclass(frozen=True, slots=True, eq=False)
 class Portfolio:
     """A portfolio of instruments with validated target weights.
@@ -387,8 +391,25 @@ class Portfolio:
 
     @property
     def periods_per_year(self) -> float:
-        """Annualisation factor: the densest holding's (the union calendar is at least as dense)."""
-        return max(h.series.periods_per_year for h in self.holdings)
+        """Annualisation factor of the portfolio's return calendar.
+
+        The portfolio is valued on the union of its holdings' calendars. On one market,
+        that is the market's schedule (252 equity sessions, 365 crypto days...). Daily
+        holdings on several markets trade on more dates than any of them, because a Madrid
+        holiday can be a New York session: with at least :data:`MIN_UNION_YEARS` of common
+        history, the factor is the density observed on the union calendar, never below
+        the densest schedule.
+        """
+        schedule = max(h.series.periods_per_year for h in self.holdings)
+        markets = {(h.series.instrument.exchange, h.series.timezone) for h in self.holdings}
+        if self.frequency is not Frequency.DAY_1 or len(markets) < 2:  # noqa: PLR2004
+            return schedule
+        panel = self.aligned()
+        dates = panel.index[panel.index >= panel.common_start()]
+        years = (dates[-1] - dates[0]).days / CALENDAR_YEAR_DAYS
+        if years < MIN_UNION_YEARS:
+            return schedule
+        return max(schedule, (len(dates) - 1) / years)
 
     @property
     def herfindahl_index(self) -> float:
