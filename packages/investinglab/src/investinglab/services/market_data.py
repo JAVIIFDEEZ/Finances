@@ -12,7 +12,9 @@ Every request follows the same path:
    attempt and its cause.
 
 Batches download many series concurrently (bounded by ``max_concurrency``) and never abort
-on a partial failure: :class:`BatchResult` separates successes from failures.
+on a partial failure: :class:`BatchResult` separates successes from failures. Cache reads and
+writes are blocking file I/O, so they run in worker threads and never stall the downloads
+in flight (ADR-0019).
 """
 
 from __future__ import annotations
@@ -174,7 +176,7 @@ class MarketDataService:
         Raises:
             DataUnavailableError: If no provider could deliver the series.
         """
-        if not refresh and (cached := self._fresh_cached_bars(request)) is not None:
+        if not refresh and (cached := await self._fresh_cached_bars(request)) is not None:
             log.debug("bars_cache_hit", symbol=request.symbol, frequency=request.frequency.value)
             return _slice_bars(cached, request)
 
@@ -206,7 +208,7 @@ class MarketDataService:
             log.info(
                 "bars_fetched", provider=provider.name, symbol=request.symbol, rows=len(series)
             )
-            self._save_bars(series, request)
+            await self._save_bars(series, request)
             return _slice_bars(series, request)
         raise DataUnavailableError(request.symbol, tuple(attempts))
 
@@ -232,7 +234,7 @@ class MarketDataService:
         Raises:
             DataUnavailableError: If no provider could deliver the series.
         """
-        if not refresh and (cached := self._fresh_cached_economic(request)) is not None:
+        if not refresh and (cached := await self._fresh_cached_economic(request)) is not None:
             log.debug("economic_cache_hit", series_id=request.series_id)
             return cached.between(request.start, request.end)
 
@@ -256,7 +258,7 @@ class MarketDataService:
                 )
                 continue
             log.info("economic_fetched", provider=provider.name, series_id=request.series_id)
-            self._save_economic(series, request)
+            await self._save_economic(series, request)
             return series.between(request.start, request.end)
         raise DataUnavailableError(request.series_id, tuple(attempts))
 
@@ -294,40 +296,49 @@ class MarketDataService:
     def _is_fresh(self, stored_at: datetime, ttl: timedelta) -> bool:
         return self._clock() - stored_at < ttl
 
-    def _fresh_cached_bars(self, request: BarsRequest) -> PriceSeries | None:
+    async def _fresh_cached_bars(self, request: BarsRequest) -> PriceSeries | None:
         if self._store is None:
             return None
-        cached = self._store.load_bars(request)
+        try:
+            cached = await asyncio.to_thread(self._store.load_bars, request)
+        except (OSError, InvestingLabError) as error:
+            # An unreadable cache is a cache miss, never an error for the caller.
+            log.warning("cache_read_failed", symbol=request.symbol, error=str(error))
+            return None
         if cached is None or not cached.coverage.covers(request):
             return None
         if not self._is_fresh(cached.stored_at, self._cache_policy.ttl_for(request.frequency)):
             return None
         return cached.series
 
-    def _fresh_cached_economic(self, request: EconomicRequest) -> EconomicSeries | None:
+    async def _fresh_cached_economic(self, request: EconomicRequest) -> EconomicSeries | None:
         if self._store is None:
             return None
-        cached = self._store.load_economic(request)
+        try:
+            cached = await asyncio.to_thread(self._store.load_economic, request)
+        except (OSError, InvestingLabError) as error:
+            log.warning("cache_read_failed", series_id=request.series_id, error=str(error))
+            return None
         if cached is None or not cached.coverage.covers(request):
             return None
         if not self._is_fresh(cached.stored_at, self._cache_policy.economic_ttl):
             return None
         return cached.series
 
-    def _save_bars(self, series: PriceSeries, request: BarsRequest) -> None:
+    async def _save_bars(self, series: PriceSeries, request: BarsRequest) -> None:
         if self._store is None:
             return
         try:
-            self._store.save_bars(series, request)
+            await asyncio.to_thread(self._store.save_bars, series, request)
         except (OSError, InvestingLabError) as error:
             # A cache failure must never lose data the caller already has.
             log.warning("cache_write_failed", symbol=request.symbol, error=str(error))
 
-    def _save_economic(self, series: EconomicSeries, request: EconomicRequest) -> None:
+    async def _save_economic(self, series: EconomicSeries, request: EconomicRequest) -> None:
         if self._store is None:
             return
         try:
-            self._store.save_economic(series, request)
+            await asyncio.to_thread(self._store.save_economic, series, request)
         except (OSError, InvestingLabError) as error:
             log.warning("cache_write_failed", series_id=request.series_id, error=str(error))
 

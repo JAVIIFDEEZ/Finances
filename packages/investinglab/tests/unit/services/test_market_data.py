@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 from datetime import UTC, date, datetime, timedelta
 
 import pytest
@@ -154,6 +155,29 @@ async def test_cache_write_failures_do_not_lose_the_data() -> None:
     provider = FakeBarsProvider("primary", {"SPY": SPY})
 
     assert await _service(provider, store=store).get_bars(BarsRequest("SPY")) == SPY
+
+
+async def test_unreadable_cache_entries_are_cache_misses() -> None:
+    store = InMemoryStore(now=NOW, fail_reads=True)
+    bars = FakeBarsProvider("primary", {"SPY": SPY})
+    economic = FakeEconomicProvider("fred", {"SYNTH_RATE": make_economic_series()})
+    service = _service(bars, economic, store=store)
+
+    assert await service.get_bars(BarsRequest("SPY")) == SPY
+    assert len(await service.get_economic_series(EconomicRequest("SYNTH_RATE"))) == 3
+
+
+async def test_cache_io_runs_off_the_event_loop() -> None:
+    store = InMemoryStore(now=NOW)
+    bars = FakeBarsProvider("primary", {"SPY": SPY})
+    economic = FakeEconomicProvider("fred", {"SYNTH_RATE": make_economic_series()})
+    service = _service(bars, economic, store=store)
+
+    await service.get_bars(BarsRequest("SPY"))
+    await service.get_economic_series(EconomicRequest("SYNTH_RATE"))
+
+    assert len(store.threads) == 4  # one read and one write per series
+    assert threading.current_thread().name not in store.threads
 
 
 @pytest.mark.parametrize(

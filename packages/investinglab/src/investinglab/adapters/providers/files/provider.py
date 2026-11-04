@@ -22,6 +22,7 @@ data or with local files (offline, reproducible, ideal for demos and exports fro
 
 from __future__ import annotations
 
+import asyncio
 import tomllib
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Final
@@ -108,7 +109,8 @@ class LocalFilesProvider:
             )
         path = self._file_of(request.symbol)
         try:
-            series = self._importer.from_file(path, spec)
+            # Reading and validating a file blocks: keep it off the event loop.
+            series = await asyncio.to_thread(self._importer.from_file, path, spec)
             if request.start is not None or request.end is not None:
                 series = series.between(request.start, request.end)
         except (DomainError, InvalidSeriesError, OSError, ValueError) as error:

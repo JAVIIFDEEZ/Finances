@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import threading
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -82,25 +83,32 @@ class FakeEconomicProvider:
 
 @dataclass
 class InMemoryStore:
-    """Minimal SeriesStore keeping entries in dictionaries."""
+    """Minimal SeriesStore keeping entries in dictionaries; records the calling threads."""
 
     now: datetime
     bars: dict[tuple[str, Frequency], CachedBars] = field(default_factory=dict)
     economic: dict[str, CachedEconomicSeries] = field(default_factory=dict)
+    fail_reads: bool = False
     fail_writes: bool = False
+    threads: list[str] = field(default_factory=list)
 
     def load_bars(self, request: BarsRequest) -> CachedBars | None:
+        self._enter(write=False)
         return self.bars.get((request.symbol, request.frequency))
 
     def save_bars(self, series: PriceSeries, coverage: BarsRequest) -> None:
-        if self.fail_writes:
-            raise OSError("disk full")
+        self._enter(write=True)
         self.bars[series.symbol, series.frequency] = CachedBars(series, coverage, self.now)
 
     def load_economic(self, request: EconomicRequest) -> CachedEconomicSeries | None:
+        self._enter(write=False)
         return self.economic.get(request.series_id)
 
     def save_economic(self, series: EconomicSeries, coverage: EconomicRequest) -> None:
-        if self.fail_writes:
-            raise OSError("disk full")
+        self._enter(write=True)
         self.economic[series.series_id] = CachedEconomicSeries(series, coverage, self.now)
+
+    def _enter(self, *, write: bool) -> None:
+        self.threads.append(threading.current_thread().name)
+        if self.fail_writes if write else self.fail_reads:
+            raise OSError("disk full" if write else "unreadable")
