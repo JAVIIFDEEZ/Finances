@@ -6,6 +6,10 @@ decision-makers: Javier Fernández
 
 # Métricas de riesgo, correlaciones y motor de valoración de carteras
 
+> **Actualización (2026-11-04):** una cartera diaria de varios mercados, con al menos un año
+> de historia común, se anualiza con la densidad observada de su calendario unión, no con el
+> calendario más denso. Ver [ADR-0021](0021-union-calendar-annualisation-and-portfolio-memo.md).
+
 ## Contexto y problema
 
 El informe de cartera (B1-T1 §4.5) y la plataforma necesitan:
