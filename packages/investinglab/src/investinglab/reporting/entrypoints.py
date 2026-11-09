@@ -1,7 +1,8 @@
 """The only reporting module the domain may call (lazily, ADR-0017).
 
 ``PriceSeries.report()``, ``Portfolio.plots_report()``, ``SimulationResult.plot()``,
-``EfficientFrontier.plot()`` and friends import this module inside the method, so the
+``EfficientFrontier.plot()``, ``PlanResult.plot()`` and friends import this module inside
+the method, so the
 domain package never loads reporting (or matplotlib) at import time. Chart functions
 import matplotlib only when called, so Markdown reports work without the optional
 ``plots`` extra.
@@ -19,6 +20,7 @@ if TYPE_CHECKING:
     from matplotlib.figure import Figure
 
     from investinglab.domain.optimization import EfficientFrontier
+    from investinglab.domain.planning import PlanResult
     from investinglab.domain.portfolio import Portfolio
     from investinglab.domain.series import PriceSeries
     from investinglab.domain.simulation import SimulationResult
@@ -30,6 +32,7 @@ __all__ = [
     "ReportOptions",
     "ReportSettings",
     "frontier_plot",
+    "plan_plot",
     "portfolio_plots",
     "portfolio_report",
     "series_plots",
@@ -98,6 +101,16 @@ def frontier_plot(frontier: EfficientFrontier, **options: Any) -> Figure:  # noq
         raise ImportError(PLOTS_EXTRA_HINT) from error
 
     return frontier_figure(frontier, **options)
+
+
+def plan_plot(result: PlanResult, **options: Any) -> Figure:  # noqa: ANN401
+    """Fan chart of a savings plan (needs the ``plots`` extra)."""
+    try:
+        from investinglab.reporting.planning import plan_figure  # noqa: PLC0415
+    except ModuleNotFoundError as error:
+        raise ImportError(PLOTS_EXTRA_HINT) from error
+
+    return plan_figure(result, **options)
 
 
 def simulation_plot(result: SimulationResult, **options: Any) -> Figure:  # noqa: ANN401

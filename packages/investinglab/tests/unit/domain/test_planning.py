@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 
+import matplotlib as mpl
 import numpy as np
 import pandas as pd
 import pytest
@@ -203,3 +204,38 @@ def test_a_plan_needs_three_months_of_history() -> None:
 
     with pytest.raises(DomainError, match="three months"):
         short.savings_plan(SavingsPlan(years=1, contribution=100))
+
+
+# ── Chart ────────────────────────────────────────────────────────────
+
+
+def test_plan_chart_in_both_languages() -> None:
+    mpl.use("Agg")
+    result = FUND.savings_plan(SavingsPlan(years=20, contribution=300, goal=120_000), QUICK)
+    probability = result.probability_of_success
+    assert probability is not None
+
+    spanish = result.plot().axes[0]
+    english = result.plot(language="en").axes[0]
+
+    assert spanish.get_title(loc="left").startswith("Plan de ahorro a 20 años")
+    assert english.get_title(loc="left") == (
+        f"Savings plan over 20 years: {probability:.0%} chance of reaching the goal"
+    )
+    assert english.get_ylabel() == "Wealth in today's money (EUR)"
+    legend = english.get_legend()
+    assert legend is not None
+    labels = [text.get_text() for text in legend.get_texts()]
+    assert labels == ["5-95 percentiles", "25-75 percentiles", "Median", "Money put in", "Goal"]
+
+
+def test_plan_chart_without_goal_counts_months() -> None:
+    mpl.use("Agg")
+    result = FUND.savings_plan(SavingsPlan(years=1.5, contribution=300), QUICK)
+
+    axes = result.plot(language="en").axes[0]
+
+    assert axes.get_title(loc="left") == "Savings plan over 18 months"
+    legend = axes.get_legend()
+    assert legend is not None
+    assert len(legend.get_texts()) == 4

@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field, replace
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import pandas as pd
@@ -35,6 +35,8 @@ from investinglab.domain.simulation import (
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
+
+    from matplotlib.figure import Figure
 
 __all__ = ["MONTHS_PER_YEAR", "PlanResult", "SavingsPlan", "month_end_values", "simulate_plan"]
 
@@ -226,6 +228,18 @@ class PlanResult:
             rows["expected_shortfall"] = float(self.expected_shortfall or 0.0)
             rows["required_contribution_90"] = self.required_contribution(0.9)
         return pd.DataFrame({"value": rows})
+
+    def plot(self, **options: Any) -> Figure:  # noqa: ANN401
+        """Fan chart of the wealth in today's money, the money put in and the goal.
+
+        Requires the ``plots`` extra (matplotlib). See
+        :func:`investinglab.reporting.planning.plan_figure` for the options (``title`` and
+        ``language``).
+        """
+        # Lazy, documented exception to the layering (ADR-0017, ADR-0024).
+        from investinglab.reporting.entrypoints import plan_plot  # noqa: PLC0415
+
+        return plan_plot(self, **options)
 
 
 def simulate_plan(
