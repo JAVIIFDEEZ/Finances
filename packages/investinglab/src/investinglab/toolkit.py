@@ -29,7 +29,9 @@ import pandas as pd
 
 from investinglab.adapters.calendars import ExchangeCalendarsAdapter
 from investinglab.adapters.files import ImportSpec, SeriesImporter
+from investinglab.adapters.http import RetryPolicy
 from investinglab.adapters.providers.files import LocalFilesProvider
+from investinglab.adapters.providers.yahoo import YahooFinanceProvider
 from investinglab.adapters.storage import ParquetSeriesStore
 from investinglab.config.logging import get_logger
 from investinglab.config.settings import Settings, get_settings
@@ -72,6 +74,14 @@ def _as_date(value: DateLike) -> date | None:
     return None if value is None else pd.Timestamp(value).date()
 
 
+def _remote_providers(config: Settings, registry: ProviderRegistry) -> list[YahooFinanceProvider]:
+    """Default remote providers that no provider given by the caller replaces."""
+    if "yahoo" in registry:
+        return []
+    retry = RetryPolicy(max_attempts=config.http_max_attempts)
+    return [YahooFinanceProvider(timeout=config.http_timeout_seconds, retry=retry)]
+
+
 class AsyncToolkit:
     """Asynchronous facade over the market-data, currency, risk-free and quality services.
 
@@ -107,6 +117,9 @@ class AsyncToolkit:
     ) -> AsyncToolkit:
         """Wire every adapter from the configuration (``INVESTINGLAB_*`` variables).
 
+        Providers are tried in this order: the ``providers`` given here, the user's own
+        files (``local_data_dir``) and then, unless ``offline`` is set, Yahoo Finance.
+
         Args:
             settings: Configuration; the process-wide settings by default.
             providers: Extra providers, registered first (highest priority).
@@ -118,6 +131,9 @@ class AsyncToolkit:
             registry.register(provider)
         if config.local_data_dir is not None:
             registry.register(LocalFilesProvider(config.local_data_dir))
+        remote = [] if config.offline else _remote_providers(config, registry)
+        for provider in remote:
+            registry.register(provider)
         store = ParquetSeriesStore(config.effective_cache_dir) if cache else None
         market_data = MarketDataService(
             registry, store=store, max_concurrency=config.max_concurrency
@@ -128,7 +144,7 @@ class AsyncToolkit:
             currency=CurrencyService(market_data),
             risk_free=RiskFreeRateService(market_data),
             quality=DataQualityService(ExchangeCalendarsAdapter()),
-            closeables=[p for p in providers if hasattr(p, "aclose")],
+            closeables=[*(p for p in providers if hasattr(p, "aclose")), *remote],
         )
 
     @property

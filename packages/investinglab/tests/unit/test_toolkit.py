@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 
 import pandas as pd
 import pytest
+import respx
 
 from investinglab.config import Settings
 from investinglab.domain import (
@@ -22,6 +23,7 @@ from investinglab.domain import (
 )
 from investinglab.services import DataUnavailableError
 from investinglab.toolkit import AsyncToolkit, Toolkit, _EventLoopThread
+from support.cassettes import load_cassette
 from support.factories import (
     business_days,
     gbm_prices,
@@ -160,6 +162,37 @@ def test_local_files_are_served_as_a_provider(tmp_path: Path) -> None:
     assert tk.providers == ("files",)
     assert series.prices.tolist() == pytest.approx(A.prices.tolist())
     assert again.prices.equals(series.prices)
+
+
+def test_yahoo_is_the_default_remote_provider(tmp_path: Path) -> None:
+    folder = tmp_path / "files"
+    folder.mkdir()
+    (folder / "instruments.toml").write_text("")
+    online = _settings(tmp_path, offline=False)
+
+    with Toolkit.from_settings(online, cache=False) as alone:
+        assert alone.providers == ("yahoo",)
+    with Toolkit.from_settings(_settings(tmp_path, offline=False, local_data_dir=folder)) as tk:
+        assert tk.providers == ("files", "yahoo")  # the user's own files come first
+    with Toolkit.from_settings(_settings(tmp_path, local_data_dir=folder)) as offline:
+        assert offline.providers == ("files",)
+    own = FakeBarsProvider("yahoo")
+    with Toolkit.from_settings(online, providers=[own], cache=False) as replaced:
+        assert replaced.providers == ("yahoo",)
+
+
+def test_series_are_downloaded_from_yahoo(tmp_path: Path) -> None:
+    cassette = load_cassette("yahoo/san_mc_1d")
+    online = _settings(tmp_path, offline=False)
+
+    with respx.mock() as router, Toolkit.from_settings(online) as tk:
+        (route,) = cassette.play(router)
+        series = tk.series("SAN.MC", start="2024-05-02", end="2024-05-31")
+        again = tk.series("SAN.MC", start="2024-05-02", end="2024-05-31")  # from the cache
+        assert route.call_count == 1
+
+    assert series.source.provider == "yahoo"
+    assert len(series) == len(again) == 22
 
 
 def test_files_and_dataframes_can_be_imported(toolkit: Toolkit, tmp_path: Path) -> None:
