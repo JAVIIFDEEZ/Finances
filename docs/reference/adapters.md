@@ -9,3 +9,7 @@
 ::: investinglab.adapters.files.importer
 
 ::: investinglab.adapters.providers.files.provider
+
+::: investinglab.adapters.providers.yahoo.provider
+
+::: investinglab.adapters.providers.yahoo.venues

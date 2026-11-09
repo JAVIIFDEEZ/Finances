@@ -30,6 +30,7 @@ packages/investinglab/   núcleo: librería Python pura (usable desde un noteboo
     toolkit.py   fachada pública y composition root para notebooks (ADR-0018)
   tests/         unit/, property/, contract/, integration/, fixtures/, support/
 notebooks/       demos ejecutables, versionadas SIN resultados
+scripts/         utilidades de desarrollo (grabación de casetes)
 apps/api/        FastAPI (fase F6)        apps/web/   Next.js (fase F8)
 docs/            Zensical: guide/, adr/, architecture/, plan/, reference/, modules/
 ```
@@ -93,12 +94,16 @@ uv run just test [args]       # pytest con cobertura (umbral 90 %)
 uv run just test-fast [args]  # pytest -x sin cobertura
 uv run just docs              # web de documentación con recarga en vivo
 uv run just traceability      # regenerar docs/modules/ desde el registro de módulos
+uv run just record-fixtures   # regrabar las casetes de los proveedores (necesita red)
 ```
 
 ## Tests
 
-- Ningún test hace llamadas reales a red. HTTP se mockea con `respx` usando respuestas
-  **reales grabadas** en `tests/fixtures/` (`just record-fixtures` a partir de F2).
+- Ningún test hace llamadas reales a red: el `conftest` fija `INVESTINGLAB_OFFLINE=true`. HTTP
+  se mockea con `respx` usando **casetes**, respuestas reales grabadas en
+  `tests/fixtures/cassettes/<proveedor>/` con `just record-fixtures` y reproducidas con
+  `support.cassettes` (URL y parámetros exactos). No se editan a mano.
+- Todo proveedor nuevo se añade como caso del contrato `tests/contract/`.
 - Los datos sintéticos (p. ej. GBM con semilla) van en una carpeta aparte y se nombran como
   sintéticos. Nunca se presentan como datos de mercado reales.
 - Factorías y estrategias de Hypothesis en `tests/support/` (importables como `support.*`):

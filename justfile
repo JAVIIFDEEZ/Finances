@@ -51,6 +51,10 @@ test-fast *args:
 hooks:
     uv run pre-commit run --all-files
 
+# Record real provider responses as test cassettes (optionally only names containing a text).
+record-fixtures *only:
+    uv run python scripts/record_fixtures.py {{ only }}
+
 # ── Documentation ─────────────────────────────────────────────────────
 
 # Serve the documentation site with live reload.

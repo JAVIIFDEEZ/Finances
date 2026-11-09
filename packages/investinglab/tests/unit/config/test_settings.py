@@ -29,6 +29,14 @@ def test_reads_prefixed_environment_variables(monkeypatch: pytest.MonkeyPatch) -
     assert settings.data_dir == Path("/srv/investinglab")
 
 
+def test_remote_providers_are_used_unless_offline(monkeypatch: pytest.MonkeyPatch) -> None:
+    assert Settings().offline  # the test suite never reaches the network
+
+    monkeypatch.delenv("INVESTINGLAB_OFFLINE")
+
+    assert not Settings().offline
+
+
 def test_toolkit_calls_have_no_timeout_unless_configured(monkeypatch: pytest.MonkeyPatch) -> None:
     assert Settings().toolkit_timeout_seconds is None
 

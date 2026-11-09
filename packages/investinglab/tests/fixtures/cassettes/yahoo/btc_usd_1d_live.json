@@ -1,0 +1,177 @@
+{
+ "provider": "yahoo",
+ "purpose": "24/7 crypto-asset: today's session is still open at recording time.",
+ "recorded_at": "2026-11-09T18:31:12+00:00",
+ "request": {
+  "symbol": "BTC-USD",
+  "frequency": "1d",
+  "start": "2026-11-03",
+  "end": null
+ },
+ "outcome": "6 bars",
+ "exchanges": [
+  {
+   "method": "GET",
+   "url": "https://query1.finance.yahoo.com/v8/finance/chart/BTC-USD",
+   "params": {
+    "period1": "1793577600",
+    "period2": "1794249072",
+    "interval": "1d",
+    "includeAdjustedClose": "true"
+   },
+   "status": 200,
+   "content_type": "application/json",
+   "json": {
+    "chart": {
+     "result": [
+      {
+       "meta": {
+        "currency": "USD",
+        "symbol": "BTC-USD",
+        "exchangeName": "CCC",
+        "fullExchangeName": "CCC",
+        "instrumentType": "CRYPTOCURRENCY",
+        "firstTradeDate": 1410912000,
+        "regularMarketTime": 1794249069,
+        "hasPrePostMarketData": false,
+        "gmtoffset": 0,
+        "timezone": "UTC",
+        "exchangeTimezoneName": "UTC",
+        "regularMarketPrice": 74564.47,
+        "regularMarketChangePercent": -1.688,
+        "fulldayPrice": 74564.47,
+        "fulldayChange": -1280.57,
+        "fulldayChangePercent": -1.688,
+        "fiftyTwoWeekHigh": 107428.26,
+        "fiftyTwoWeekLow": 57747.766,
+        "regularMarketDayHigh": 75452.81,
+        "regularMarketDayLow": 73713.2,
+        "regularMarketVolume": 32037959680,
+        "longName": "Bitcoin USD",
+        "shortName": "Bitcoin USD",
+        "chartPreviousClose": 76677.3,
+        "priceHint": 2,
+        "currentTradingPeriod": {
+         "pre": {
+          "timezone": "UTC",
+          "end": 1794182400,
+          "start": 1794182400,
+          "gmtoffset": 0
+         },
+         "regular": {
+          "timezone": "UTC",
+          "end": 1794268740,
+          "start": 1794182400,
+          "gmtoffset": 0
+         },
+         "post": {
+          "timezone": "UTC",
+          "end": 1794268740,
+          "start": 1794268740,
+          "gmtoffset": 0
+         }
+        },
+        "dataGranularity": "1d",
+        "range": "",
+        "validRanges": [
+         "1d",
+         "5d",
+         "1mo",
+         "3mo",
+         "6mo",
+         "1y",
+         "2y",
+         "5y",
+         "10y",
+         "ytd",
+         "max"
+        ]
+       },
+       "timestamp": [
+        1793577600,
+        1793664000,
+        1793750400,
+        1793836800,
+        1793923200,
+        1794009600,
+        1794096000,
+        1794182400
+       ],
+       "indicators": {
+        "quote": [
+         {
+          "volume": [
+           23565885339,
+           22409398140,
+           40881988659,
+           48407763452,
+           29286736588,
+           9362321961,
+           15476774136,
+           32037959680
+          ],
+          "low": [
+           76572.2265625,
+           76270.0,
+           75627.984375,
+           75114.2890625,
+           74795.109375,
+           75485.6875,
+           73691.765625,
+           73713.203125
+          ],
+          "high": [
+           78724.390625,
+           77964.9765625,
+           81079.7890625,
+           80833.6171875,
+           76291.0625,
+           76138.6796875,
+           76096.6875,
+           75452.8125
+          ],
+          "open": [
+           78248.453125,
+           76677.296875,
+           77345.046875,
+           80405.2890625,
+           75942.125,
+           75746.9296875,
+           75747.578125,
+           74719.8203125
+          ],
+          "close": [
+           76677.296875,
+           77345.046875,
+           80405.2890625,
+           75942.125,
+           75746.9296875,
+           75747.578125,
+           74584.6484375,
+           74564.46875
+          ]
+         }
+        ],
+        "adjclose": [
+         {
+          "adjclose": [
+           76677.296875,
+           77345.046875,
+           80405.2890625,
+           75942.125,
+           75746.9296875,
+           75747.578125,
+           74584.6484375,
+           74564.46875
+          ]
+         }
+        ]
+       }
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ ]
+}

@@ -60,5 +60,13 @@ sequenceDiagram
 | `HttpClient` | `adapters/http` | Reintentos, cuotas, traducción de errores, secretos fuera de los logs |
 | `ParquetSeriesStore` | `adapters/storage` | Caché autodescriptiva, escritura atómica, catálogo con DuckDB |
 
-Los adaptadores de cada proveedor (Yahoo, Alpha Vantage, FRED/ALFRED, BCE…) se añaden en la
-fase F2b, sin cambiar nada de lo anterior.
+Los adaptadores de cada proveedor se añaden sin cambiar nada de lo anterior:
+
+| Proveedor | Paquete | Datos | Decisión |
+|-----------|---------|-------|----------|
+| Ficheros locales | `adapters/providers/files` | Barras de cualquier activo, sin red | [ADR-0018](../adr/0018-toolkit-facade-and-local-data.md) |
+| Yahoo Finance | `adapters/providers/yahoo` | Barras de acciones, ETFs, fondos, índices, divisas, cripto y futuros, de 1m a 1y | [ADR-0025](../adr/0025-yahoo-chart-adapter-and-cassettes.md) |
+
+Todos cumplen el contrato de `tests/contract/test_market_data_providers.py` y se prueban con
+respuestas reales grabadas (`just record-fixtures`). Alpha Vantage, FRED/ALFRED y el BCE
+completan la fase F2b.

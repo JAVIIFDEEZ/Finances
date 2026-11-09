@@ -17,10 +17,15 @@ if TYPE_CHECKING:
 def _isolated_settings(
     monkeypatch: pytest.MonkeyPatch, tmp_path_factory: pytest.TempPathFactory
 ) -> Iterator[None]:
-    """Keep tests hermetic: ignore the developer's .env and INVESTINGLAB_* variables."""
+    """Keep tests hermetic: ignore the developer's .env and INVESTINGLAB_* variables.
+
+    Tests also run offline: no remote provider is registered unless a test builds its
+    settings with ``offline=False`` (and then it must mock every request).
+    """
     for key in list(os.environ):
         if key.startswith("INVESTINGLAB_"):
             monkeypatch.delenv(key)
+    monkeypatch.setenv("INVESTINGLAB_OFFLINE", "true")
     monkeypatch.chdir(tmp_path_factory.mktemp("cwd"))
     get_settings.cache_clear()
     yield
