@@ -1,0 +1,35 @@
+{
+ "provider": "yahoo",
+ "purpose": "Unknown symbol (HTTP 404 with an error document).",
+ "recorded_at": "2026-11-09T18:31:12+00:00",
+ "request": {
+  "symbol": "NOPE.XX",
+  "frequency": "1d",
+  "start": "2026-10-01",
+  "end": "2026-10-20"
+ },
+ "outcome": "SymbolNotFoundError: [yahoo] HTTP 404 on /v8/finance/chart/NOPE.XX: resource not found",
+ "exchanges": [
+  {
+   "method": "GET",
+   "url": "https://query1.finance.yahoo.com/v8/finance/chart/NOPE.XX",
+   "params": {
+    "period1": "1790726400",
+    "period2": "1792627200",
+    "interval": "1d",
+    "includeAdjustedClose": "true"
+   },
+   "status": 404,
+   "content_type": "application/json",
+   "json": {
+    "chart": {
+     "result": null,
+     "error": {
+      "code": "Not Found",
+      "description": "No data found, symbol may be delisted"
+     }
+    }
+   }
+  }
+ ]
+}

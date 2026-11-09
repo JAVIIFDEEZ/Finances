@@ -1,0 +1,177 @@
+{
+ "provider": "yahoo",
+ "purpose": "Sydney equity: sessions open on the previous UTC day.",
+ "recorded_at": "2026-11-09T18:31:12+00:00",
+ "request": {
+  "symbol": "BHP.AX",
+  "frequency": "1d",
+  "start": "2026-10-01",
+  "end": "2026-10-09"
+ },
+ "outcome": "7 bars",
+ "exchanges": [
+  {
+   "method": "GET",
+   "url": "https://query1.finance.yahoo.com/v8/finance/chart/BHP.AX",
+   "params": {
+    "period1": "1790726400",
+    "period2": "1791676800",
+    "interval": "1d",
+    "includeAdjustedClose": "true"
+   },
+   "status": 200,
+   "content_type": "application/json",
+   "json": {
+    "chart": {
+     "result": [
+      {
+       "meta": {
+        "currency": "AUD",
+        "symbol": "BHP.AX",
+        "exchangeName": "ASX",
+        "fullExchangeName": "ASX",
+        "instrumentType": "EQUITY",
+        "firstTradeDate": 570409200,
+        "regularMarketTime": 1794201488,
+        "hasPrePostMarketData": false,
+        "gmtoffset": 39600,
+        "timezone": "AEDT",
+        "exchangeTimezoneName": "Australia/Sydney",
+        "regularMarketPrice": 59.2,
+        "regularMarketChangePercent": 2.742,
+        "fulldayPrice": 59.2,
+        "fulldayChange": 1.58,
+        "fulldayChangePercent": 2.742,
+        "fiftyTwoWeekHigh": 68.77,
+        "fiftyTwoWeekLow": 40.175,
+        "regularMarketDayHigh": 59.36,
+        "regularMarketDayLow": 58.3,
+        "regularMarketVolume": 7793040,
+        "longName": "BHP Group Limited",
+        "shortName": "BHP GROUP FPO [BHP]",
+        "chartPreviousClose": 60.82,
+        "priceHint": 2,
+        "currentTradingPeriod": {
+         "pre": {
+          "timezone": "AEDT",
+          "end": 1794265200,
+          "start": 1794254400,
+          "gmtoffset": 39600
+         },
+         "regular": {
+          "timezone": "AEDT",
+          "end": 1794287520,
+          "start": 1794265200,
+          "gmtoffset": 39600
+         },
+         "post": {
+          "timezone": "AEDT",
+          "end": 1794287520,
+          "start": 1794287520,
+          "gmtoffset": 39600
+         }
+        },
+        "dataGranularity": "1d",
+        "range": "",
+        "validRanges": [
+         "1d",
+         "5d",
+         "1mo",
+         "3mo",
+         "6mo",
+         "1y",
+         "2y",
+         "5y",
+         "10y",
+         "ytd",
+         "max"
+        ]
+       },
+       "timestamp": [
+        1790726400,
+        1790812800,
+        1790899200,
+        1791154800,
+        1791241200,
+        1791327600,
+        1791414000,
+        1791500400
+       ],
+       "indicators": {
+        "quote": [
+         {
+          "open": [
+           60.529998779296875,
+           61.47999954223633,
+           60.52000045776367,
+           61.900001525878906,
+           62.2400016784668,
+           62.36000061035156,
+           61.29999923706055,
+           61.189998626708984
+          ],
+          "low": [
+           60.45000076293945,
+           60.2599983215332,
+           60.43000030517578,
+           61.650001525878906,
+           62.060001373291016,
+           61.78499984741211,
+           60.625,
+           60.47999954223633
+          ],
+          "volume": [
+           9355885,
+           9925386,
+           7394485,
+           4218456,
+           7953394,
+           6737851,
+           7951192,
+           6015045
+          ],
+          "high": [
+           61.30500030517578,
+           61.5,
+           61.209999084472656,
+           62.150001525878906,
+           62.91999816894531,
+           62.619998931884766,
+           61.43000030517578,
+           61.23500061035156
+          ],
+          "close": [
+           60.81999969482422,
+           60.2599983215332,
+           61.209999084472656,
+           61.88999938964844,
+           62.86000061035156,
+           62.45000076293945,
+           61.189998626708984,
+           60.939998626708984
+          ]
+         }
+        ],
+        "adjclose": [
+         {
+          "adjclose": [
+           60.81999969482422,
+           60.2599983215332,
+           61.209999084472656,
+           61.88999938964844,
+           62.86000061035156,
+           62.45000076293945,
+           61.189998626708984,
+           60.939998626708984
+          ]
+         }
+        ]
+       }
+      }
+     ],
+     "error": null
+    }
+   }
+  }
+ ]
+}
