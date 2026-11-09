@@ -27,7 +27,9 @@ registra las fuentes disponibles en este orden de prioridad:
 
 1. Los proveedores que le pases en `providers=[...]`.
 2. Los **ficheros locales** de `INVESTINGLAB_LOCAL_DATA_DIR`, si está definida.
-3. Los proveedores remotos (Yahoo, Alpha Vantage, FRED/ALFRED, BCE), que llegan con la fase F2b.
+3. **Yahoo Finance**, sin clave, salvo con `INVESTINGLAB_OFFLINE=true` (ver
+   [Fuentes de datos](data-sources.md)). Alpha Vantage, FRED/ALFRED y el BCE completan la
+   fase F2b.
 
 Lo descargado se guarda en la caché Parquet (`INVESTINGLAB_DATA_DIR/cache`). Cuando una
 entrada caduca, solo se descarga el tramo nuevo y se comprueba que las últimas barras

@@ -12,7 +12,7 @@ copyright = "© InvestingLab — uso privado"
 nav = [
   { "Inicio" = "index.md" },
   { "Plan maestro" = "plan/plan-maestro.md" },
-  { "Guías" = ["guide/toolkit.md", "guide/optimization.md", "guide/planning.md"] },
+  { "Guías" = ["guide/toolkit.md", "guide/data-sources.md", "guide/optimization.md", "guide/planning.md"] },
   { "Módulos del máster" = ["modules/b1-toolkit.md"] },
   { "Arquitectura" = [
     "architecture/index.md",
@@ -48,6 +48,7 @@ nav = [
     "adr/0022-same-origin-redirects-and-error-hygiene.md",
     "adr/0023-portfolio-optimization.md",
     "adr/0024-goal-based-planning.md",
+    "adr/0025-yahoo-chart-adapter-and-cassettes.md",
   ] },
   { "Referencia API" = [
     "reference/index.md",

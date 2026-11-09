@@ -12,17 +12,16 @@ Plataforma personal de análisis de mercados financieros:
 Se amplía módulo a módulo con lo aprendido en el Máster MIAX, con calidad de producto: arquitectura
 hexagonal verificada en CI, tipado estricto y tests de propiedades.
 
-> **Estado.** El núcleo del taller B1-T1 está implementado y se usa desde un notebook con datos
-> propios. Quedan pendientes los proveedores remotos (Yahoo, Alpha Vantage, FRED/ALFRED, BCE),
-> que esperan acceso a red en el entorno de desarrollo. Detalle por requisito:
-> [matriz de trazabilidad](docs/modules/b1-toolkit.md). Hoja de ruta:
+> **Estado.** El núcleo del taller B1-T1 está implementado y descarga datos de Yahoo Finance
+> sin clave, además de tus propios ficheros. Quedan Alpha Vantage, FRED/ALFRED y el BCE.
+> Detalle por requisito: [matriz de trazabilidad](docs/modules/b1-toolkit.md). Hoja de ruta:
 > [plan maestro](docs/plan/plan-maestro.md).
 
 ## Qué hace
 
 | Área | Capacidades |
 |------|-------------|
-| **Datos** | Descarga simultánea de N series. Enrutado por capacidades y *fallback* entre proveedores, reintentos y límites de llamadas, caché Parquet + DuckDB. Fuente de ficheros propios (CSV/Parquet) con importación estricta. |
+| **Datos** | Descarga simultánea de N series. Yahoo Finance sin clave (acciones, ETFs, índices, divisas, cripto y futuros, de 1 minuto a 1 año) y ficheros propios (CSV/Parquet). Enrutado por capacidades y *fallback* entre proveedores, reintentos y límites de llamadas, caché Parquet + DuckDB. |
 | **Calidad** | Validación estricta en los bordes. Detección, sin borrar nada, de outliers, splits sospechosos, precios congelados, OHLC incoherente y huecos frente al calendario oficial de cada mercado. |
 | **Series y carteras** | `PriceSeries` y `Portfolio` inmutables con estadísticos al crearse. Rebalanceo periódico, por bandas o comprar y mantener. Conversión de divisas *as-of*. Correlaciones y contribución al riesgo (Euler). |
 | **Riesgo** | Sharpe (con su intervalo de confianza), Sortino y Calmar. VaR/CVaR histórico, normal y Cornish-Fisher. Episodios de caída. Tipo libre de riesgo *point-in-time*. |
@@ -73,11 +72,17 @@ with Toolkit.from_settings() as tk:
 La demo completa del taller está en
 [`notebooks/b1_toolkit_demo.ipynb`](notebooks/b1_toolkit_demo.ipynb).
 
+### Fuentes de datos
+
+Los símbolos siguen el estilo de Yahoo (`SAN.MC`, `VOD.L`, `^GSPC`, `EURUSD=X`, `BTC-USD`) y se
+descargan sin clave. Las barras se etiquetan con su fecha de sesión, la sesión en curso no se
+incluye y las cotizaciones en peniques se pasan a libras: [fuentes de datos](docs/guide/data-sources.md).
+Con `INVESTINGLAB_OFFLINE=true` solo se usan tus ficheros y la caché.
+
 ### Datos propios
 
-Mientras no estén conectados los proveedores remotos, `INVESTINGLAB_LOCAL_DATA_DIR` apunta a una
-carpeta con un fichero por símbolo (`SAN.MC.csv`) y un `instruments.toml` que describe cada
-uno:
+`INVESTINGLAB_LOCAL_DATA_DIR` apunta a una carpeta con un fichero por símbolo (`SAN.MC.csv`) y un
+`instruments.toml` que describe cada uno. Tus ficheros tienen prioridad sobre Yahoo:
 
 ```toml
 ["SAN.MC"]

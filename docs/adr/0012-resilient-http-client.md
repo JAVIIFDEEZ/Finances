@@ -62,6 +62,10 @@ Repetirlo en cada adaptador multiplicaría los errores.
 (`asyncio.to_thread`) con su propio limitador, en lugar de reimplementar endpoints no
 documentados con httpx. Se revisará si aparece una alternativa mejor mantenida.
 
+> **Nota (2026-11-09).** Este párrafo queda sustituido por
+> [ADR-0025](0025-yahoo-chart-adapter-and-cassettes.md): el adaptador usa el endpoint
+> `chart` con este mismo `HttpClient`, sin `yfinance`.
+
 ### Consecuencias
 
 * Positiva: un adaptador nuevo solo implementa la traducción del formato del proveedor al
