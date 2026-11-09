@@ -23,6 +23,7 @@ if TYPE_CHECKING:
 NOTEBOOKS = Path(__file__).resolve().parents[4] / "notebooks"
 DEMO = NOTEBOOKS / "b1_toolkit_demo.ipynb"
 OPTIMIZATION = NOTEBOOKS / "portfolio_optimization_demo.ipynb"
+SAVINGS = NOTEBOOKS / "savings_plan_demo.ipynb"
 SYMBOLS = ("SAN.MC", "ITX.MC", "IBE.MC", "BBVA.MC")
 
 
@@ -101,3 +102,15 @@ def test_the_optimization_notebook_runs_end_to_end(synthetic_folder: Path) -> No
     assert namespace["con_vistas"].weights.sum() == pytest.approx(1.0)
     report = Path("salidas/tangente.md").read_text(encoding="utf-8")
     assert report.startswith("# Informe de la cartera Núcleo")
+
+
+def test_the_savings_plan_notebook_runs_end_to_end(synthetic_folder: Path) -> None:
+    namespace = _run(SAVINGS)
+
+    result = namespace["resultado"]
+    assert result.plan.goal == 150_000
+    assert result.probability_of_success is not None
+    contributions = namespace["aportaciones"]
+    assert list(contributions.index) == ["50%", "75%", "90%", "95%"]
+    assert contributions.is_monotonic_increasing
+    assert 0.0 <= namespace["jubilacion"].probability_of_ruin <= 1.0
