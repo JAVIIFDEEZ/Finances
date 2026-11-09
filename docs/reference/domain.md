@@ -10,6 +10,8 @@
 
 ::: investinglab.domain.optimization
 
+::: investinglab.domain.planning
+
 ::: investinglab.domain.fx
 
 ::: investinglab.domain.quality

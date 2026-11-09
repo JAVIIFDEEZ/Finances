@@ -35,6 +35,7 @@ from investinglab.analytics import (
 )
 from investinglab.domain.errors import DomainError, InvalidSeriesError
 from investinglab.domain.metrics import DEFAULT_CONFIDENCE_LEVELS, RiskMetrics
+from investinglab.domain.planning import PlanResult, SavingsPlan, simulate_plan
 from investinglab.domain.quality import DataQualityReport, QualityThresholds, assess_quality
 from investinglab.domain.simulation import (
     SimulationConfig,
@@ -500,6 +501,15 @@ class PriceSeries:
             start=self.end,
         )
         return simulate(inputs, settings)
+
+    def savings_plan(self, plan: SavingsPlan, config: SimulationConfig | None = None) -> PlanResult:
+        """Simulate a savings plan invested in this asset (monthly Monte Carlo, ADR-0024).
+
+        Examples:
+            >>> result = series.savings_plan(SavingsPlan(years=20, contribution=300, goal=150_000))
+            >>> result.probability_of_success, result.required_contribution(0.9)
+        """
+        return simulate_plan(self.prices, plan, config, currency=str(self.currency))
 
     def beta(self, benchmark: PriceSeries) -> float:
         """Sensitivity to ``benchmark`` on the dates where both have a return."""

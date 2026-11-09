@@ -13,6 +13,9 @@ decision-makers: Javier Fernández
 > **Actualización (2026-11-04):** el tamaño del lote también cuenta los activos
 > (`MAX_CHUNK_CELLS`); `chunk_size` pasa a ser un máximo. Ver
 > [ADR-0019](0019-bounded-memory-and-incremental-cache.md).
+>
+> **Actualización (2026-11-09):** los planes de ahorro reutilizan este motor con pasos
+> mensuales sobre el valor de la cartera. Ver [ADR-0024](0024-goal-based-planning.md).
 
 ## Contexto y problema
 

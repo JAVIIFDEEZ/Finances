@@ -28,6 +28,7 @@ hexagonal verificada en CI, tipado estricto y tests de propiedades.
 | **Riesgo** | Sharpe (con su intervalo de confianza), Sortino y Calmar. VaR/CVaR histórico, normal y Cornish-Fisher. Episodios de caída. Tipo libre de riesgo *point-in-time*. |
 | **Monte Carlo** | GBM multivariante, t de Student y *bootstrap* estacionario. Variables antitéticas, Ledoit-Wolf, rebalanceo dentro de cada trayectoria y VaR con intervalo de confianza. |
 | **Optimización** | Mínima varianza, máximo Sharpe y rentabilidad objetivo con límites por activo; paridad de riesgo, HRP e inversa de la volatilidad. Rentabilidades de equilibrio y vistas de Black-Litterman. Frontera eficiente con gráfico. |
+| **Planes de ahorro** | Monte Carlo mensual de un plan con capital inicial, aportaciones (o retiradas) y objetivo en dinero de hoy: probabilidad de éxito, déficit, ruina y aportación necesaria exacta. |
 | **Informes** | `report()` en Markdown (español o inglés) con diagnósticos que explican la fiabilidad de las cifras; `plots_report()` con los gráficos. |
 
 Nunca se inventan datos:

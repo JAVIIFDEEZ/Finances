@@ -35,6 +35,7 @@ from investinglab.domain.optimization import (
     solve,
 )
 from investinglab.domain.panel import AlignedPanel, AlignmentMethod, align
+from investinglab.domain.planning import PlanResult, SavingsPlan, simulate_plan
 from investinglab.domain.simulation import (
     SimulationConfig,
     SimulationInputs,
@@ -579,6 +580,18 @@ class Portfolio:
             start=pd.Timestamp(prices.index[-1]),
         )
         return simulate(inputs, settings)
+
+    def savings_plan(self, plan: SavingsPlan, config: SimulationConfig | None = None) -> PlanResult:
+        """Simulate a savings plan invested in this portfolio (monthly Monte Carlo, ADR-0024).
+
+        The portfolio is simulated as a whole from its historical value, so its rebalancing
+        policy and the co-movements of its holdings are already in the monthly returns.
+
+        Examples:
+            >>> plan = SavingsPlan(years=25, initial=10_000, contribution=500, goal=300_000)
+            >>> portfolio.savings_plan(plan).probability_of_success
+        """
+        return simulate_plan(self.value_history(), plan, config, currency=str(self.base_currency))
 
     # ── Optimisation (ADR-0023) ──────────────────────────────────────
 
