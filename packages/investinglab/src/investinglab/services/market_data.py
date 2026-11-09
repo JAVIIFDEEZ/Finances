@@ -290,7 +290,7 @@ class MarketDataService:
         candidates = self._registry.economic_candidates(request)
         if not candidates:
             raise DataUnavailableError(
-                request.series_id, (), reason="no registered economic data provider"
+                request.series_id, (), reason=f"no registered provider serves {request.series_id}"
             )
         attempts: list[FetchAttempt] = []
         for provider in candidates:

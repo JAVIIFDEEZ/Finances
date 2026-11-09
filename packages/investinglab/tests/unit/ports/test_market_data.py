@@ -96,6 +96,26 @@ def test_capabilities_filter_requests() -> None:
     assert not capabilities.can_serve_bars(BarsRequest("SPY", Frequency.MINUTE_1), TODAY)
     economic_only = ProviderCapabilities(datasets=frozenset({Dataset.ECONOMIC}))
     assert not economic_only.can_serve_bars(BarsRequest("SPY"), TODAY)
+    assert economic_only.can_serve_economic(EconomicRequest("UNRATE"))
+    assert not capabilities.can_serve_economic(EconomicRequest("UNRATE"))
+
+
+def test_capabilities_route_by_the_identifiers_served() -> None:
+    pairs = ProviderCapabilities(
+        datasets=frozenset({Dataset.BARS, Dataset.ECONOMIC}),
+        frequencies=frozenset({Frequency.DAY_1}),
+        identifiers=r"[A-Z]{6}=X|EST\..+",
+    )
+
+    assert pairs.serves("EURUSD=X")
+    assert not pairs.serves("SAN.MC")
+    assert not pairs.serves("XEURUSD=X")  # the whole identifier must match
+    assert pairs.can_serve_bars(BarsRequest("EURUSD=X"), TODAY)
+    assert not pairs.can_serve_bars(BarsRequest("SAN.MC"), TODAY)
+    assert pairs.can_serve_economic(EconomicRequest("EST.B.EU000A2X2A25.WT"))
+    assert not pairs.can_serve_economic(EconomicRequest("DGS3MO"))
+    with pytest.raises(DomainError, match="Invalid identifiers pattern"):
+        ProviderCapabilities(datasets=frozenset({Dataset.BARS}), identifiers="(")
 
 
 def test_provider_errors_carry_context() -> None:

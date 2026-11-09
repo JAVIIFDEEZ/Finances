@@ -78,6 +78,19 @@ def test_economic_providers() -> None:
     assert registry.bars_candidates(BarsRequest("SPY"), TODAY) == []
 
 
+def test_providers_are_skipped_for_identifiers_they_do_not_serve() -> None:
+    registry = ProviderRegistry()
+    closed = ProviderCapabilities(datasets=frozenset({Dataset.ECONOMIC}), identifiers=r"EST\..+")
+    registry.register(FakeEconomicProvider("ecb", capabilities=closed))
+    registry.register(FakeEconomicProvider("fred"))
+
+    estr = registry.economic_candidates(EconomicRequest("EST.B.EU000A2X2A25.WT"))
+    unrate = registry.economic_candidates(EconomicRequest("UNRATE"))
+
+    assert [p.name for p in estr] == ["ecb", "fred"]
+    assert [p.name for p in unrate] == ["fred"]
+
+
 def test_duplicated_names_are_rejected() -> None:
     registry = _registry("yahoo")
 
