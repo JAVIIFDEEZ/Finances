@@ -46,6 +46,7 @@ from investinglab.domain.optimization import (
     View,
 )
 from investinglab.domain.panel import AlignedPanel, AlignmentMethod, align
+from investinglab.domain.planning import PlanResult, SavingsPlan
 from investinglab.domain.portfolio import (
     WEIGHT_TOLERANCE,
     Holding,
@@ -141,6 +142,7 @@ __all__ = [
     "Objective",
     "OptimizationConfig",
     "OptimizationResult",
+    "PlanResult",
     "Portfolio",
     "PortfolioBacktest",
     "PriceAdjustment",
@@ -156,6 +158,7 @@ __all__ = [
     "ReturnModel",
     "RiskEstimate",
     "RiskMetrics",
+    "SavingsPlan",
     "SeriesStats",
     "Severity",
     "SimulationConfig",
