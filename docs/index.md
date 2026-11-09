@@ -21,6 +21,7 @@ simulación, en la que se incorpora módulo a módulo lo aprendido en el Máster
 
 - [Guía del Toolkit](guide/toolkit.md): usar la librería desde un notebook, con tus datos.
 - [Optimización de carteras](guide/optimization.md): objetivos, vistas y frontera eficiente.
+- [Planes de ahorro](guide/planning.md): probabilidad de alcanzar un objetivo y aportación necesaria.
 - [Arquitectura](architecture/index.md): capas, reglas de dependencia y cómo se verifican.
 - [Decisiones (ADR)](adr/index.md): el porqué de cada elección.
 - [Referencia de la API Python](reference/index.md): generada desde los docstrings.

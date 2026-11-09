@@ -22,7 +22,7 @@ actualiza el estado del antiguo.
 | [0013](0013-risk-metrics-and-portfolio-engine.md) | Métricas de riesgo, correlaciones y motor de valoración de carteras | Aceptado, ampliado por [0021](0021-union-calendar-annualisation-and-portfolio-memo.md) |
 | [0014](0014-currency-conversion-and-risk-free-rate.md) | Conversión de divisas *as-of* y tipo libre de riesgo por divisa | Aceptado, ampliado por [0020](0020-risk-free-rate-conventions.md) |
 | [0015](0015-data-quality-diagnostics.md) | Diagnóstico de calidad de datos con calendarios oficiales | Aceptado |
-| [0016](0016-monte-carlo-engine.md) | Motor Monte Carlo vectorizado con rebalanceo dentro de cada trayectoria | Aceptado, ampliado por [0017](0017-bilingual-reports-and-charts.md) y [0019](0019-bounded-memory-and-incremental-cache.md) |
+| [0016](0016-monte-carlo-engine.md) | Motor Monte Carlo vectorizado con rebalanceo dentro de cada trayectoria | Aceptado, ampliado por [0017](0017-bilingual-reports-and-charts.md), [0019](0019-bounded-memory-and-incremental-cache.md) y [0024](0024-goal-based-planning.md) |
 | [0017](0017-bilingual-reports-and-charts.md) | Informes Markdown bilingües, gráficos de informe y delegación diferida del dominio | Aceptado |
 | [0018](0018-toolkit-facade-and-local-data.md) | Fachada Toolkit, datos locales y trazabilidad de los módulos | Aceptado |
 | [0019](0019-bounded-memory-and-incremental-cache.md) | Memoria acotada en la simulación y caché incremental verificada | Aceptado |
@@ -30,6 +30,7 @@ actualiza el estado del antiguo.
 | [0021](0021-union-calendar-annualisation-and-portfolio-memo.md) | Anualización con el calendario unión y memoria del historial de la cartera | Aceptado |
 | [0022](0022-same-origin-redirects-and-error-hygiene.md) | Redirecciones dentro del origen y errores sin credenciales | Aceptado |
 | [0023](0023-portfolio-optimization.md) | Optimización de carteras: objetivos, estimadores y resolución | Aceptado |
+| [0024](0024-goal-based-planning.md) | Planificación por objetivos: planes de ahorro con Monte Carlo mensual | Aceptado |
 
 ## Cómo añadir un ADR
 
