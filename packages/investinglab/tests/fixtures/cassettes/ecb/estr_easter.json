@@ -1,0 +1,26 @@
+{
+ "provider": "ecb",
+ "purpose": "€STR around Easter 2026: published on the next TARGET business day.",
+ "recorded_at": "2026-11-09T18:49:44+00:00",
+ "request": {
+  "series_id": "EST.B.EU000A2X2A25.WT",
+  "mode": "first_release",
+  "start": "2026-03-30",
+  "end": "2026-04-10"
+ },
+ "outcome": "8 observations",
+ "exchanges": [
+  {
+   "method": "GET",
+   "url": "https://data-api.ecb.europa.eu/service/data/EST/B.EU000A2X2A25.WT",
+   "params": {
+    "format": "csvdata",
+    "startPeriod": "2026-03-30",
+    "endPeriod": "2026-04-10"
+   },
+   "status": 200,
+   "content_type": "text/csv",
+   "text": "KEY,FREQ,BENCHMARK_ITEM,DATA_TYPE_EST,TIME_PERIOD,OBS_VALUE,OBS_STATUS,CONF_STATUS,PRE_BREAK_VALUE,COMMENT_OBS,CALCUL_START_DATE,CALCUL_END_DATE,TIME_FORMAT,BREAKS,COMMENT_TS,COMPILING_ORG,COVERAGE,DATA_COMP,DECIMALS,DISS_ORG,PUBL_ECB,PUBL_MU,PUBL_PUBLIC,TIME_PER_COLLECT,TITLE,TITLE_COMPL,UNIT_INDEX_BASE,UNIT_MEASURE,UNIT_MULT\r\nEST.B.EU000A2X2A25.WT,B,EU000A2X2A25,WT,2026-03-30,1.932,A,F,,,,,P1D,,,,\"ESA 2010 Sectors: S.121, S.122, S.123, S.124, S.125, S.126, S.127, S.128, S.129\",,3,,,,,A,Euro short-term rate,\"Euro short-term rate, Volume-weighted trimmed mean rate - Unsecured - Overnight - Borrowing - Financial corporations\",,PC,0\r\nEST.B.EU000A2X2A25.WT,B,EU000A2X2A25,WT,2026-03-31,1.929,A,F,,,,,P1D,,,,\"ESA 2010 Sectors: S.121, S.122, S.123, S.124, S.125, S.126, S.127, S.128, S.129\",,3,,,,,A,Euro short-term rate,\"Euro short-term rate, Volume-weighted trimmed mean rate - Unsecured - Overnight - Borrowing - Financial corporations\",,PC,0\r\nEST.B.EU000A2X2A25.WT,B,EU000A2X2A25,WT,2026-04-01,1.93,A,F,,,,,P1D,,,,\"ESA 2010 Sectors: S.121, S.122, S.123, S.124, S.125, S.126, S.127, S.128, S.129\",,3,,,,,A,Euro short-term rate,\"Euro short-term rate, Volume-weighted trimmed mean rate - Unsecured - Overnight - Borrowing - Financial corporations\",,PC,0\r\nEST.B.EU000A2X2A25.WT,B,EU000A2X2A25,WT,2026-04-02,1.931,A,F,,,,,P1D,,,,\"ESA 2010 Sectors: S.121, S.122, S.123, S.124, S.125, S.126, S.127, S.128, S.129\",,3,,,,,A,Euro short-term rate,\"Euro short-term rate, Volume-weighted trimmed mean rate - Unsecured - Overnight - Borrowing - Financial corporations\",,PC,0\r\nEST.B.EU000A2X2A25.WT,B,EU000A2X2A25,WT,2026-04-07,1.931,A,F,,,,,P1D,,,,\"ESA 2010 Sectors: S.121, S.122, S.123, S.124, S.125, S.126, S.127, S.128, S.129\",,3,,,,,A,Euro short-term rate,\"Euro short-term rate, Volume-weighted trimmed mean rate - Unsecured - Overnight - Borrowing - Financial corporations\",,PC,0\r\nEST.B.EU000A2X2A25.WT,B,EU000A2X2A25,WT,2026-04-08,1.931,A,F,,,,,P1D,,,,\"ESA 2010 Sectors: S.121, S.122, S.123, S.124, S.125, S.126, S.127, S.128, S.129\",,3,,,,,A,Euro short-term rate,\"Euro short-term rate, Volume-weighted trimmed mean rate - Unsecured - Overnight - Borrowing - Financial corporations\",,PC,0\r\nEST.B.EU000A2X2A25.WT,B,EU000A2X2A25,WT,2026-04-09,1.931,A,F,,,,,P1D,,,,\"ESA 2010 Sectors: S.121, S.122, S.123, S.124, S.125, S.126, S.127, S.128, S.129\",,3,,,,,A,Euro short-term rate,\"Euro short-term rate, Volume-weighted trimmed mean rate - Unsecured - Overnight - Borrowing - Financial corporations\",,PC,0\r\nEST.B.EU000A2X2A25.WT,B,EU000A2X2A25,WT,2026-04-10,1.932,A,F,,,,,P1D,,,,\"ESA 2010 Sectors: S.121, S.122, S.123, S.124, S.125, S.126, S.127, S.128, S.129\",,3,,,,,A,Euro short-term rate,\"Euro short-term rate, Volume-weighted trimmed mean rate - Unsecured - Overnight - Borrowing - Financial corporations\",,PC,0\r\n"
+  }
+ ]
+}

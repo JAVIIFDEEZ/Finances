@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING, Any
 import httpx
 
 from investinglab.domain.time import Frequency
-from investinglab.ports import BarsRequest
+from investinglab.ports import BarsRequest, EconomicRequest, VintageMode
 
 if TYPE_CHECKING:
     import respx
@@ -43,13 +43,14 @@ class Exchange:
     text: str | None = None
     content_type: str = "application/json"
 
-    def response(self, payload: Any = None) -> httpx.Response:
-        """The recorded response, or one with the same status and another JSON body."""
+    def response(self, payload: Any = None, text: str | None = None) -> httpx.Response:
+        """The recorded response, or one with the same status and another body."""
         if payload is not None:
             return httpx.Response(self.status, json=payload)
-        if self.text is not None:
+        body = text if text is not None else self.text
+        if body is not None:
             return httpx.Response(
-                self.status, text=self.text, headers={"content-type": self.content_type}
+                self.status, text=body, headers={"content-type": self.content_type}
             )
         return httpx.Response(self.status, json=self.payload)
 
@@ -60,8 +61,20 @@ class Cassette:
 
     name: str
     recorded_at: datetime
-    request: BarsRequest
+    request: BarsRequest | EconomicRequest
     exchanges: tuple[Exchange, ...]
+
+    @property
+    def bars_request(self) -> BarsRequest:
+        """The recorded request, which must be one for price bars."""
+        assert isinstance(self.request, BarsRequest), f"{self.name} records an economic request"
+        return self.request
+
+    @property
+    def economic_request(self) -> EconomicRequest:
+        """The recorded request, which must be one for an economic series."""
+        assert isinstance(self.request, EconomicRequest), f"{self.name} records a bars request"
+        return self.request
 
     def clock(self) -> datetime:
         """The recording time: the adapter must judge which bars were finished then."""
@@ -71,10 +84,21 @@ class Cassette:
         """A deep copy of a recorded JSON body, to alter in robustness tests."""
         return copy.deepcopy(self.exchanges[index].payload)
 
+    def text(self, index: int = 0) -> str:
+        """A recorded text body (CSV, XML...), to alter in robustness tests."""
+        body = self.exchanges[index].text
+        assert body is not None, f"{self.name} exchange {index} has no text body"
+        return body
+
     def play(
-        self, router: respx.MockRouter, *, exact: bool = True, payload: Any = None
+        self,
+        router: respx.MockRouter,
+        *,
+        exact: bool = True,
+        payload: Any = None,
+        text: str | None = None,
     ) -> list[respx.Route]:
-        """Register every exchange on ``router`` (optionally answering with ``payload``)."""
+        """Register every exchange on ``router``, optionally answering another body."""
         routes = []
         for exchange in self.exchanges:
             route = (
@@ -82,7 +106,7 @@ class Cassette:
                 if exact
                 else router.get(exchange.url)
             )
-            routes.append(route.mock(return_value=exchange.response(payload)))
+            routes.append(route.mock(return_value=exchange.response(payload, text)))
         return routes
 
 
@@ -90,19 +114,22 @@ def _day(text: str | None) -> date | None:
     return None if text is None else date.fromisoformat(text)
 
 
+def _request(raw: dict[str, Any]) -> BarsRequest | EconomicRequest:
+    start, end = _day(raw["start"]), _day(raw["end"])
+    if "series_id" in raw:
+        return EconomicRequest(
+            raw["series_id"], start=start, end=end, mode=VintageMode(raw["mode"])
+        )
+    return BarsRequest(raw["symbol"], frequency=Frequency(raw["frequency"]), start=start, end=end)
+
+
 def load_cassette(name: str) -> Cassette:
     """Load ``fixtures/cassettes/<name>.json`` (``name`` like ``"yahoo/san_mc_1d"``)."""
     raw = json.loads((CASSETTES / f"{name}.json").read_text(encoding="utf-8"))
-    request = raw["request"]
     return Cassette(
         name=name,
         recorded_at=datetime.fromisoformat(raw["recorded_at"]),
-        request=BarsRequest(
-            request["symbol"],
-            frequency=Frequency(request["frequency"]),
-            start=_day(request["start"]),
-            end=_day(request["end"]),
-        ),
+        request=_request(raw["request"]),
         exchanges=tuple(
             Exchange(
                 url=exchange["url"],

@@ -54,7 +54,7 @@ async def _fetch(
     cassette.play(router, exact=exact, payload=payload)
     moment = clock or cassette.recorded_at
     async with YahooFinanceProvider(clock=lambda: moment) as yahoo:
-        return await yahoo.fetch_bars(request or cassette.request)
+        return await yahoo.fetch_bars(request or cassette.bars_request)
 
 
 # ── Daily bars ───────────────────────────────────────────────────────
@@ -94,7 +94,7 @@ async def test_requests_identify_investinglab_and_encode_the_symbol(
     (route,) = cassette.play(router)
 
     async with YahooFinanceProvider(clock=cassette.clock) as yahoo:
-        await yahoo.fetch_bars(cassette.request)
+        await yahoo.fetch_bars(cassette.bars_request)
 
     request = route.calls.last.request
     assert request.url.raw_path.startswith(b"/v8/finance/chart/%5EGSPC?")
@@ -177,7 +177,7 @@ async def test_monthly_bars_are_aggregated_from_daily_sessions(router: respx.Moc
     )
 
     async with YahooFinanceProvider(clock=cassette.clock) as yahoo:
-        daily = await yahoo.fetch_bars(cassette.request)
+        daily = await yahoo.fetch_bars(cassette.bars_request)
         series = await yahoo.fetch_bars(monthly)
 
     assert series.frequency is Frequency.MONTH_1
