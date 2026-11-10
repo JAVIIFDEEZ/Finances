@@ -11,10 +11,11 @@ from investinglab.domain import (
     AlignmentMethod,
     Frequency,
     IncompatibleSeriesError,
+    Portfolio,
     PriceSeries,
     align,
 )
-from support.factories import make_series
+from support.factories import business_days, gbm_prices, make_series
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -120,3 +121,16 @@ def test_intersection_needs_two_common_dates() -> None:
 
     with pytest.raises(IncompatibleSeriesError, match="common timestamps"):
         align([first, second], "intersection")
+
+
+def test_correlation_matches_the_portfolio_estimator() -> None:
+    index = business_days(120)
+    first = make_series(gbm_prices(120, seed=21), symbol="ONE", index=index)
+    second = make_series(gbm_prices(120, seed=22), symbol="TWO", index=index)
+    portfolio = Portfolio.from_weights("Pair", [first, second], [0.5, 0.5])
+
+    correlation = align([first, second]).correlation()
+
+    assert list(correlation.columns) == ["ONE", "TWO"]
+    assert correlation.to_numpy() == pytest.approx(portfolio.correlation().to_numpy())
+    assert correlation.loc["ONE", "ONE"] == pytest.approx(1.0)

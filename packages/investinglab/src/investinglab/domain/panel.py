@@ -20,7 +20,11 @@ from typing import TYPE_CHECKING
 import numpy as np
 import pandas as pd
 
-from investinglab.analytics import simple_returns
+from investinglab.analytics import (
+    correlation_from_covariance,
+    covariance_matrix,
+    simple_returns,
+)
 from investinglab.domain.errors import IncompatibleSeriesError
 
 if TYPE_CHECKING:
@@ -103,6 +107,15 @@ class AlignedPanel:
         """First timestamp at which every asset has been observed at least once."""
         first_positions = self._prices.notna().to_numpy().argmax(axis=0)
         return pd.Timestamp(self.index[int(first_positions.max())])
+
+    def correlation(self) -> pd.DataFrame:
+        """Correlation of the assets' returns, as :meth:`Portfolio.correlation` computes it.
+
+        Each pair uses the dates on which both assets have a return (pairwise-complete), and
+        the matrix is repaired to be positive semi-definite.
+        """
+        returns = self.returns.iloc[1:]
+        return correlation_from_covariance(covariance_matrix(returns))
 
     def __len__(self) -> int:
         return len(self._prices)
