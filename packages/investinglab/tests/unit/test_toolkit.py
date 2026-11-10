@@ -164,21 +164,21 @@ def test_local_files_are_served_as_a_provider(tmp_path: Path) -> None:
     assert again.prices.equals(series.prices)
 
 
-def test_yahoo_is_the_default_remote_provider(tmp_path: Path) -> None:
+def test_ecb_and_yahoo_are_the_default_remote_providers(tmp_path: Path) -> None:
     folder = tmp_path / "files"
     folder.mkdir()
     (folder / "instruments.toml").write_text("")
     online = _settings(tmp_path, offline=False)
 
     with Toolkit.from_settings(online, cache=False) as alone:
-        assert alone.providers == ("yahoo",)
+        assert alone.providers == ("ecb", "yahoo")
     with Toolkit.from_settings(_settings(tmp_path, offline=False, local_data_dir=folder)) as tk:
-        assert tk.providers == ("files", "yahoo")  # the user's own files come first
+        assert tk.providers == ("files", "ecb", "yahoo")  # the user's own files come first
     with Toolkit.from_settings(_settings(tmp_path, local_data_dir=folder)) as offline:
         assert offline.providers == ("files",)
     own = FakeBarsProvider("yahoo")
     with Toolkit.from_settings(online, providers=[own], cache=False) as replaced:
-        assert replaced.providers == ("yahoo",)
+        assert replaced.providers == ("yahoo", "ecb")
 
 
 def test_series_are_downloaded_from_yahoo(tmp_path: Path) -> None:
@@ -193,6 +193,24 @@ def test_series_are_downloaded_from_yahoo(tmp_path: Path) -> None:
 
     assert series.source.provider == "yahoo"
     assert len(series) == len(again) == 22
+
+
+def test_euro_fixings_and_rates_come_from_the_ecb(tmp_path: Path) -> None:
+    online = _settings(tmp_path, offline=False)
+    after_easter = pd.DatetimeIndex(["2026-04-07"])
+
+    with respx.mock(assert_all_called=False) as router, Toolkit.from_settings(online) as tk:
+        load_cassette("ecb/eurusd_1d").play(router)
+        # The risk-free service asks for the whole history: answer with the recordings.
+        load_cassette("ecb/estr_easter").play(router, exact=False)
+        load_cassette("ecb/deposit_facility_cut").play(router, exact=False)
+        series = tk.series("EURUSD=X", start="2026-10-01", end="2026-10-20")
+        rates = tk.risk_free("EUR", after_easter)
+
+    assert series.source.provider == "ecb"
+    assert len(series) == 14
+    # On Tuesday 7 April the latest known €STR is Thursday 2 April's (1.931 %).
+    assert rates.iloc[0] == pytest.approx(OVERNIGHT_ACT_360.effective_annual(0.01931))
 
 
 def test_files_and_dataframes_can_be_imported(toolkit: Toolkit, tmp_path: Path) -> None:

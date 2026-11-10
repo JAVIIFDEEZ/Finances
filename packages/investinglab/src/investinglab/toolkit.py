@@ -30,6 +30,7 @@ import pandas as pd
 from investinglab.adapters.calendars import ExchangeCalendarsAdapter
 from investinglab.adapters.files import ImportSpec, SeriesImporter
 from investinglab.adapters.http import RetryPolicy
+from investinglab.adapters.providers.ecb import EcbProvider
 from investinglab.adapters.providers.files import LocalFilesProvider
 from investinglab.adapters.providers.yahoo import YahooFinanceProvider
 from investinglab.adapters.storage import ParquetSeriesStore
@@ -74,12 +75,22 @@ def _as_date(value: DateLike) -> date | None:
     return None if value is None else pd.Timestamp(value).date()
 
 
-def _remote_providers(config: Settings, registry: ProviderRegistry) -> list[YahooFinanceProvider]:
-    """Default remote providers that no provider given by the caller replaces."""
-    if "yahoo" in registry:
-        return []
+def _remote_providers(
+    config: Settings, registry: ProviderRegistry
+) -> list[EcbProvider | YahooFinanceProvider]:
+    """Default remote providers, in order, except those a caller's provider replaces.
+
+    The ECB comes first: its reference rates are the official daily fixings of the euro
+    and it only serves currency pairs and euro rates. Yahoo serves everything else.
+    """
     retry = RetryPolicy(max_attempts=config.http_max_attempts)
-    return [YahooFinanceProvider(timeout=config.http_timeout_seconds, retry=retry)]
+    timeout = config.http_timeout_seconds
+    defaults: list[EcbProvider | YahooFinanceProvider] = []
+    if "ecb" not in registry:
+        defaults.append(EcbProvider(timeout=timeout, retry=retry))
+    if "yahoo" not in registry:
+        defaults.append(YahooFinanceProvider(timeout=timeout, retry=retry))
+    return defaults
 
 
 class AsyncToolkit:
@@ -118,7 +129,8 @@ class AsyncToolkit:
         """Wire every adapter from the configuration (``INVESTINGLAB_*`` variables).
 
         Providers are tried in this order: the ``providers`` given here, the user's own
-        files (``local_data_dir``) and then, unless ``offline`` is set, Yahoo Finance.
+        files (``local_data_dir``) and then, unless ``offline`` is set, the ECB (euro
+        reference rates, €STR) and Yahoo Finance.
 
         Args:
             settings: Configuration; the process-wide settings by default.
