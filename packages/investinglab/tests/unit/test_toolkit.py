@@ -21,6 +21,7 @@ from investinglab.domain import (
     Portfolio,
     PriceSeries,
 )
+from investinglab.ports import ProviderCapabilities
 from investinglab.services import DataUnavailableError
 from investinglab.toolkit import AsyncToolkit, Toolkit, _EventLoopThread
 from support.cassettes import load_cassette
@@ -145,6 +146,25 @@ def test_intraday_subjects_keep_the_given_rate(toolkit: Toolkit) -> None:
     intraday = make_series(gbm_prices(40), index=index, frequency=Frequency.HOUR_1)
 
     assert "0% risk-free" in toolkit.report(intraday, language="en")
+
+
+def test_metrics_use_the_point_in_time_rate(toolkit: Toolkit) -> None:
+    index = pd.date_range("2024-03-04 14:30", periods=40, freq="1h", tz="UTC")
+    intraday = make_series(gbm_prices(40), index=index, frequency=Frequency.HOUR_1)
+
+    daily = toolkit.metrics(A)
+    hourly = toolkit.metrics(intraday)
+
+    assert daily.risk_free_rate == pytest.approx(OVERNIGHT_ACT_360.effective_annual(0.035))
+    assert daily.risk_free_periods == daily.periods
+    assert hourly.risk_free_rate == 0.0  # no point-in-time rate for intraday data
+
+
+def test_provider_capabilities_follow_the_preference_order(toolkit: Toolkit) -> None:
+    capabilities = toolkit.asynchronous.provider_capabilities()
+
+    assert list(capabilities) == ["fake", "rates"]
+    assert all(isinstance(c, ProviderCapabilities) for c in capabilities.values())
 
 
 def test_local_files_are_served_as_a_provider(tmp_path: Path) -> None:

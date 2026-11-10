@@ -19,7 +19,11 @@ if TYPE_CHECKING:
 
     from investinglab.domain.instruments import AssetClass
     from investinglab.domain.time import Frequency
-    from investinglab.ports.market_data import BarsRequest, EconomicRequest
+    from investinglab.ports.market_data import (
+        BarsRequest,
+        EconomicRequest,
+        ProviderCapabilities,
+    )
 
 __all__ = ["ProviderRegistry"]
 
@@ -80,6 +84,14 @@ class ProviderRegistry:
     def names(self) -> tuple[str, ...]:
         """Names of every registered provider, in registration order."""
         return tuple(dict.fromkeys([*self._bars, *self._economic]))
+
+    def capabilities(self) -> dict[str, ProviderCapabilities]:
+        """What each registered provider declares it can serve, in registration order."""
+        providers: dict[str, MarketDataProvider | EconomicDataProvider] = {
+            **self._bars,
+            **self._economic,
+        }
+        return {name: providers[name].capabilities for name in self.names}
 
     def __contains__(self, name: object) -> bool:
         return name in self._bars or name in self._economic
