@@ -17,6 +17,7 @@ from investinglab.domain import (
     PriceSeries,
     RebalanceKind,
     RebalancePolicy,
+    weight_problems,
 )
 from support.factories import make_series
 
@@ -161,3 +162,29 @@ def test_rebalance_policies() -> None:
 def test_invalid_rebalance_policies(kwargs: dict[str, Any]) -> None:
     with pytest.raises(DomainError):
         RebalancePolicy(**kwargs)
+
+
+@pytest.mark.parametrize(
+    ("weights", "allow_short", "expected"),
+    [
+        ([("A", 0.6), ("B", 0.4)], False, []),
+        ([("A", 1.2), ("B", -0.2)], True, []),
+        ([], False, ["at least one holding is required"]),
+        ([("A", 0.5), ("A", 0.5)], False, ["duplicated symbols ['A']"]),
+        ([("A", 0.5), ("B", 0.4)], False, ["weights must sum to 1, got 0.900000"]),
+        (
+            [("A", float("nan")), ("B", 1.0)],
+            False,
+            ["weights must be finite numbers, not for ['A']"],
+        ),
+        (
+            [("A", 1.2), ("B", -0.2)],
+            False,
+            ["negative weights for ['B']; pass allow_short=True to allow them"],
+        ),
+    ],
+)
+def test_weight_problems_apply_the_portfolio_rules(
+    weights: list[tuple[str, float]], allow_short: bool, expected: list[str]
+) -> None:
+    assert weight_problems(weights, allow_short=allow_short) == expected
