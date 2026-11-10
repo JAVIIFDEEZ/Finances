@@ -36,7 +36,7 @@ class RiskFreeSource:
     """An economic series that quotes a risk-free rate, and how that rate is quoted.
 
     Attributes:
-        series_id: Identifier of the series (FRED/ALFRED).
+        series_id: Identifier of the series (an ECB series key or a FRED/ALFRED id).
         convention: Quoting convention, used to turn the rate into an effective annual one.
     """
 
@@ -46,15 +46,20 @@ class RiskFreeSource:
 
 DEFAULT_RISK_FREE_SERIES: Final[Mapping[Currency, tuple[RiskFreeSource, ...]]] = MappingProxyType(
     {
-        # €STR (ECB, published since 2019-10), then the ECB deposit facility rate: both
-        # overnight rates on ACT/360.
-        EUR: (RiskFreeSource("ECBESTRVOLWGTTRMDMNRT"), RiskFreeSource("ECBDFR")),
+        # €STR (published since 2019-10), then the ECB deposit facility rate: both overnight
+        # rates on ACT/360. Each from the ECB Data Portal first, then from its FRED mirror.
+        EUR: (
+            RiskFreeSource("EST.B.EU000A2X2A25.WT"),
+            RiskFreeSource("ECBESTRVOLWGTTRMDMNRT"),
+            RiskFreeSource("FM.D.U2.EUR.4F.KR.DFR.LEV"),
+            RiskFreeSource("ECBDFR"),
+        ),
         # 3-month Treasury bill at constant maturity, quoted on an investment basis
         # (bond-equivalent yield: simple ACT/365 over the bill's ~91 days).
         USD: (RiskFreeSource("DGS3MO", RateConvention(DayCount.ACT_365, term_days=91)),),
     }
 )
-"""FRED/ALFRED series used for each currency, in order of preference."""
+"""Series used for each currency, in order of preference (ECB Data Portal and FRED/ALFRED)."""
 
 
 def _as_decimal(series: EconomicSeries) -> float:

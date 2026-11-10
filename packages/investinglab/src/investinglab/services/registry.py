@@ -95,9 +95,12 @@ class ProviderRegistry:
         ]
 
     def economic_candidates(self, request: EconomicRequest) -> list[EconomicDataProvider]:
-        """Providers of economic series, in registration order."""
-        del request  # every economic provider is a candidate; ids are provider-specific
-        return list(self._economic.values())
+        """Providers able to serve ``request``, in registration order."""
+        return [
+            provider
+            for provider in self._economic.values()
+            if provider.capabilities.can_serve_economic(request)
+        ]
 
     def _preferred_order(
         self, asset_class: AssetClass | None, frequency: Frequency | None

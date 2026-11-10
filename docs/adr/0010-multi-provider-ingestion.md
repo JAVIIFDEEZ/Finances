@@ -84,3 +84,7 @@ Tests con proveedores falsos (`tests/support/fakes.py`, datos sintéticos) que c
 * la caché y su TTL;
 * los lotes con fallos parciales;
 * que la concurrencia se mantiene dentro del límite.
+
+> **Nota (2026-11-09).** [ADR-0026](0026-ecb-reference-rates-and-identifier-routing.md) añade
+> `ProviderCapabilities.identifiers`: el registro ya no pregunta a un proveedor de universo
+> cerrado por identificadores que no sirve.

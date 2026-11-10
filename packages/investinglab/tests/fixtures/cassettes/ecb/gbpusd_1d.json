@@ -1,0 +1,38 @@
+{
+ "provider": "ecb",
+ "purpose": "Pair without the euro: ratio of two reference rates of the same day.",
+ "recorded_at": "2026-11-09T18:49:44+00:00",
+ "request": {
+  "symbol": "GBPUSD=X",
+  "frequency": "1d",
+  "start": "2026-10-01",
+  "end": "2026-10-20"
+ },
+ "outcome": "14 bars",
+ "exchanges": [
+  {
+   "method": "GET",
+   "url": "https://data-api.ecb.europa.eu/service/data/EXR/D.USD.EUR.SP00.A",
+   "params": {
+    "format": "csvdata",
+    "startPeriod": "2026-10-01",
+    "endPeriod": "2026-10-20"
+   },
+   "status": 200,
+   "content_type": "text/csv",
+   "text": "KEY,FREQ,CURRENCY,CURRENCY_DENOM,EXR_TYPE,EXR_SUFFIX,TIME_PERIOD,OBS_VALUE,OBS_STATUS,OBS_CONF,OBS_PRE_BREAK,OBS_COM,TIME_FORMAT,BREAKS,COLLECTION,COMPILING_ORG,DISS_ORG,DOM_SER_IDS,PUBL_ECB,PUBL_MU,PUBL_PUBLIC,UNIT_INDEX_BASE,COMPILATION,COVERAGE,DECIMALS,NAT_TITLE,SOURCE_AGENCY,SOURCE_PUB,TITLE,TITLE_COMPL,UNIT,UNIT_MULT\r\nEXR.D.USD.EUR.SP00.A,D,USD,EUR,SP00,A,2026-10-01,1.1298,A,F,,,P1D,,A,,,,,,,99Q1=100,,,4,,4F0,,US dollar/Euro ECB reference exchange rate,\"ECB reference exchange rate, US dollar/Euro, 2.15 pm (C.E.T.)\",USD,0\r\nEXR.D.USD.EUR.SP00.A,D,USD,EUR,SP00,A,2026-10-02,1.1225,A,F,,,P1D,,A,,,,,,,99Q1=100,,,4,,4F0,,US dollar/Euro ECB reference exchange rate,\"ECB reference exchange rate, US dollar/Euro, 2.15 pm (C.E.T.)\",USD,0\r\nEXR.D.USD.EUR.SP00.A,D,USD,EUR,SP00,A,2026-10-05,1.1204,A,F,,,P1D,,A,,,,,,,99Q1=100,,,4,,4F0,,US dollar/Euro ECB reference exchange rate,\"ECB reference exchange rate, US dollar/Euro, 2.15 pm (C.E.T.)\",USD,0\r\nEXR.D.USD.EUR.SP00.A,D,USD,EUR,SP00,A,2026-10-06,1.1269,A,F,,,P1D,,A,,,,,,,99Q1=100,,,4,,4F0,,US dollar/Euro ECB reference exchange rate,\"ECB reference exchange rate, US dollar/Euro, 2.15 pm (C.E.T.)\",USD,0\r\nEXR.D.USD.EUR.SP00.A,D,USD,EUR,SP00,A,2026-10-07,1.1177,A,F,,,P1D,,A,,,,,,,99Q1=100,,,4,,4F0,,US dollar/Euro ECB reference exchange rate,\"ECB reference exchange rate, US dollar/Euro, 2.15 pm (C.E.T.)\",USD,0\r\nEXR.D.USD.EUR.SP00.A,D,USD,EUR,SP00,A,2026-10-08,1.1186,A,F,,,P1D,,A,,,,,,,99Q1=100,,,4,,4F0,,US dollar/Euro ECB reference exchange rate,\"ECB reference exchange rate, US dollar/Euro, 2.15 pm (C.E.T.)\",USD,0\r\nEXR.D.USD.EUR.SP00.A,D,USD,EUR,SP00,A,2026-10-09,1.1206,A,F,,,P1D,,A,,,,,,,99Q1=100,,,4,,4F0,,US dollar/Euro ECB reference exchange rate,\"ECB reference exchange rate, US dollar/Euro, 2.15 pm (C.E.T.)\",USD,0\r\nEXR.D.USD.EUR.SP00.A,D,USD,EUR,SP00,A,2026-10-12,1.1181,A,F,,,P1D,,A,,,,,,,99Q1=100,,,4,,4F0,,US dollar/Euro ECB reference exchange rate,\"ECB reference exchange rate, US dollar/Euro, 2.15 pm (C.E.T.)\",USD,0\r\nEXR.D.USD.EUR.SP00.A,D,USD,EUR,SP00,A,2026-10-13,1.1188,A,F,,,P1D,,A,,,,,,,99Q1=100,,,4,,4F0,,US dollar/Euro ECB reference exchange rate,\"ECB reference exchange rate, US dollar/Euro, 2.15 pm (C.E.T.)\",USD,0\r\nEXR.D.USD.EUR.SP00.A,D,USD,EUR,SP00,A,2026-10-14,1.1195,A,F,,,P1D,,A,,,,,,,99Q1=100,,,4,,4F0,,US dollar/Euro ECB reference exchange rate,\"ECB reference exchange rate, US dollar/Euro, 2.15 pm (C.E.T.)\",USD,0\r\nEXR.D.USD.EUR.SP00.A,D,USD,EUR,SP00,A,2026-10-15,1.1208,A,F,,,P1D,,A,,,,,,,99Q1=100,,,4,,4F0,,US dollar/Euro ECB reference exchange rate,\"ECB reference exchange rate, US dollar/Euro, 2.15 pm (C.E.T.)\",USD,0\r\nEXR.D.USD.EUR.SP00.A,D,USD,EUR,SP00,A,2026-10-16,1.1253,A,F,,,P1D,,A,,,,,,,99Q1=100,,,4,,4F0,,US dollar/Euro ECB reference exchange rate,\"ECB reference exchange rate, US dollar/Euro, 2.15 pm (C.E.T.)\",USD,0\r\nEXR.D.USD.EUR.SP00.A,D,USD,EUR,SP00,A,2026-10-19,1.1225,A,F,,,P1D,,A,,,,,,,99Q1=100,,,4,,4F0,,US dollar/Euro ECB reference exchange rate,\"ECB reference exchange rate, US dollar/Euro, 2.15 pm (C.E.T.)\",USD,0\r\nEXR.D.USD.EUR.SP00.A,D,USD,EUR,SP00,A,2026-10-20,1.1215,A,F,,,P1D,,A,,,,,,,99Q1=100,,,4,,4F0,,US dollar/Euro ECB reference exchange rate,\"ECB reference exchange rate, US dollar/Euro, 2.15 pm (C.E.T.)\",USD,0\r\n"
+  },
+  {
+   "method": "GET",
+   "url": "https://data-api.ecb.europa.eu/service/data/EXR/D.GBP.EUR.SP00.A",
+   "params": {
+    "format": "csvdata",
+    "startPeriod": "2026-10-01",
+    "endPeriod": "2026-10-20"
+   },
+   "status": 200,
+   "content_type": "text/csv",
+   "text": "KEY,FREQ,CURRENCY,CURRENCY_DENOM,EXR_TYPE,EXR_SUFFIX,TIME_PERIOD,OBS_VALUE,OBS_STATUS,OBS_CONF,OBS_PRE_BREAK,OBS_COM,TIME_FORMAT,BREAKS,COLLECTION,COMPILING_ORG,DISS_ORG,DOM_SER_IDS,PUBL_ECB,PUBL_MU,PUBL_PUBLIC,UNIT_INDEX_BASE,COMPILATION,COVERAGE,DECIMALS,NAT_TITLE,SOURCE_AGENCY,SOURCE_PUB,TITLE,TITLE_COMPL,UNIT,UNIT_MULT\r\nEXR.D.GBP.EUR.SP00.A,D,GBP,EUR,SP00,A,2026-10-01,0.85373,A,F,,,P1D,,A,,,,,,,99Q1=100,,,5,,4F0,,Pound sterling/Euro ECB reference exchange rate,\"ECB reference exchange rate, Pound sterling/Euro, 2.15 pm (C.E.T.)\",GBP,0\r\nEXR.D.GBP.EUR.SP00.A,D,GBP,EUR,SP00,A,2026-10-02,0.85033,A,F,,,P1D,,A,,,,,,,99Q1=100,,,5,,4F0,,Pound sterling/Euro ECB reference exchange rate,\"ECB reference exchange rate, Pound sterling/Euro, 2.15 pm (C.E.T.)\",GBP,0\r\nEXR.D.GBP.EUR.SP00.A,D,GBP,EUR,SP00,A,2026-10-05,0.8472,A,F,,,P1D,,A,,,,,,,99Q1=100,,,5,,4F0,,Pound sterling/Euro ECB reference exchange rate,\"ECB reference exchange rate, Pound sterling/Euro, 2.15 pm (C.E.T.)\",GBP,0\r\nEXR.D.GBP.EUR.SP00.A,D,GBP,EUR,SP00,A,2026-10-06,0.8488,A,F,,,P1D,,A,,,,,,,99Q1=100,,,5,,4F0,,Pound sterling/Euro ECB reference exchange rate,\"ECB reference exchange rate, Pound sterling/Euro, 2.15 pm (C.E.T.)\",GBP,0\r\nEXR.D.GBP.EUR.SP00.A,D,GBP,EUR,SP00,A,2026-10-07,0.84645,A,F,,,P1D,,A,,,,,,,99Q1=100,,,5,,4F0,,Pound sterling/Euro ECB reference exchange rate,\"ECB reference exchange rate, Pound sterling/Euro, 2.15 pm (C.E.T.)\",GBP,0\r\nEXR.D.GBP.EUR.SP00.A,D,GBP,EUR,SP00,A,2026-10-08,0.84698,A,F,,,P1D,,A,,,,,,,99Q1=100,,,5,,4F0,,Pound sterling/Euro ECB reference exchange rate,\"ECB reference exchange rate, Pound sterling/Euro, 2.15 pm (C.E.T.)\",GBP,0\r\nEXR.D.GBP.EUR.SP00.A,D,GBP,EUR,SP00,A,2026-10-09,0.84763,A,F,,,P1D,,A,,,,,,,99Q1=100,,,5,,4F0,,Pound sterling/Euro ECB reference exchange rate,\"ECB reference exchange rate, Pound sterling/Euro, 2.15 pm (C.E.T.)\",GBP,0\r\nEXR.D.GBP.EUR.SP00.A,D,GBP,EUR,SP00,A,2026-10-12,0.84478,A,F,,,P1D,,A,,,,,,,99Q1=100,,,5,,4F0,,Pound sterling/Euro ECB reference exchange rate,\"ECB reference exchange rate, Pound sterling/Euro, 2.15 pm (C.E.T.)\",GBP,0\r\nEXR.D.GBP.EUR.SP00.A,D,GBP,EUR,SP00,A,2026-10-13,0.8446,A,F,,,P1D,,A,,,,,,,99Q1=100,,,5,,4F0,,Pound sterling/Euro ECB reference exchange rate,\"ECB reference exchange rate, Pound sterling/Euro, 2.15 pm (C.E.T.)\",GBP,0\r\nEXR.D.GBP.EUR.SP00.A,D,GBP,EUR,SP00,A,2026-10-14,0.84385,A,F,,,P1D,,A,,,,,,,99Q1=100,,,5,,4F0,,Pound sterling/Euro ECB reference exchange rate,\"ECB reference exchange rate, Pound sterling/Euro, 2.15 pm (C.E.T.)\",GBP,0\r\nEXR.D.GBP.EUR.SP00.A,D,GBP,EUR,SP00,A,2026-10-15,0.8461,A,F,,,P1D,,A,,,,,,,99Q1=100,,,5,,4F0,,Pound sterling/Euro ECB reference exchange rate,\"ECB reference exchange rate, Pound sterling/Euro, 2.15 pm (C.E.T.)\",GBP,0\r\nEXR.D.GBP.EUR.SP00.A,D,GBP,EUR,SP00,A,2026-10-16,0.84385,A,F,,,P1D,,A,,,,,,,99Q1=100,,,5,,4F0,,Pound sterling/Euro ECB reference exchange rate,\"ECB reference exchange rate, Pound sterling/Euro, 2.15 pm (C.E.T.)\",GBP,0\r\nEXR.D.GBP.EUR.SP00.A,D,GBP,EUR,SP00,A,2026-10-19,0.84205,A,F,,,P1D,,A,,,,,,,99Q1=100,,,5,,4F0,,Pound sterling/Euro ECB reference exchange rate,\"ECB reference exchange rate, Pound sterling/Euro, 2.15 pm (C.E.T.)\",GBP,0\r\nEXR.D.GBP.EUR.SP00.A,D,GBP,EUR,SP00,A,2026-10-20,0.84028,A,F,,,P1D,,A,,,,,,,99Q1=100,,,5,,4F0,,Pound sterling/Euro ECB reference exchange rate,\"ECB reference exchange rate, Pound sterling/Euro, 2.15 pm (C.E.T.)\",GBP,0\r\n"
+  }
+ ]
+}

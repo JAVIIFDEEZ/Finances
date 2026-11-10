@@ -441,7 +441,7 @@ async def test_economic_failures_and_batches() -> None:
 
 
 async def test_no_economic_provider() -> None:
-    with pytest.raises(DataUnavailableError, match="no registered economic"):
+    with pytest.raises(DataUnavailableError, match="no registered provider serves UNRATE"):
         await _service().get_economic_series(EconomicRequest("UNRATE"))
 
 

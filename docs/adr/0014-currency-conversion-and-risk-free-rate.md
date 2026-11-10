@@ -56,7 +56,9 @@ retorno divisa, con `(1 + total) = (1 + local) · (1 + divisa)`.
 
 * Para cada divisa hay una lista de series FRED/ALFRED por orden de preferencia:
   * EUR: €STR (`ECBESTRVOLWGTTRMDMNRT`) y, como respaldo, el tipo de depósito del BCE
-    (`ECBDFR`);
+    (`ECBDFR`). *Nota (2026-11-09): desde [ADR-0026](0026-ecb-reference-rates-and-identifier-routing.md)
+    se piden primero al propio BCE (`EST.B.EU000A2X2A25.WT`, `FM.D.U2.EUR.4F.KR.DFR.LEV`)
+    y después a FRED;*
   * USD: T-Bill a 3 meses (`DGS3MO`).
 * En cada fecha se usa el valor **ya publicado** (`known_values_at`), convertido de porcentaje
   a decimal.

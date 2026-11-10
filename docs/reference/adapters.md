@@ -13,3 +13,9 @@
 ::: investinglab.adapters.providers.yahoo.provider
 
 ::: investinglab.adapters.providers.yahoo.venues
+
+::: investinglab.adapters.providers.ecb.provider
+
+::: investinglab.adapters.providers.ecb.catalogue
+
+::: investinglab.adapters.providers.ecb.calendar

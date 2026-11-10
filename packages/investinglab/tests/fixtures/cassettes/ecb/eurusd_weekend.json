@@ -1,0 +1,26 @@
+{
+ "provider": "ecb",
+ "purpose": "A range without fixings: the portal answers an empty body.",
+ "recorded_at": "2026-11-09T18:49:44+00:00",
+ "request": {
+  "symbol": "EURUSD=X",
+  "frequency": "1d",
+  "start": "2026-10-03",
+  "end": "2026-10-04"
+ },
+ "outcome": "ProviderDataError: [ecb] EXR.D.USD.EUR.SP00.A: no published values in the range",
+ "exchanges": [
+  {
+   "method": "GET",
+   "url": "https://data-api.ecb.europa.eu/service/data/EXR/D.USD.EUR.SP00.A",
+   "params": {
+    "format": "csvdata",
+    "startPeriod": "2026-10-03",
+    "endPeriod": "2026-10-04"
+   },
+   "status": 200,
+   "content_type": "text/csv",
+   "text": ""
+  }
+ ]
+}

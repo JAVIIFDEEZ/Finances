@@ -1,0 +1,26 @@
+{
+ "provider": "ecb",
+ "purpose": "Deposit facility rate across the cut of 2025-06-11 (2.25 % to 2.00 %).",
+ "recorded_at": "2026-11-09T18:49:44+00:00",
+ "request": {
+  "series_id": "FM.D.U2.EUR.4F.KR.DFR.LEV",
+  "mode": "first_release",
+  "start": "2025-06-06",
+  "end": "2025-06-14"
+ },
+ "outcome": "9 observations",
+ "exchanges": [
+  {
+   "method": "GET",
+   "url": "https://data-api.ecb.europa.eu/service/data/FM/D.U2.EUR.4F.KR.DFR.LEV",
+   "params": {
+    "format": "csvdata",
+    "startPeriod": "2025-06-06",
+    "endPeriod": "2025-06-14"
+   },
+   "status": 200,
+   "content_type": "text/csv",
+   "text": "KEY,FREQ,REF_AREA,CURRENCY,PROVIDER_FM,INSTRUMENT_FM,PROVIDER_FM_ID,DATA_TYPE_FM,TIME_PERIOD,OBS_VALUE,OBS_STATUS,OBS_CONF,OBS_PRE_BREAK,OBS_COM,TIME_FORMAT,BREAKS,COLLECTION,COMPILING_ORG,DISS_ORG,DOM_SER_IDS,FM_CONTRACT_TIME,FM_COUPON_RATE,FM_IDENTIFIER,FM_LOT_SIZE,FM_MATURITY,FM_OUTS_AMOUNT,FM_PUT_CALL,FM_STRIKE_PRICE,PUBL_MU,PUBL_PUBLIC,UNIT_INDEX_BASE,COMPILATION,COVERAGE,DECIMALS,SOURCE_AGENCY,SOURCE_PUB,TITLE,TITLE_COMPL,UNIT,UNIT_MULT\r\nFM.D.U2.EUR.4F.KR.DFR.LEV,D,U2,EUR,4F,KR,DFR,LEV,2025-06-06,2.25,A,F,,,P1D,,E,4F0,,,,,,,,,,,,,,,,7,,,Deposit facility - date of changes (raw data) - Level,\"Euro area (changing composition) - Key interest rate - Deposit facility - date of changes (raw data) - Level - Euro, provided by ECB\",PCPA,0\r\nFM.D.U2.EUR.4F.KR.DFR.LEV,D,U2,EUR,4F,KR,DFR,LEV,2025-06-07,2.25,A,F,,,P1D,,E,4F0,,,,,,,,,,,,,,,,7,,,Deposit facility - date of changes (raw data) - Level,\"Euro area (changing composition) - Key interest rate - Deposit facility - date of changes (raw data) - Level - Euro, provided by ECB\",PCPA,0\r\nFM.D.U2.EUR.4F.KR.DFR.LEV,D,U2,EUR,4F,KR,DFR,LEV,2025-06-08,2.25,A,F,,,P1D,,E,4F0,,,,,,,,,,,,,,,,7,,,Deposit facility - date of changes (raw data) - Level,\"Euro area (changing composition) - Key interest rate - Deposit facility - date of changes (raw data) - Level - Euro, provided by ECB\",PCPA,0\r\nFM.D.U2.EUR.4F.KR.DFR.LEV,D,U2,EUR,4F,KR,DFR,LEV,2025-06-09,2.25,A,F,,,P1D,,E,4F0,,,,,,,,,,,,,,,,7,,,Deposit facility - date of changes (raw data) - Level,\"Euro area (changing composition) - Key interest rate - Deposit facility - date of changes (raw data) - Level - Euro, provided by ECB\",PCPA,0\r\nFM.D.U2.EUR.4F.KR.DFR.LEV,D,U2,EUR,4F,KR,DFR,LEV,2025-06-10,2.25,A,F,,,P1D,,E,4F0,,,,,,,,,,,,,,,,7,,,Deposit facility - date of changes (raw data) - Level,\"Euro area (changing composition) - Key interest rate - Deposit facility - date of changes (raw data) - Level - Euro, provided by ECB\",PCPA,0\r\nFM.D.U2.EUR.4F.KR.DFR.LEV,D,U2,EUR,4F,KR,DFR,LEV,2025-06-11,2,A,F,,,P1D,,E,4F0,,,,,,,,,,,,,,,,7,,,Deposit facility - date of changes (raw data) - Level,\"Euro area (changing composition) - Key interest rate - Deposit facility - date of changes (raw data) - Level - Euro, provided by ECB\",PCPA,0\r\nFM.D.U2.EUR.4F.KR.DFR.LEV,D,U2,EUR,4F,KR,DFR,LEV,2025-06-12,2,A,F,,,P1D,,E,4F0,,,,,,,,,,,,,,,,7,,,Deposit facility - date of changes (raw data) - Level,\"Euro area (changing composition) - Key interest rate - Deposit facility - date of changes (raw data) - Level - Euro, provided by ECB\",PCPA,0\r\nFM.D.U2.EUR.4F.KR.DFR.LEV,D,U2,EUR,4F,KR,DFR,LEV,2025-06-13,2,A,F,,,P1D,,E,4F0,,,,,,,,,,,,,,,,7,,,Deposit facility - date of changes (raw data) - Level,\"Euro area (changing composition) - Key interest rate - Deposit facility - date of changes (raw data) - Level - Euro, provided by ECB\",PCPA,0\r\nFM.D.U2.EUR.4F.KR.DFR.LEV,D,U2,EUR,4F,KR,DFR,LEV,2025-06-14,2,A,F,,,P1D,,E,4F0,,,,,,,,,,,,,,,,7,,,Deposit facility - date of changes (raw data) - Level,\"Euro area (changing composition) - Key interest rate - Deposit facility - date of changes (raw data) - Level - Euro, provided by ECB\",PCPA,0\r\n"
+  }
+ ]
+}

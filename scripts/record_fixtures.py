@@ -31,12 +31,17 @@ from typing import Any
 import httpx
 
 from investinglab.adapters.http import HttpClient, RetryPolicy
-from investinglab.adapters.providers.yahoo import BASE_URL, NAME, USER_AGENT, YahooFinanceProvider
+from investinglab.adapters.providers import ecb, yahoo
 from investinglab.config import LogLevel, configure_logging
 from investinglab.domain.time import Frequency
-from investinglab.ports import BarsRequest, ProviderError
+from investinglab.ports import BarsRequest, EconomicRequest, ProviderError
 
 CASSETTES = Path(__file__).resolve().parents[1] / "packages/investinglab/tests/fixtures/cassettes"
+
+
+def _transient(status: int) -> bool:
+    """Statuses the HTTP client retries: the cassette keeps the final answer only."""
+    return status in {408, 429} or status >= 500  # noqa: PLR2004
 
 
 class RecordingTransport(httpx.AsyncBaseTransport):
@@ -54,7 +59,7 @@ class RecordingTransport(httpx.AsyncBaseTransport):
         """Send ``request`` for real and keep a copy of the exchange."""
         response = await self._inner.send(request)
         body = response.content
-        if response.status_code != httpx.codes.TOO_MANY_REQUESTS:  # retried by the client
+        if not _transient(response.status_code):  # the client retries those
             content_type = response.headers.get("content-type", "")
             exchange: dict[str, Any] = {
                 "method": request.method,
@@ -83,11 +88,16 @@ class RecordingTransport(httpx.AsyncBaseTransport):
 
 @dataclass(frozen=True)
 class Recording:
-    """One cassette: a name, the request it answers and why it exists."""
+    """One cassette: a name (``<provider>/<case>``), the request it answers and why it exists."""
 
     name: str
-    request: BarsRequest
+    request: BarsRequest | EconomicRequest
     purpose: str
+
+    @property
+    def provider(self) -> str:
+        """Provider slug, the first part of the name."""
+        return self.name.split("/", 1)[0]
 
 
 def _recordings(today: date) -> list[Recording]:
@@ -137,35 +147,87 @@ def _recordings(today: date) -> list[Recording]:
             BarsRequest("NOPE.XX", start=date(2026, 10, 1), end=date(2026, 10, 20)),
             "Unknown symbol (HTTP 404 with an error document).",
         ),
+        Recording(
+            "ecb/eurusd_1d",
+            BarsRequest("EURUSD=X", start=date(2026, 10, 1), end=date(2026, 10, 20)),
+            "Euro reference rate of the US dollar (also read inverted as USDEUR=X).",
+        ),
+        Recording(
+            "ecb/gbpusd_1d",
+            BarsRequest("GBPUSD=X", start=date(2026, 10, 1), end=date(2026, 10, 20)),
+            "Pair without the euro: ratio of two reference rates of the same day.",
+        ),
+        Recording(
+            "ecb/eurusd_1d_millennium",
+            BarsRequest("EURUSD=X", start=date(1999, 12, 27), end=date(2000, 1, 7)),
+            "A TARGET holiday published as an empty value (31 December 1999).",
+        ),
+        Recording(
+            "ecb/eurusd_weekend",
+            BarsRequest("EURUSD=X", start=date(2026, 10, 3), end=date(2026, 10, 4)),
+            "A range without fixings: the portal answers an empty body.",
+        ),
+        Recording(
+            "ecb/estr_easter",
+            EconomicRequest(ecb.ESTR, start=date(2026, 3, 30), end=date(2026, 4, 10)),
+            "€STR around Easter 2026: published on the next TARGET business day.",
+        ),
+        Recording(
+            "ecb/deposit_facility_cut",
+            EconomicRequest(ecb.DEPOSIT_FACILITY, start=date(2025, 6, 6), end=date(2025, 6, 14)),
+            "Deposit facility rate across the cut of 2025-06-11 (2.25 % to 2.00 %).",
+        ),
     ]
+
+
+def _provider(
+    recording: Recording, transport: RecordingTransport, recorded_at: datetime
+) -> yahoo.YahooFinanceProvider | ecb.EcbProvider:
+    retry = RetryPolicy(max_attempts=4, initial_backoff=2.0)
+    if recording.provider == yahoo.NAME:
+        client = HttpClient(
+            yahoo.NAME,
+            base_url=yahoo.BASE_URL,
+            retry=retry,
+            headers={"User-Agent": yahoo.USER_AGENT},
+            transport=transport,
+        )
+        return yahoo.YahooFinanceProvider(client=client, clock=lambda: recorded_at)
+    client = HttpClient(
+        ecb.NAME, base_url=ecb.BASE_URL, timeout=90.0, retry=retry, transport=transport
+    )
+    return ecb.EcbProvider(client=client, clock=lambda: recorded_at)
+
+
+def _describe(request: BarsRequest | EconomicRequest) -> dict[str, str | None]:
+    bounds = {
+        "start": request.start.isoformat() if request.start else None,
+        "end": request.end.isoformat() if request.end else None,
+    }
+    if isinstance(request, BarsRequest):
+        return {"symbol": request.symbol, "frequency": request.frequency.value, **bounds}
+    return {"series_id": request.series_id, "mode": request.mode.value, **bounds}
 
 
 async def _record(recording: Recording, recorded_at: datetime) -> dict[str, Any]:
     transport = RecordingTransport()
-    client = HttpClient(
-        NAME,
-        base_url=BASE_URL,
-        retry=RetryPolicy(max_attempts=4, initial_backoff=2.0),
-        headers={"User-Agent": USER_AGENT},
-        transport=transport,
-    )
-    async with YahooFinanceProvider(client=client, clock=lambda: recorded_at) as provider:
+    request = recording.request
+    async with _provider(recording, transport, recorded_at) as provider:
         try:
-            series = await provider.fetch_bars(recording.request)
-            outcome = f"{len(series)} bars"
+            if isinstance(request, BarsRequest):
+                outcome = f"{len(await provider.fetch_bars(request))} bars"
+            elif isinstance(provider, ecb.EcbProvider):
+                series = await provider.fetch_economic_series(request)
+                outcome = f"{len(series.observations)} observations"
+            else:
+                raise TypeError(f"{recording.provider} serves no economic series")
         except ProviderError as error:
             outcome = f"{type(error).__name__}: {error}"
-    request = recording.request
     return {
-        "provider": NAME,
+        "provider": recording.provider,
         "purpose": recording.purpose,
         "recorded_at": recorded_at.isoformat(timespec="seconds"),
-        "request": {
-            "symbol": request.symbol,
-            "frequency": request.frequency.value,
-            "start": request.start.isoformat() if request.start else None,
-            "end": request.end.isoformat() if request.end else None,
-        },
+        "request": _describe(request),
         "outcome": outcome,
         "exchanges": transport.exchanges,
     }

@@ -1,7 +1,7 @@
 """Contract that every market-data provider honours, whatever API sits behind it (ADR-0010).
 
 Each provider runs against an offline source: SYNTHETIC files for ``files`` and recorded
-real responses (cassettes) for ``yahoo``. A new provider joins the contract by adding one
+real responses (cassettes) for the remote providers. A new provider joins the contract by adding one
 :class:`Case`.
 """
 
@@ -16,6 +16,7 @@ import pandas as pd
 import pytest
 import respx
 
+from investinglab.adapters.providers.ecb import EcbProvider
 from investinglab.adapters.providers.files import LocalFilesProvider
 from investinglab.adapters.providers.yahoo import YahooFinanceProvider
 from investinglab.domain import PriceSeries
@@ -50,6 +51,13 @@ def _yahoo(folder: Path, router: respx.MockRouter) -> MarketDataProvider:
     return YahooFinanceProvider(clock=known.clock)
 
 
+def _ecb(folder: Path, router: respx.MockRouter) -> MarketDataProvider:
+    del folder  # recorded responses only
+    known = load_cassette("ecb/eurusd_1d")
+    known.play(router)
+    return EcbProvider(clock=known.clock)
+
+
 @dataclass(frozen=True, slots=True)
 class Case:
     """A provider wired to its offline source, a request it serves and one it cannot."""
@@ -70,8 +78,14 @@ CASES = (
     Case(
         "yahoo",
         _yahoo,
-        load_cassette("yahoo/san_mc_1d").request,
-        load_cassette("yahoo/not_found").request,
+        load_cassette("yahoo/san_mc_1d").bars_request,
+        load_cassette("yahoo/not_found").bars_request,
+    ),
+    Case(
+        "ecb",
+        _ecb,
+        load_cassette("ecb/eurusd_1d").bars_request,
+        BarsRequest("EURVES=X"),
     ),
 )
 

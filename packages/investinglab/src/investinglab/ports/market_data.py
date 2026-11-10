@@ -8,6 +8,7 @@ never raw provider payloads. Adding a provider means writing one adapter and reg
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
@@ -154,6 +155,13 @@ class ProviderCapabilities:
             year of hourly bars). Missing frequencies have no known limit.
         requires_api_key: Whether a credential must be configured.
         rate_limits: Quotas to respect (all of them apply).
+        identifiers: Regular expression every symbol and series id served matches, for a
+            provider with a closed universe (the ECB's currency pairs, a local catalogue);
+            ``None`` when any identifier may be served. The router skips the provider for
+            other identifiers instead of asking it.
+
+    Raises:
+        DomainError: If ``identifiers`` is not a valid regular expression.
     """
 
     datasets: frozenset[Dataset]
@@ -162,10 +170,24 @@ class ProviderCapabilities:
     max_history: Mapping[Frequency, timedelta] = field(default_factory=dict, hash=False)
     requires_api_key: bool = False
     rate_limits: tuple[RateLimit, ...] = ()
+    identifiers: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.identifiers is not None:
+            try:
+                re.compile(self.identifiers)
+            except re.error as error:
+                raise DomainError(f"Invalid identifiers pattern: {error}") from error
+
+    def serves(self, identifier: str) -> bool:
+        """Whether ``identifier`` (a symbol or a series id) can belong to this provider."""
+        return self.identifiers is None or re.fullmatch(self.identifiers, identifier) is not None
 
     def can_serve_bars(self, request: BarsRequest, today: date) -> bool:
         """Whether the provider can, in principle, answer ``request``."""
         if Dataset.BARS not in self.datasets or request.frequency not in self.frequencies:
+            return False
+        if not self.serves(request.symbol):
             return False
         if request.asset_class is not None and request.asset_class not in self.asset_classes:
             return False
@@ -174,6 +196,10 @@ class ProviderCapabilities:
             return True
         earliest = today - limit
         return request.start is not None and request.start >= earliest
+
+    def can_serve_economic(self, request: EconomicRequest) -> bool:
+        """Whether the provider can, in principle, answer ``request``."""
+        return Dataset.ECONOMIC in self.datasets and self.serves(request.series_id)
 
 
 @runtime_checkable

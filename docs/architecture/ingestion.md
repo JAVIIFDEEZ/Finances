@@ -65,8 +65,10 @@ Los adaptadores de cada proveedor se añaden sin cambiar nada de lo anterior:
 | Proveedor | Paquete | Datos | Decisión |
 |-----------|---------|-------|----------|
 | Ficheros locales | `adapters/providers/files` | Barras de cualquier activo, sin red | [ADR-0018](../adr/0018-toolkit-facade-and-local-data.md) |
+| BCE | `adapters/providers/ecb` | Tipos de referencia del euro como barras de pares (`EURUSD=X`, inversos y cruces) y €STR y tipos oficiales con su fecha de publicación | [ADR-0026](../adr/0026-ecb-reference-rates-and-identifier-routing.md) |
 | Yahoo Finance | `adapters/providers/yahoo` | Barras de acciones, ETFs, fondos, índices, divisas, cripto y futuros, de 1m a 1y | [ADR-0025](../adr/0025-yahoo-chart-adapter-and-cassettes.md) |
 
-Todos cumplen el contrato de `tests/contract/test_market_data_providers.py` y se prueban con
-respuestas reales grabadas (`just record-fixtures`). Alpha Vantage, FRED/ALFRED y el BCE
-completan la fase F2b.
+Todos cumplen los contratos de `tests/contract/` y se prueban con respuestas reales grabadas
+(`just record-fixtures`). Un proveedor de universo cerrado declara los identificadores que
+sirve (`ProviderCapabilities.identifiers`) y el registro no le pregunta por otros. Alpha
+Vantage y FRED/ALFRED completan la fase F2b cuando haya claves.

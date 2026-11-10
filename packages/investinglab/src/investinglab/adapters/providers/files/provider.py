@@ -23,6 +23,7 @@ data or with local files (offline, reproducible, ideal for demos and exports fro
 from __future__ import annotations
 
 import asyncio
+import re
 import tomllib
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Final
@@ -83,11 +84,12 @@ class LocalFilesProvider:
 
     @property
     def capabilities(self) -> ProviderCapabilities:
-        """Bars of every asset class, at the frequencies declared in the catalogue."""
+        """Bars of the catalogue's symbols, at the frequencies declared for them."""
         return ProviderCapabilities(
             datasets=frozenset({Dataset.BARS}),
             asset_classes=frozenset(AssetClass),
             frequencies=frozenset(spec.frequency for spec in self._catalogue.values()),
+            identifiers="|".join(re.escape(symbol) for symbol in self.symbols) or "(?!)",
         )
 
     async def fetch_bars(self, request: BarsRequest) -> PriceSeries:

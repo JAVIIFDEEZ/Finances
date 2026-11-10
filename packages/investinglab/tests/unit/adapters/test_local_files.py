@@ -72,6 +72,9 @@ async def test_serves_the_catalogued_files(tmp_path: Path, monkeypatch: pytest.M
     capabilities = provider.capabilities
     assert capabilities.frequencies == frozenset({Frequency.DAY_1, Frequency.WEEK_1})
     assert AssetClass.CRYPTO in capabilities.asset_classes
+    assert capabilities.serves("SYN.MC")
+    assert not capabilities.serves("SYNXMC")  # the dot is literal
+    assert not capabilities.serves("SAN.MC")  # only the catalogue is served
 
 
 async def test_unknown_symbols_and_missing_files(tmp_path: Path) -> None:

@@ -84,7 +84,12 @@ async def test_usd_uses_treasury_bills() -> None:
     assert rates.iloc[0] == pytest.approx((1 + 0.0525 * 91 / 365) ** (365 / 91) - 1)
     assert service.supports(USD)
     assert not service.supports(GBP)
-    assert DEFAULT_RISK_FREE_SERIES[EUR][0].series_id == "ECBESTRVOLWGTTRMDMNRT"
+    assert [source.series_id for source in DEFAULT_RISK_FREE_SERIES[EUR]] == [
+        "EST.B.EU000A2X2A25.WT",
+        "ECBESTRVOLWGTTRMDMNRT",
+        "FM.D.U2.EUR.4F.KR.DFR.LEV",
+        "ECBDFR",
+    ]
 
 
 async def test_each_series_uses_its_own_convention() -> None:
@@ -118,7 +123,7 @@ async def test_all_series_failing() -> None:
     with pytest.raises(DataUnavailableError) as caught:
         await service.annual_rates(EUR, pd.DatetimeIndex(["2024-01-02"]))
 
-    assert len(caught.value.attempts) == 2
+    assert len(caught.value.attempts) == len(DEFAULT_RISK_FREE_SERIES[EUR])  # one per series
 
 
 async def test_unconfigured_currency_and_unexpected_units() -> None:

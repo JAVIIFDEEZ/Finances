@@ -49,6 +49,7 @@ nav = [
     "adr/0023-portfolio-optimization.md",
     "adr/0024-goal-based-planning.md",
     "adr/0025-yahoo-chart-adapter-and-cassettes.md",
+    "adr/0026-ecb-reference-rates-and-identifier-routing.md",
   ] },
   { "Referencia API" = [
     "reference/index.md",
