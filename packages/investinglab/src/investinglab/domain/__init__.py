@@ -54,6 +54,7 @@ from investinglab.domain.portfolio import (
     PortfolioBacktest,
     RebalanceKind,
     RebalancePolicy,
+    weight_problems,
 )
 from investinglab.domain.quality import (
     DataQualityReport,
@@ -172,4 +173,5 @@ __all__ = [
     "assess_quality",
     "currency_attribution",
     "parse_quote_currency",
+    "weight_problems",
 ]

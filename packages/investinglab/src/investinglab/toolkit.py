@@ -37,6 +37,7 @@ from investinglab.adapters.storage import ParquetSeriesStore
 from investinglab.config.logging import get_logger
 from investinglab.config.settings import Settings, get_settings
 from investinglab.domain.errors import DomainError, InvestingLabError
+from investinglab.domain.metrics import DEFAULT_CONFIDENCE_LEVELS
 from investinglab.domain.money import Currency
 from investinglab.domain.portfolio import Portfolio
 from investinglab.domain.time import Frequency
@@ -55,10 +56,15 @@ if TYPE_CHECKING:
     from pathlib import Path
     from types import TracebackType
 
+    from investinglab.domain.metrics import RiskMetrics
     from investinglab.domain.portfolio import RebalancePolicy
     from investinglab.domain.quality import DataQualityReport
     from investinglab.domain.series import PriceSeries
-    from investinglab.ports.market_data import EconomicDataProvider, MarketDataProvider
+    from investinglab.ports.market_data import (
+        EconomicDataProvider,
+        MarketDataProvider,
+        ProviderCapabilities,
+    )
     from investinglab.reporting.markdown import MarkdownReport
     from investinglab.reporting.options import ReportSettings
     from investinglab.services.market_data import BatchResult
@@ -164,6 +170,10 @@ class AsyncToolkit:
         """Names of the registered providers."""
         return self._registry.names
 
+    def provider_capabilities(self) -> dict[str, ProviderCapabilities]:
+        """What each registered provider can serve, in order of preference."""
+        return self._registry.capabilities()
+
     # ── Data ─────────────────────────────────────────────────────────
 
     async def series(
@@ -264,6 +274,21 @@ class AsyncToolkit:
     def quality(self, series: PriceSeries) -> DataQualityReport:
         """Data-quality diagnosis, checked against the market's official calendar."""
         return self._quality.assess(series)
+
+    async def metrics(
+        self,
+        subject: PriceSeries | Portfolio,
+        *,
+        levels: Sequence[float] = DEFAULT_CONFIDENCE_LEVELS,
+    ) -> RiskMetrics:
+        """Performance and risk metrics with the point-in-time risk-free rate.
+
+        Sharpe and Sortino use the rate of the subject's currency known at each date, as
+        the reports do; when no source can provide it (or for intraday data) they use 0 %,
+        which :attr:`~investinglab.domain.RiskMetrics.risk_free_periods` makes visible.
+        """
+        rate = await self._point_in_time_rate(subject)
+        return subject.metrics(risk_free_rate=0.0 if rate is None else rate, levels=levels)
 
     async def report(
         self,
@@ -483,6 +508,15 @@ class Toolkit:
     def risk_free(self, currency: Currency | str, dates: pd.DatetimeIndex) -> pd.Series:
         """Point-in-time risk-free rates (see :meth:`AsyncToolkit.risk_free`)."""
         return self._run(self._inner.risk_free(currency, dates))
+
+    def metrics(
+        self,
+        subject: PriceSeries | Portfolio,
+        *,
+        levels: Sequence[float] = DEFAULT_CONFIDENCE_LEVELS,
+    ) -> RiskMetrics:
+        """Metrics with the point-in-time risk-free rate (see :meth:`AsyncToolkit.metrics`)."""
+        return self._run(self._inner.metrics(subject, levels=levels))
 
     def load(self, path: str | Path, **spec: Any) -> PriceSeries:  # noqa: ANN401
         """Import a CSV or Parquet file (see :meth:`AsyncToolkit.load`)."""

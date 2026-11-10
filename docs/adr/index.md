@@ -33,6 +33,7 @@ actualiza el estado del antiguo.
 | [0024](0024-goal-based-planning.md) | Planificación por objetivos: planes de ahorro con Monte Carlo mensual | Aceptado |
 | [0025](0025-yahoo-chart-adapter-and-cassettes.md) | Yahoo Finance con el endpoint *chart* y pruebas con casetes grabadas | Aceptado |
 | [0026](0026-ecb-reference-rates-and-identifier-routing.md) | El BCE como fuente oficial de divisas y tipos del euro, con enrutado por identificadores | Aceptado |
+| [0027](0027-stateless-analytics-api.md) | API REST sin estado sobre el Toolkit, con Problem Details y contrato OpenAPI versionado | Aceptado |
 
 ## Cómo añadir un ADR
 

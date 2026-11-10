@@ -15,6 +15,7 @@ dependencies = []
 [dependency-groups]
 dev = [
   "investinglab[plots]",
+  "investinglab-api",
   # Lint, format and architecture rules
   "ruff>=0.17.3",
   "import-linter>=2.15",
@@ -28,6 +29,7 @@ dev = [
   "pytest-asyncio>=1.4.1",
   "hypothesis>=6.170.14",
   "respx>=0.23.1",
+  "httpx2>=2.16.0", # Starlette's TestClient (API tests)
   # Git hooks (all hooks run locally through uv: no remote hook repositories)
   "pre-commit>=4.7.0",
   "pre-commit-hooks>=6.0.0",
@@ -46,10 +48,11 @@ package = false
 default-groups = ["dev", "docs"]
 
 [tool.uv.workspace]
-members = ["packages/*"]
+members = ["packages/*", "apps/api"]
 
 [tool.uv.sources]
 investinglab = { workspace = true }
+investinglab-api = { workspace = true }
 
 # ──────────────────────────────────────────────────────────────────────
 # Ruff — lint + format
@@ -57,7 +60,7 @@ investinglab = { workspace = true }
 [tool.ruff]
 line-length = 100
 target-version = "py313"
-src = ["packages/investinglab/src", "packages/investinglab/tests"]
+src = ["packages/investinglab/src", "packages/investinglab/tests", "apps/api/src", "apps/api/tests"]
 extend-exclude = ["docs/enunciados"]
 
 [tool.ruff.lint]
@@ -110,7 +113,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["investinglab", "support"]
+known-first-party = ["investinglab", "investinglab_api", "support"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
@@ -119,12 +122,21 @@ convention = "google"
 ban-relative-imports = "all"
 
 [tool.ruff.lint.flake8-type-checking]
-runtime-evaluated-base-classes = ["pydantic.BaseModel", "pydantic_settings.BaseSettings"]
+runtime-evaluated-base-classes = [
+  "pydantic.BaseModel",
+  "pydantic_settings.BaseSettings",
+  # The API's Pydantic bases, defined in another module (ruff cannot follow the chain).
+  "investinglab_api.schemas.common.ApiModel",
+  "investinglab_api.schemas.common.RequestModel",
+  "investinglab_api.schemas.common.DateRange",
+]
 # numpy and pandas are imported at runtime everywhere anyway; hiding them behind
 # TYPE_CHECKING would only add noise.
 exempt-modules = ["typing", "typing_extensions", "numpy", "pandas"]
 
 [tool.ruff.lint.per-file-ignores]
+# FastAPI evaluates endpoint annotations at runtime: their imports must stay importable.
+"apps/api/src/investinglab_api/routers/**" = ["TC001", "TC002", "TC003"]
 "**/tests/**" = [
   "ANN",     # fixtures and tests do not need full annotations
   "D",       # test names are the documentation
@@ -144,11 +156,12 @@ docstring-code-format = true
 python_version = "3.13"
 strict = true
 plugins = ["pydantic.mypy"]
-mypy_path = ["packages/investinglab/src", "packages/investinglab/tests"]
+# apps/api/tests is not a base: its conftest would clash with the core's "conftest" module.
+mypy_path = ["packages/investinglab/src", "packages/investinglab/tests", "apps/api/src"]
 explicit_package_bases = true
 warn_unreachable = true
 enable_error_code = ["ignore-without-code", "redundant-expr", "truthy-bool", "possibly-undefined"]
-files = ["packages/investinglab/src", "packages/investinglab/tests"]
+files = ["packages/investinglab/src", "packages/investinglab/tests", "apps/api/src", "apps/api/tests"]
 
 [[tool.mypy.overrides]]
 # No typing information shipped (pyarrow-stubs lag several major versions behind).
@@ -165,7 +178,7 @@ warn_required_dynamic_aliases = true
 # ──────────────────────────────────────────────────────────────────────
 [tool.pytest.ini_options]
 minversion = "9.0"
-testpaths = ["packages/investinglab/tests"]
+testpaths = ["packages/investinglab/tests", "apps/api/tests"]
 pythonpath = ["packages/investinglab/tests"]
 addopts = [
   "-ra",
@@ -183,7 +196,7 @@ markers = [
 ]
 
 [tool.coverage.run]
-source = ["investinglab"]
+source = ["investinglab", "investinglab_api"]
 branch = true
 
 [tool.coverage.report]
@@ -192,6 +205,7 @@ show_missing = true
 skip_covered = true
 exclude_also = [
   "if TYPE_CHECKING:",
+  "if __name__ == .__main__.:",
   "raise NotImplementedError",
   "@overload",
   "^\\s*\\.\\.\\.$",
@@ -201,7 +215,7 @@ exclude_also = [
 # Import Linter — hexagonal architecture rules, enforced in CI
 # ──────────────────────────────────────────────────────────────────────
 [tool.importlinter]
-root_packages = ["investinglab"]
+root_packages = ["investinglab", "investinglab_api"]
 include_external_packages = true
 
 [[tool.importlinter.contracts]]
@@ -278,3 +292,21 @@ name = "Use cases depend on ports, never on concrete infrastructure"
 type = "forbidden"
 source_modules = ["investinglab.services", "investinglab.ports"]
 forbidden_modules = ["httpx", "yfinance", "duckdb", "pyarrow", "fsspec", "exchange_calendars"]
+
+[[tool.importlinter.contracts]]
+name = "The API reaches the core through the toolkit, never through adapters or raw I/O"
+type = "forbidden"
+source_modules = ["investinglab_api"]
+forbidden_modules = ["investinglab.adapters", "httpx", "duckdb", "pyarrow", "matplotlib"]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "API layers: routers call use cases and mappers, which only know schemas and the core"
+type = "layers"
+layers = [
+  "investinglab_api.app",
+  "investinglab_api.routers",
+  "investinglab_api.use_cases : investinglab_api.mappers",
+  "investinglab_api.schemas",
+]
+exhaustive = false

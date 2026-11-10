@@ -1,0 +1,4222 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "InvestingLab API",
+    "summary": "Market data, portfolio analytics and simulation for the InvestingLab web app.",
+    "description": "\nREST API of **InvestingLab**: market data from several providers, portfolio analytics,\nMonte Carlo simulation, portfolio optimisation and savings plans.\n\n* Errors are [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457) Problem Details\n  (`application/problem+json`) with a documented `type`.\n* Every response carries an `X-Request-ID` (send your own to correlate logs).\n* Dates are ISO 8601: session dates for daily and coarser data, UTC instants intraday.\n* Undefined figures are `null`: no value is ever invented.\n",
+    "version": "0.1.0.dev0"
+  },
+  "paths": {
+    "/health/live": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Liveness",
+        "description": "The process is up.",
+        "operationId": "live_health_live_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Readiness",
+        "description": "The service can answer: the toolkit is wired and its providers registered.",
+        "operationId": "ready_health_ready_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/providers": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Data providers",
+        "description": "Registered providers, in order of preference, and what each can serve.",
+        "operationId": "providers_api_v1_providers_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ProviderOut"
+                  },
+                  "type": "array",
+                  "title": "Response Providers Api V1 Providers Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/modules": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Modules of the master",
+        "description": "Every registered module with its requirement \u2192 code \u2192 test traceability.",
+        "operationId": "modules_api_v1_modules_get",
+        "parameters": [
+          {
+            "name": "language",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "es",
+                "en"
+              ],
+              "type": "string",
+              "description": "Language of the texts.",
+              "default": "es",
+              "title": "Language"
+            },
+            "description": "Language of the texts."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ModuleOut"
+                  },
+                  "title": "Response Modules Api V1 Modules Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/modules/{slug}": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "One module of the master",
+        "description": "A module and its traceability.",
+        "operationId": "module_api_v1_modules__slug__get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "language",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "es",
+                "en"
+              ],
+              "type": "string",
+              "description": "Language of the texts.",
+              "default": "es",
+              "title": "Language"
+            },
+            "description": "Language of the texts."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModuleOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No module has that slug."
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/market/bars": {
+      "get": {
+        "tags": [
+          "market"
+        ],
+        "summary": "Bars of an instrument",
+        "description": "Validated bars of one instrument, with its metadata, provenance and statistics.",
+        "operationId": "bars_api_v1_market_bars_get",
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 32,
+              "pattern": "^[A-Za-z0-9.^=\\-_/:]+$",
+              "description": "Instrument symbol (Yahoo style).",
+              "examples": [
+                "SAN.MC",
+                "^GSPC",
+                "EURUSD=X",
+                "BTC-USD"
+              ],
+              "title": "Symbol"
+            },
+            "description": "Instrument symbol (Yahoo style)."
+          },
+          {
+            "name": "interval",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/Frequency",
+              "description": "Bar frequency.",
+              "default": "1d"
+            },
+            "description": "Bar frequency."
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First session (inclusive).",
+              "title": "Start"
+            },
+            "description": "First session (inclusive)."
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last session (inclusive).",
+              "title": "End"
+            },
+            "description": "Last session (inclusive)."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeriesOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No provider has the requested data.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request breaks the schema, a limit or a domain rule.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Every provider able to serve the data failed; retry later.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/market/compare": {
+      "post": {
+        "tags": [
+          "market"
+        ],
+        "summary": "Compare instruments",
+        "description": "Performance rebased to 100, drawdowns, metrics and correlation of several instruments.\n\nInstruments that cannot be obtained are listed in ``failed``; the request fails only\nwhen none can.",
+        "operationId": "compare_api_v1_market_compare_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompareRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComparisonOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No provider has the requested data.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request breaks the schema, a limit or a domain rule.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Every provider able to serve the data failed; retry later.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/market/quality": {
+      "get": {
+        "tags": [
+          "market"
+        ],
+        "summary": "Data quality of an instrument",
+        "description": "Gaps, outliers, suspected splits and stale prices, against the official calendar.",
+        "operationId": "quality_api_v1_market_quality_get",
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 32,
+              "pattern": "^[A-Za-z0-9.^=\\-_/:]+$",
+              "description": "Instrument symbol (Yahoo style).",
+              "examples": [
+                "SAN.MC",
+                "^GSPC",
+                "EURUSD=X",
+                "BTC-USD"
+              ],
+              "title": "Symbol"
+            },
+            "description": "Instrument symbol (Yahoo style)."
+          },
+          {
+            "name": "interval",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/Frequency",
+              "description": "Bar frequency.",
+              "default": "1d"
+            },
+            "description": "Bar frequency."
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First session (inclusive).",
+              "title": "Start"
+            },
+            "description": "First session (inclusive)."
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last session (inclusive).",
+              "title": "End"
+            },
+            "description": "Last session (inclusive)."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QualityOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No provider has the requested data.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request breaks the schema, a limit or a domain rule.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Every provider able to serve the data failed; retry later.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/rates/risk-free": {
+      "get": {
+        "tags": [
+          "market"
+        ],
+        "summary": "Risk-free rate",
+        "description": "Effective annual risk-free rate known at each business day (point-in-time).",
+        "operationId": "risk_free_api_v1_rates_risk_free_get",
+        "parameters": [
+          {
+            "name": "start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "description": "First business day.",
+              "title": "Start"
+            },
+            "description": "First business day."
+          },
+          {
+            "name": "currency",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Z]{3}$",
+              "description": "ISO 4217 code.",
+              "default": "EUR",
+              "title": "Currency"
+            },
+            "description": "ISO 4217 code."
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last session (inclusive).",
+              "title": "End"
+            },
+            "description": "Last session (inclusive)."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RiskFreeOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No provider has the requested data.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request breaks the schema, a limit or a domain rule.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Every provider able to serve the data failed; retry later.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/portfolios/validate": {
+      "post": {
+        "tags": [
+          "portfolios"
+        ],
+        "summary": "Validate weights",
+        "description": "Check the target weights with the domain's rules, without downloading anything.",
+        "operationId": "validate_api_v1_portfolios_validate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PortfolioIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request breaks the schema, a limit or a domain rule.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/portfolios/analytics": {
+      "post": {
+        "tags": [
+          "portfolios"
+        ],
+        "summary": "Analyse a portfolio",
+        "description": "History, metrics, drawdowns, correlation and risk decomposition of a portfolio.\n\nThe backtest follows the rebalancing policy, and Sharpe and Sortino use the risk-free\nrate known at each date.",
+        "operationId": "analytics_api_v1_portfolios_analytics_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PortfolioIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortfolioAnalyticsOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No provider has the requested data.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request breaks the schema, a limit or a domain rule.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Every provider able to serve the data failed; retry later.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/portfolios/report": {
+      "post": {
+        "tags": [
+          "portfolios"
+        ],
+        "summary": "Portfolio report (Markdown)",
+        "description": "The bilingual Markdown report of the portfolio, as the notebooks write it.",
+        "operationId": "report_api_v1_portfolios_report_post",
+        "parameters": [
+          {
+            "name": "language",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "es",
+                "en"
+              ],
+              "type": "string",
+              "description": "Report language.",
+              "default": "es",
+              "title": "Language"
+            },
+            "description": "Report language."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PortfolioIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "text/markdown; charset=utf-8": {}
+            }
+          },
+          "404": {
+            "description": "No provider has the requested data.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request breaks the schema, a limit or a domain rule.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Every provider able to serve the data failed; retry later.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/simulations": {
+      "post": {
+        "tags": [
+          "analysis"
+        ],
+        "summary": "Monte Carlo simulation",
+        "description": "Simulate the portfolio's value: fan chart, terminal distribution and tail risk.",
+        "operationId": "simulations_api_v1_simulations_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SimulationIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimulationOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No provider has the requested data.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request breaks the schema, a limit or a domain rule.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Every provider able to serve the data failed; retry later.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/optimizations": {
+      "post": {
+        "tags": [
+          "analysis"
+        ],
+        "summary": "Optimise weights",
+        "description": "Weights that best meet the objective, and the efficient frontier around them.",
+        "operationId": "optimizations_api_v1_optimizations_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OptimizationIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OptimizationOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No provider has the requested data.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request breaks the schema, a limit or a domain rule.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Every provider able to serve the data failed; retry later.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/plans": {
+      "post": {
+        "tags": [
+          "analysis"
+        ],
+        "summary": "Savings plan",
+        "description": "Odds that monthly contributions reach a goal, in today's money.",
+        "operationId": "plans_api_v1_plans_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlanIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No provider has the requested data.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request breaks the schema, a limit or a domain rule.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Every provider able to serve the data failed; retry later.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AssetClass": {
+        "type": "string",
+        "enum": [
+          "equity",
+          "etf",
+          "fund",
+          "index",
+          "bond",
+          "fx",
+          "crypto",
+          "commodity",
+          "future"
+        ],
+        "title": "AssetClass",
+        "description": "Broad asset class of an instrument."
+      },
+      "AssetPointOut": {
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
+          },
+          "expected_return": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Return"
+          },
+          "volatility": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Volatility"
+          }
+        },
+        "type": "object",
+        "required": [
+          "symbol",
+          "expected_return",
+          "volatility"
+        ],
+        "title": "AssetPointOut",
+        "description": "A holding alone, on the same axes as the frontier."
+      },
+      "BarOut": {
+        "properties": {
+          "time": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ],
+            "title": "Time",
+            "description": "Session date (daily and above) or UTC open."
+          },
+          "open": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Open"
+          },
+          "high": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "High"
+          },
+          "low": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Low"
+          },
+          "close": {
+            "type": "number",
+            "title": "Close"
+          },
+          "adj_close": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Adj Close"
+          },
+          "volume": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Volume"
+          }
+        },
+        "type": "object",
+        "required": [
+          "time",
+          "close"
+        ],
+        "title": "BarOut",
+        "description": "One bar; absent columns are ``null``."
+      },
+      "CalibrationOut": {
+        "properties": {
+          "symbols": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Symbols"
+          },
+          "weights": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Weights"
+          },
+          "annual_expected_return": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Annual Expected Return"
+          },
+          "annual_volatility": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Annual Volatility"
+          },
+          "observations": {
+            "type": "integer",
+            "title": "Observations"
+          },
+          "periods_per_year": {
+            "type": "number",
+            "title": "Periods Per Year"
+          },
+          "shrinkage": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shrinkage"
+          }
+        },
+        "type": "object",
+        "required": [
+          "symbols",
+          "weights",
+          "annual_expected_return",
+          "annual_volatility",
+          "observations",
+          "periods_per_year",
+          "shrinkage"
+        ],
+        "title": "CalibrationOut",
+        "description": "Parameters the simulation actually used (annualised)."
+      },
+      "CompareRequest": {
+        "properties": {
+          "start": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start",
+            "description": "First session (inclusive)."
+          },
+          "end": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End",
+            "description": "Last session (inclusive)."
+          },
+          "frequency": {
+            "$ref": "#/components/schemas/Frequency",
+            "description": "Bar frequency.",
+            "default": "1d"
+          },
+          "symbols": {
+            "items": {
+              "type": "string",
+              "maxLength": 32,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9.^=\\-_/:]+$",
+              "examples": [
+                "SAN.MC",
+                "^GSPC",
+                "EURUSD=X",
+                "BTC-USD"
+              ]
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Symbols",
+            "examples": [
+              [
+                "SAN.MC",
+                "BBVA.MC",
+                "^IBEX"
+              ]
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "symbols"
+        ],
+        "title": "CompareRequest",
+        "description": "Several instruments to compare on a common footing."
+      },
+      "CompareSeriesOut": {
+        "properties": {
+          "instrument": {
+            "$ref": "#/components/schemas/InstrumentOut"
+          },
+          "performance": {
+            "items": {
+              "$ref": "#/components/schemas/Point"
+            },
+            "type": "array",
+            "title": "Performance",
+            "description": "Value rebased to 100 at its first date."
+          },
+          "drawdown": {
+            "items": {
+              "$ref": "#/components/schemas/Point"
+            },
+            "type": "array",
+            "title": "Drawdown",
+            "description": "Decline from the running peak (non-positive)."
+          },
+          "stats": {
+            "$ref": "#/components/schemas/StatsOut"
+          },
+          "metrics": {
+            "$ref": "#/components/schemas/MetricsOut"
+          }
+        },
+        "type": "object",
+        "required": [
+          "instrument",
+          "performance",
+          "drawdown",
+          "stats",
+          "metrics"
+        ],
+        "title": "CompareSeriesOut",
+        "description": "One instrument of a comparison."
+      },
+      "ComparisonOut": {
+        "properties": {
+          "series": {
+            "items": {
+              "$ref": "#/components/schemas/CompareSeriesOut"
+            },
+            "type": "array",
+            "title": "Series"
+          },
+          "correlation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Matrix"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Correlation of returns on common dates (null with fewer than two series)."
+          },
+          "failed": {
+            "items": {
+              "$ref": "#/components/schemas/FailureOut"
+            },
+            "type": "array",
+            "title": "Failed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "series",
+          "correlation",
+          "failed"
+        ],
+        "title": "ComparisonOut",
+        "description": "Rebased performance, drawdowns, metrics and correlation of several instruments."
+      },
+      "CovarianceEstimator": {
+        "type": "string",
+        "enum": [
+          "sample",
+          "ledoit_wolf"
+        ],
+        "title": "CovarianceEstimator",
+        "description": "Estimator of the historical covariance."
+      },
+      "Dataset": {
+        "type": "string",
+        "enum": [
+          "bars",
+          "economic"
+        ],
+        "title": "Dataset",
+        "description": "Kind of data a provider serves."
+      },
+      "DrawdownEpisodeOut": {
+        "properties": {
+          "peak": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ],
+            "title": "Peak"
+          },
+          "trough": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ],
+            "title": "Trough"
+          },
+          "recovery": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recovery",
+            "description": "Null while not recovered."
+          },
+          "depth": {
+            "type": "number",
+            "title": "Depth"
+          },
+          "duration_periods": {
+            "type": "integer",
+            "title": "Duration Periods"
+          }
+        },
+        "type": "object",
+        "required": [
+          "peak",
+          "trough",
+          "recovery",
+          "depth",
+          "duration_periods"
+        ],
+        "title": "DrawdownEpisodeOut",
+        "description": "A peak-to-recovery episode."
+      },
+      "DriftAssumption": {
+        "type": "string",
+        "enum": [
+          "historical",
+          "zero",
+          "risk_free",
+          "assumed"
+        ],
+        "title": "DriftAssumption",
+        "description": "Expected return used to simulate."
+      },
+      "EstimateOut": {
+        "properties": {
+          "level": {
+            "type": "number",
+            "title": "Level"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          },
+          "lower": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lower"
+          },
+          "upper": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Upper"
+          },
+          "standard_error": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Standard Error"
+          }
+        },
+        "type": "object",
+        "required": [
+          "level",
+          "value",
+          "lower",
+          "upper",
+          "standard_error"
+        ],
+        "title": "EstimateOut",
+        "description": "A Monte Carlo estimate with its 95 % confidence interval."
+      },
+      "ExchangeOut": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code",
+            "description": "ISO 10383 MIC, or FX / CRYPTO."
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "timezone": {
+            "type": "string",
+            "title": "Timezone",
+            "description": "IANA timezone of the sessions."
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "name",
+          "timezone"
+        ],
+        "title": "ExchangeOut",
+        "description": "Trading venue."
+      },
+      "FailureOut": {
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "symbol",
+          "reason"
+        ],
+        "title": "FailureOut",
+        "description": "An instrument that could not be obtained."
+      },
+      "FanPointOut": {
+        "properties": {
+          "period": {
+            "type": "integer",
+            "title": "Period"
+          },
+          "p1": {
+            "type": "number",
+            "title": "P1"
+          },
+          "p5": {
+            "type": "number",
+            "title": "P5"
+          },
+          "p25": {
+            "type": "number",
+            "title": "P25"
+          },
+          "p50": {
+            "type": "number",
+            "title": "P50"
+          },
+          "p75": {
+            "type": "number",
+            "title": "P75"
+          },
+          "p95": {
+            "type": "number",
+            "title": "P95"
+          },
+          "p99": {
+            "type": "number",
+            "title": "P99"
+          }
+        },
+        "type": "object",
+        "required": [
+          "period",
+          "p1",
+          "p5",
+          "p25",
+          "p50",
+          "p75",
+          "p95",
+          "p99"
+        ],
+        "title": "FanPointOut",
+        "description": "Value percentiles at one period of the simulation."
+      },
+      "Frequency": {
+        "type": "string",
+        "enum": [
+          "1m",
+          "5m",
+          "15m",
+          "30m",
+          "1h",
+          "4h",
+          "1d",
+          "1w",
+          "1mo",
+          "1q",
+          "1y"
+        ],
+        "title": "Frequency",
+        "description": "Sampling frequency of a series, from one minute to one year."
+      },
+      "FrontierPointOut": {
+        "properties": {
+          "expected_return": {
+            "type": "number",
+            "title": "Expected Return"
+          },
+          "volatility": {
+            "type": "number",
+            "title": "Volatility"
+          },
+          "sharpe_ratio": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sharpe Ratio"
+          },
+          "weights": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Weights"
+          }
+        },
+        "type": "object",
+        "required": [
+          "expected_return",
+          "volatility",
+          "sharpe_ratio",
+          "weights"
+        ],
+        "title": "FrontierPointOut",
+        "description": "A point of the minimum-variance frontier."
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "HealthOut": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "ok",
+            "title": "Status"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "core_version": {
+            "type": "string",
+            "title": "Core Version"
+          },
+          "providers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Providers",
+            "description": "Registered providers, in order of preference."
+          },
+          "offline": {
+            "type": "boolean",
+            "title": "Offline",
+            "description": "Whether remote providers are disabled."
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "version",
+          "core_version",
+          "providers",
+          "offline"
+        ],
+        "title": "HealthOut",
+        "description": "Liveness or readiness of the service."
+      },
+      "HistogramBinOut": {
+        "properties": {
+          "lower": {
+            "type": "number",
+            "title": "Lower"
+          },
+          "upper": {
+            "type": "number",
+            "title": "Upper"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "lower",
+          "upper",
+          "count"
+        ],
+        "title": "HistogramBinOut",
+        "description": "Terminal values falling in ``[lower, upper)``."
+      },
+      "HoldingIn": {
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "maxLength": 32,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9.^=\\-_/:]+$",
+            "title": "Symbol",
+            "examples": [
+              "SAN.MC",
+              "^GSPC",
+              "EURUSD=X",
+              "BTC-USD"
+            ]
+          },
+          "weight": {
+            "type": "number",
+            "title": "Weight",
+            "description": "Target weight (decimal; negative = short)."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "symbol",
+          "weight"
+        ],
+        "title": "HoldingIn",
+        "description": "A position and its target weight."
+      },
+      "HoldingOut": {
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "asset_class": {
+            "$ref": "#/components/schemas/AssetClass"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency",
+            "description": "Currency of the original series."
+          },
+          "weight": {
+            "type": "number",
+            "title": "Weight"
+          }
+        },
+        "type": "object",
+        "required": [
+          "symbol",
+          "name",
+          "asset_class",
+          "currency",
+          "weight"
+        ],
+        "title": "HoldingOut",
+        "description": "A holding of an analysed portfolio."
+      },
+      "InstrumentOut": {
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "asset_class": {
+            "$ref": "#/components/schemas/AssetClass"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency",
+            "description": "ISO 4217 code of the prices."
+          },
+          "exchange": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExchangeOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "symbol",
+          "name",
+          "asset_class",
+          "currency",
+          "exchange"
+        ],
+        "title": "InstrumentOut",
+        "description": "What a series measures."
+      },
+      "IssueKind": {
+        "type": "string",
+        "enum": [
+          "missing_sessions",
+          "unexpected_sessions",
+          "outlier_returns",
+          "suspected_split",
+          "stale_prices",
+          "ohlc_inconsistent",
+          "zero_volume",
+          "short_history"
+        ],
+        "title": "IssueKind",
+        "description": "Kind of data-quality issue."
+      },
+      "IssueOut": {
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/IssueKind"
+          },
+          "severity": {
+            "$ref": "#/components/schemas/Severity"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count",
+            "description": "Number of affected dates (0 for whole-series issues)."
+          },
+          "examples": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Examples",
+            "description": "First affected dates."
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "severity",
+          "message",
+          "count",
+          "examples"
+        ],
+        "title": "IssueOut",
+        "description": "One data-quality issue."
+      },
+      "Matrix": {
+        "properties": {
+          "labels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Labels"
+          },
+          "values": {
+            "items": {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "title": "Values"
+          }
+        },
+        "type": "object",
+        "required": [
+          "labels",
+          "values"
+        ],
+        "title": "Matrix",
+        "description": "A square matrix with labelled rows and columns (``null`` where undefined)."
+      },
+      "MetricsOut": {
+        "properties": {
+          "start": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ],
+            "title": "Start"
+          },
+          "end": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ],
+            "title": "End"
+          },
+          "periods": {
+            "type": "integer",
+            "title": "Periods"
+          },
+          "periods_per_year": {
+            "type": "number",
+            "title": "Periods Per Year"
+          },
+          "total_return": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Return"
+          },
+          "annualized_return": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Annualized Return"
+          },
+          "annualized_volatility": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Annualized Volatility"
+          },
+          "sharpe_ratio": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sharpe Ratio"
+          },
+          "sharpe_standard_error": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sharpe Standard Error"
+          },
+          "sortino_ratio": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sortino Ratio"
+          },
+          "calmar_ratio": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Calmar Ratio"
+          },
+          "max_drawdown": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Drawdown"
+          },
+          "best_period": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Best Period"
+          },
+          "worst_period": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Worst Period"
+          },
+          "positive_ratio": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Positive Ratio"
+          },
+          "skewness": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skewness"
+          },
+          "excess_kurtosis": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Excess Kurtosis"
+          },
+          "risk_free_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Risk Free Rate",
+            "description": "Average effective annual risk-free rate used (point-in-time)."
+          },
+          "risk_free_coverage": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Risk Free Coverage",
+            "description": "Share of periods with a known risk-free rate (0 = none was available)."
+          },
+          "tail": {
+            "items": {
+              "$ref": "#/components/schemas/TailRiskOut"
+            },
+            "type": "array",
+            "title": "Tail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "start",
+          "end",
+          "periods",
+          "periods_per_year",
+          "total_return",
+          "annualized_return",
+          "annualized_volatility",
+          "sharpe_ratio",
+          "sharpe_standard_error",
+          "sortino_ratio",
+          "calmar_ratio",
+          "max_drawdown",
+          "best_period",
+          "worst_period",
+          "positive_ratio",
+          "skewness",
+          "excess_kurtosis",
+          "risk_free_rate",
+          "risk_free_coverage",
+          "tail"
+        ],
+        "title": "MetricsOut",
+        "description": "Performance and risk metrics of a return series."
+      },
+      "ModuleOut": {
+        "properties": {
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "block": {
+            "type": "string",
+            "title": "Block"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          },
+          "complete": {
+            "type": "boolean",
+            "title": "Complete"
+          },
+          "requirements": {
+            "items": {
+              "$ref": "#/components/schemas/RequirementOut"
+            },
+            "type": "array",
+            "title": "Requirements"
+          }
+        },
+        "type": "object",
+        "required": [
+          "slug",
+          "block",
+          "title",
+          "summary",
+          "complete",
+          "requirements"
+        ],
+        "title": "ModuleOut",
+        "description": "A module of the platform (a block of the master)."
+      },
+      "Objective": {
+        "type": "string",
+        "enum": [
+          "min_variance",
+          "max_sharpe",
+          "target_return",
+          "risk_parity",
+          "hrp",
+          "inverse_volatility",
+          "equal_weight"
+        ],
+        "title": "Objective",
+        "description": "What the optimisation looks for."
+      },
+      "OptimizationIn": {
+        "properties": {
+          "portfolio": {
+            "$ref": "#/components/schemas/PortfolioIn",
+            "description": "Holdings; their weights are the starting point."
+          },
+          "objective": {
+            "$ref": "#/components/schemas/Objective",
+            "default": "max_sharpe"
+          },
+          "expected_returns": {
+            "$ref": "#/components/schemas/ReturnModel",
+            "default": "historical"
+          },
+          "covariance": {
+            "$ref": "#/components/schemas/CovarianceEstimator",
+            "default": "ledoit_wolf"
+          },
+          "risk_free_rate": {
+            "type": "number",
+            "title": "Risk Free Rate",
+            "description": "Effective annual rate.",
+            "default": 0.0
+          },
+          "min_weight": {
+            "type": "number",
+            "title": "Min Weight",
+            "description": "Lowest weight of every holding.",
+            "default": 0.0
+          },
+          "max_weight": {
+            "type": "number",
+            "title": "Max Weight",
+            "description": "Highest weight of every holding.",
+            "default": 1.0
+          },
+          "target_return": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Return",
+            "description": "Annual return for objective=target_return."
+          },
+          "estimation_frequency": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Frequency"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Frequency of the returns behind the estimates (weekly by default).",
+            "default": "1w"
+          },
+          "frontier_points": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Frontier Points",
+            "description": "0 skips the frontier.",
+            "default": 30
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "portfolio"
+        ],
+        "title": "OptimizationIn",
+        "description": "Weights that best meet an objective, estimated from the holdings' history."
+      },
+      "OptimizationOut": {
+        "properties": {
+          "objective": {
+            "$ref": "#/components/schemas/Objective"
+          },
+          "observations": {
+            "type": "integer",
+            "title": "Observations",
+            "description": "Periods of history behind the estimates."
+          },
+          "shrinkage": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shrinkage"
+          },
+          "result": {
+            "$ref": "#/components/schemas/OptimizedOut"
+          },
+          "frontier": {
+            "items": {
+              "$ref": "#/components/schemas/FrontierPointOut"
+            },
+            "type": "array",
+            "title": "Frontier"
+          },
+          "assets": {
+            "items": {
+              "$ref": "#/components/schemas/AssetPointOut"
+            },
+            "type": "array",
+            "title": "Assets"
+          },
+          "minimum_variance": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OptimizedOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "maximum_sharpe": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OptimizedOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "objective",
+          "observations",
+          "shrinkage",
+          "result",
+          "frontier",
+          "assets",
+          "minimum_variance",
+          "maximum_sharpe"
+        ],
+        "title": "OptimizationOut",
+        "description": "The optimal weights and, when asked, the efficient frontier around them."
+      },
+      "OptimizedOut": {
+        "properties": {
+          "weights": {
+            "items": {
+              "$ref": "#/components/schemas/WeightOut"
+            },
+            "type": "array",
+            "title": "Weights"
+          },
+          "expected_return": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Return"
+          },
+          "volatility": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Volatility"
+          },
+          "sharpe_ratio": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sharpe Ratio"
+          },
+          "effective_number_of_assets": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effective Number Of Assets"
+          },
+          "risk_contributions": {
+            "items": {
+              "$ref": "#/components/schemas/RiskContributionOut"
+            },
+            "type": "array",
+            "title": "Risk Contributions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "weights",
+          "expected_return",
+          "volatility",
+          "sharpe_ratio",
+          "effective_number_of_assets",
+          "risk_contributions"
+        ],
+        "title": "OptimizedOut",
+        "description": "An optimised portfolio, ex ante."
+      },
+      "PlanFanPointOut": {
+        "properties": {
+          "month": {
+            "type": "integer",
+            "title": "Month"
+          },
+          "p5": {
+            "type": "number",
+            "title": "P5"
+          },
+          "p25": {
+            "type": "number",
+            "title": "P25"
+          },
+          "p50": {
+            "type": "number",
+            "title": "P50"
+          },
+          "p75": {
+            "type": "number",
+            "title": "P75"
+          },
+          "p95": {
+            "type": "number",
+            "title": "P95"
+          },
+          "contributed": {
+            "type": "number",
+            "title": "Contributed",
+            "description": "Money put in so far."
+          }
+        },
+        "type": "object",
+        "required": [
+          "month",
+          "p5",
+          "p25",
+          "p50",
+          "p75",
+          "p95",
+          "contributed"
+        ],
+        "title": "PlanFanPointOut",
+        "description": "Wealth percentiles at one month, in today's money."
+      },
+      "PlanIn": {
+        "properties": {
+          "portfolio": {
+            "$ref": "#/components/schemas/PortfolioIn"
+          },
+          "years": {
+            "type": "number",
+            "maximum": 100.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Years",
+            "default": 20
+          },
+          "initial": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Initial",
+            "description": "Money invested today.",
+            "default": 10000
+          },
+          "contribution": {
+            "type": "number",
+            "title": "Contribution",
+            "description": "Monthly contribution (negative = withdrawal).",
+            "default": 300
+          },
+          "contribution_growth": {
+            "type": "number",
+            "title": "Contribution Growth",
+            "description": "Annual growth of the contribution.",
+            "default": 0.0
+          },
+          "inflation": {
+            "type": "number",
+            "title": "Inflation",
+            "description": "Annual inflation.",
+            "default": 0.02
+          },
+          "goal": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Goal",
+            "description": "Target in today's money."
+          },
+          "n_paths": {
+            "type": "integer",
+            "minimum": 100.0,
+            "title": "N Paths",
+            "default": 5000
+          },
+          "seed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seed",
+            "default": 42
+          },
+          "success_probability": {
+            "type": "number",
+            "exclusiveMaximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Success Probability",
+            "description": "Probability for the required contribution.",
+            "default": 0.9
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "portfolio"
+        ],
+        "title": "PlanIn",
+        "description": "A savings (or withdrawal) plan invested in a portfolio."
+      },
+      "PlanOut": {
+        "properties": {
+          "months": {
+            "type": "integer",
+            "title": "Months"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "goal": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Goal"
+          },
+          "fan": {
+            "items": {
+              "$ref": "#/components/schemas/PlanFanPointOut"
+            },
+            "type": "array",
+            "title": "Fan"
+          },
+          "median_terminal_wealth": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Median Terminal Wealth"
+          },
+          "probability_of_success": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Probability Of Success"
+          },
+          "expected_shortfall": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Shortfall"
+          },
+          "probability_of_ruin": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Probability Of Ruin"
+          },
+          "required_contribution": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Required Contribution",
+            "description": "Monthly contribution that reaches the goal with success_probability."
+          },
+          "success_probability": {
+            "type": "number",
+            "title": "Success Probability"
+          }
+        },
+        "type": "object",
+        "required": [
+          "months",
+          "currency",
+          "goal",
+          "fan",
+          "median_terminal_wealth",
+          "probability_of_success",
+          "expected_shortfall",
+          "probability_of_ruin",
+          "required_contribution",
+          "success_probability"
+        ],
+        "title": "PlanOut",
+        "description": "Odds of a savings plan, in today's money."
+      },
+      "Point": {
+        "properties": {
+          "time": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ],
+            "title": "Time"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "type": "object",
+        "required": [
+          "time",
+          "value"
+        ],
+        "title": "Point",
+        "description": "A value at a date or instant (``null`` when undefined)."
+      },
+      "PortfolioAnalyticsOut": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "base_currency": {
+            "type": "string",
+            "title": "Base Currency"
+          },
+          "rebalance": {
+            "type": "string",
+            "title": "Rebalance"
+          },
+          "frequency": {
+            "$ref": "#/components/schemas/Frequency"
+          },
+          "start": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ],
+            "title": "Start"
+          },
+          "end": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ],
+            "title": "End"
+          },
+          "holdings": {
+            "items": {
+              "$ref": "#/components/schemas/HoldingOut"
+            },
+            "type": "array",
+            "title": "Holdings"
+          },
+          "metrics": {
+            "$ref": "#/components/schemas/MetricsOut"
+          },
+          "value": {
+            "items": {
+              "$ref": "#/components/schemas/Point"
+            },
+            "type": "array",
+            "title": "Value",
+            "description": "Value rebased to 100 at the first date."
+          },
+          "drawdown": {
+            "items": {
+              "$ref": "#/components/schemas/Point"
+            },
+            "type": "array",
+            "title": "Drawdown"
+          },
+          "drawdown_episodes": {
+            "items": {
+              "$ref": "#/components/schemas/DrawdownEpisodeOut"
+            },
+            "type": "array",
+            "title": "Drawdown Episodes"
+          },
+          "correlation": {
+            "$ref": "#/components/schemas/Matrix"
+          },
+          "risk_contributions": {
+            "items": {
+              "$ref": "#/components/schemas/RiskContributionOut"
+            },
+            "type": "array",
+            "title": "Risk Contributions"
+          },
+          "effective_number_of_assets": {
+            "type": "number",
+            "title": "Effective Number Of Assets"
+          },
+          "total_turnover": {
+            "type": "number",
+            "title": "Total Turnover",
+            "description": "Sum of the traded weight across rebalances."
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "base_currency",
+          "rebalance",
+          "frequency",
+          "start",
+          "end",
+          "holdings",
+          "metrics",
+          "value",
+          "drawdown",
+          "drawdown_episodes",
+          "correlation",
+          "risk_contributions",
+          "effective_number_of_assets",
+          "total_turnover"
+        ],
+        "title": "PortfolioAnalyticsOut",
+        "description": "History, metrics, co-movement and risk decomposition of a portfolio."
+      },
+      "PortfolioIn": {
+        "properties": {
+          "start": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start",
+            "description": "First session (inclusive)."
+          },
+          "end": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End",
+            "description": "Last session (inclusive)."
+          },
+          "frequency": {
+            "$ref": "#/components/schemas/Frequency",
+            "description": "Bar frequency.",
+            "default": "1d"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Name",
+            "default": "Portfolio"
+          },
+          "holdings": {
+            "items": {
+              "$ref": "#/components/schemas/HoldingIn"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Holdings",
+            "examples": [
+              [
+                {
+                  "symbol": "SAN.MC",
+                  "weight": 0.4
+                },
+                {
+                  "symbol": "ITX.MC",
+                  "weight": 0.3
+                },
+                {
+                  "symbol": "IBE.MC",
+                  "weight": 0.3
+                }
+              ]
+            ]
+          },
+          "base_currency": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Z]{3}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Currency",
+            "description": "Valuation currency; the holdings' common currency when omitted."
+          },
+          "rebalance": {
+            "$ref": "#/components/schemas/RebalanceIn"
+          },
+          "allow_short": {
+            "type": "boolean",
+            "title": "Allow Short",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "holdings"
+        ],
+        "title": "PortfolioIn",
+        "description": "A portfolio to build from market data."
+      },
+      "PriceAdjustment": {
+        "type": "string",
+        "enum": [
+          "raw",
+          "splits",
+          "splits_and_dividends"
+        ],
+        "title": "PriceAdjustment",
+        "description": "Corporate-action adjustment applied to the open/high/low/close columns.\n\nThe ``adj_close`` column, when present, is always adjusted for splits *and* dividends\n(a total-return series)."
+      },
+      "PriceField": {
+        "type": "string",
+        "enum": [
+          "open",
+          "high",
+          "low",
+          "close",
+          "adj_close",
+          "volume"
+        ],
+        "title": "PriceField",
+        "description": "Columns a price series may contain."
+      },
+      "Problem": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "title": "Type",
+            "description": "Documentation URI of the kind of problem."
+          },
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "description": "Short, stable summary of the kind of problem."
+          },
+          "status": {
+            "type": "integer",
+            "title": "Status",
+            "description": "HTTP status code."
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail",
+            "description": "Explanation of this occurrence."
+          },
+          "instance": {
+            "type": "string",
+            "title": "Instance",
+            "description": "Request identifier (``urn:request:<id>``)."
+          },
+          "errors": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ProblemError"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errors",
+            "description": "Individual problems of an invalid request."
+          },
+          "attempts": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attempts",
+            "description": "Providers tried for unavailable data, with their errors."
+          }
+        },
+        "type": "object",
+        "required": [
+          "type",
+          "title",
+          "status",
+          "detail",
+          "instance"
+        ],
+        "title": "Problem",
+        "description": "RFC 9457 Problem Details: how every error is reported."
+      },
+      "ProblemError": {
+        "properties": {
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "location": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location"
+          },
+          "type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "title": "ProblemError",
+        "description": "One problem behind an ``invalid-request`` response."
+      },
+      "ProviderOut": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "datasets": {
+            "items": {
+              "$ref": "#/components/schemas/Dataset"
+            },
+            "type": "array",
+            "title": "Datasets"
+          },
+          "asset_classes": {
+            "items": {
+              "$ref": "#/components/schemas/AssetClass"
+            },
+            "type": "array",
+            "title": "Asset Classes"
+          },
+          "frequencies": {
+            "items": {
+              "$ref": "#/components/schemas/Frequency"
+            },
+            "type": "array",
+            "title": "Frequencies"
+          },
+          "requires_api_key": {
+            "type": "boolean",
+            "title": "Requires Api Key"
+          },
+          "max_history_days": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Max History Days",
+            "description": "Look-back limit by frequency."
+          },
+          "rate_limits": {
+            "items": {
+              "$ref": "#/components/schemas/RateLimitOut"
+            },
+            "type": "array",
+            "title": "Rate Limits"
+          },
+          "identifiers": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Identifiers",
+            "description": "Pattern of the identifiers it serves."
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "datasets",
+          "asset_classes",
+          "frequencies",
+          "requires_api_key",
+          "max_history_days",
+          "rate_limits",
+          "identifiers"
+        ],
+        "title": "ProviderOut",
+        "description": "What a registered provider can serve."
+      },
+      "QualityOut": {
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
+          },
+          "observations": {
+            "type": "integer",
+            "title": "Observations"
+          },
+          "start": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ],
+            "title": "Start"
+          },
+          "end": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ],
+            "title": "End"
+          },
+          "expected_sessions": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Sessions"
+          },
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          },
+          "worst_severity": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Severity"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "issues": {
+            "items": {
+              "$ref": "#/components/schemas/IssueOut"
+            },
+            "type": "array",
+            "title": "Issues"
+          }
+        },
+        "type": "object",
+        "required": [
+          "symbol",
+          "observations",
+          "start",
+          "end",
+          "expected_sessions",
+          "ok",
+          "worst_severity",
+          "issues"
+        ],
+        "title": "QualityOut",
+        "description": "Data-quality diagnosis against the market's official calendar."
+      },
+      "RateLimitOut": {
+        "properties": {
+          "max_calls": {
+            "type": "integer",
+            "title": "Max Calls"
+          },
+          "period_seconds": {
+            "type": "number",
+            "title": "Period Seconds"
+          }
+        },
+        "type": "object",
+        "required": [
+          "max_calls",
+          "period_seconds"
+        ],
+        "title": "RateLimitOut",
+        "description": "A quota the provider is called within."
+      },
+      "RebalanceIn": {
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/RebalanceKind",
+            "default": "periodic"
+          },
+          "frequency": {
+            "$ref": "#/components/schemas/Frequency",
+            "description": "Calendar of a periodic rebalance.",
+            "default": "1mo"
+          },
+          "band": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Band",
+            "description": "Drift that triggers a threshold rebalance (decimal)."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "RebalanceIn",
+        "description": "Rebalancing policy."
+      },
+      "RebalanceKind": {
+        "type": "string",
+        "enum": [
+          "buy_and_hold",
+          "periodic",
+          "threshold"
+        ],
+        "title": "RebalanceKind",
+        "description": "How a portfolio returns to its target weights."
+      },
+      "RequirementOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "status": {
+            "$ref": "#/components/schemas/RequirementStatus"
+          },
+          "code": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Code"
+          },
+          "tests": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tests"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "status",
+          "code",
+          "tests",
+          "note"
+        ],
+        "title": "RequirementOut",
+        "description": "A requirement of a module and where it is implemented and tested."
+      },
+      "RequirementStatus": {
+        "type": "string",
+        "enum": [
+          "done",
+          "partial",
+          "pending"
+        ],
+        "title": "RequirementStatus",
+        "description": "How far a requirement is implemented."
+      },
+      "ReturnModel": {
+        "type": "string",
+        "enum": [
+          "historical",
+          "equilibrium"
+        ],
+        "title": "ReturnModel",
+        "description": "How expected returns are estimated."
+      },
+      "RiskContributionOut": {
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
+          },
+          "weight": {
+            "type": "number",
+            "title": "Weight"
+          },
+          "marginal": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Marginal"
+          },
+          "contribution": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contribution"
+          },
+          "share": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Share",
+            "description": "Share of the total risk (sums to 1)."
+          },
+          "annualized_contribution": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Annualized Contribution"
+          }
+        },
+        "type": "object",
+        "required": [
+          "symbol",
+          "weight",
+          "marginal",
+          "contribution",
+          "share"
+        ],
+        "title": "RiskContributionOut",
+        "description": "Contribution of a holding to the portfolio volatility (Euler decomposition)."
+      },
+      "RiskFreeOut": {
+        "properties": {
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "rates": {
+            "items": {
+              "$ref": "#/components/schemas/Point"
+            },
+            "type": "array",
+            "title": "Rates",
+            "description": "Decimal rates; null before any publication."
+          }
+        },
+        "type": "object",
+        "required": [
+          "currency",
+          "rates"
+        ],
+        "title": "RiskFreeOut",
+        "description": "Effective annual risk-free rate known at each business day."
+      },
+      "SeriesOut": {
+        "properties": {
+          "instrument": {
+            "$ref": "#/components/schemas/InstrumentOut"
+          },
+          "frequency": {
+            "$ref": "#/components/schemas/Frequency"
+          },
+          "adjustment": {
+            "$ref": "#/components/schemas/PriceAdjustment"
+          },
+          "price_field": {
+            "$ref": "#/components/schemas/PriceField",
+            "description": "Column used for returns and statistics."
+          },
+          "source": {
+            "$ref": "#/components/schemas/SourceOut"
+          },
+          "stats": {
+            "$ref": "#/components/schemas/StatsOut"
+          },
+          "bars": {
+            "items": {
+              "$ref": "#/components/schemas/BarOut"
+            },
+            "type": "array",
+            "title": "Bars"
+          }
+        },
+        "type": "object",
+        "required": [
+          "instrument",
+          "frequency",
+          "adjustment",
+          "price_field",
+          "source",
+          "stats",
+          "bars"
+        ],
+        "title": "SeriesOut",
+        "description": "A validated price series."
+      },
+      "Severity": {
+        "type": "string",
+        "enum": [
+          "info",
+          "warning",
+          "critical"
+        ],
+        "title": "Severity",
+        "description": "How much an issue may distort the analysis."
+      },
+      "SimulationIn": {
+        "properties": {
+          "portfolio": {
+            "$ref": "#/components/schemas/PortfolioIn"
+          },
+          "model": {
+            "$ref": "#/components/schemas/SimulationModel",
+            "default": "gbm"
+          },
+          "n_paths": {
+            "type": "integer",
+            "minimum": 100.0,
+            "title": "N Paths",
+            "description": "Simulated paths.",
+            "default": 5000
+          },
+          "horizon": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Horizon",
+            "description": "Periods ahead (sessions for 1d).",
+            "default": 252
+          },
+          "drift": {
+            "$ref": "#/components/schemas/DriftAssumption",
+            "default": "historical"
+          },
+          "expected_returns": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "additionalProperties": {
+                  "type": "number"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Returns",
+            "description": "Annual expected returns for drift=assumed."
+          },
+          "risk_free_rate": {
+            "type": "number",
+            "title": "Risk Free Rate",
+            "description": "Annual rate for drift=risk_free.",
+            "default": 0.0
+          },
+          "volatility": {
+            "$ref": "#/components/schemas/VolatilityAssumption",
+            "default": "historical"
+          },
+          "volatilities": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "additionalProperties": {
+                  "type": "number"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Volatilities",
+            "description": "Annual volatilities for volatility=assumed."
+          },
+          "covariance": {
+            "$ref": "#/components/schemas/CovarianceEstimator",
+            "default": "sample"
+          },
+          "degrees_of_freedom": {
+            "type": "number",
+            "exclusiveMinimum": 2.0,
+            "title": "Degrees Of Freedom",
+            "default": 5.0
+          },
+          "block_length": {
+            "type": "number",
+            "minimum": 1.0,
+            "title": "Block Length",
+            "default": 10.0
+          },
+          "antithetic": {
+            "type": "boolean",
+            "title": "Antithetic",
+            "default": false
+          },
+          "seed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seed",
+            "default": 42
+          },
+          "initial_value": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Initial Value",
+            "default": 10000.0
+          },
+          "confidence_levels": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Confidence Levels",
+            "default": [
+              0.95,
+              0.99
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "portfolio"
+        ],
+        "title": "SimulationIn",
+        "description": "A Monte Carlo simulation of a portfolio (one holding with weight 1 for an asset)."
+      },
+      "SimulationModel": {
+        "type": "string",
+        "enum": [
+          "gbm",
+          "student_t",
+          "bootstrap"
+        ],
+        "title": "SimulationModel",
+        "description": "Distribution of the simulated shocks."
+      },
+      "SimulationOut": {
+        "properties": {
+          "model": {
+            "$ref": "#/components/schemas/SimulationModel"
+          },
+          "n_paths": {
+            "type": "integer",
+            "title": "N Paths"
+          },
+          "horizon": {
+            "type": "integer",
+            "title": "Horizon"
+          },
+          "periods_per_year": {
+            "type": "number",
+            "title": "Periods Per Year"
+          },
+          "initial_value": {
+            "type": "number",
+            "title": "Initial Value"
+          },
+          "start": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ],
+            "title": "Start",
+            "description": "Last historical date: period 0."
+          },
+          "fan": {
+            "items": {
+              "$ref": "#/components/schemas/FanPointOut"
+            },
+            "type": "array",
+            "title": "Fan"
+          },
+          "terminal_histogram": {
+            "items": {
+              "$ref": "#/components/schemas/HistogramBinOut"
+            },
+            "type": "array",
+            "title": "Terminal Histogram"
+          },
+          "expected_terminal_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Terminal Value"
+          },
+          "median_terminal_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Median Terminal Value"
+          },
+          "probability_of_loss": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Probability Of Loss"
+          },
+          "value_at_risk": {
+            "items": {
+              "$ref": "#/components/schemas/EstimateOut"
+            },
+            "type": "array",
+            "title": "Value At Risk",
+            "description": "Loss fractions over the horizon."
+          },
+          "conditional_value_at_risk": {
+            "items": {
+              "$ref": "#/components/schemas/EstimateOut"
+            },
+            "type": "array",
+            "title": "Conditional Value At Risk"
+          },
+          "drawdown_at_risk": {
+            "items": {
+              "$ref": "#/components/schemas/EstimateOut"
+            },
+            "type": "array",
+            "title": "Drawdown At Risk",
+            "description": "Max drawdown quantiles (no CI)."
+          },
+          "calibration": {
+            "$ref": "#/components/schemas/CalibrationOut"
+          }
+        },
+        "type": "object",
+        "required": [
+          "model",
+          "n_paths",
+          "horizon",
+          "periods_per_year",
+          "initial_value",
+          "start",
+          "fan",
+          "terminal_histogram",
+          "expected_terminal_value",
+          "median_terminal_value",
+          "probability_of_loss",
+          "value_at_risk",
+          "conditional_value_at_risk",
+          "drawdown_at_risk",
+          "calibration"
+        ],
+        "title": "SimulationOut",
+        "description": "Fan chart, terminal distribution and tail risk of the simulated value."
+      },
+      "SourceOut": {
+        "properties": {
+          "provider": {
+            "type": "string",
+            "title": "Provider",
+            "description": "Provider slug (yahoo, ecb, files...)."
+          },
+          "dataset": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dataset"
+          },
+          "retrieved_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Retrieved At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider",
+          "dataset",
+          "retrieved_at"
+        ],
+        "title": "SourceOut",
+        "description": "Provenance of the data."
+      },
+      "StatsOut": {
+        "properties": {
+          "n_observations": {
+            "type": "integer",
+            "title": "N Observations"
+          },
+          "start": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ],
+            "title": "Start"
+          },
+          "end": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ],
+            "title": "End"
+          },
+          "periods_per_year": {
+            "type": "number",
+            "title": "Periods Per Year"
+          },
+          "mean_return": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean Return"
+          },
+          "std_return": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Std Return"
+          },
+          "total_return": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Return"
+          },
+          "annualized_return": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Annualized Return"
+          },
+          "annualized_volatility": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Annualized Volatility"
+          },
+          "max_drawdown": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Drawdown"
+          },
+          "skewness": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skewness"
+          },
+          "excess_kurtosis": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Excess Kurtosis"
+          }
+        },
+        "type": "object",
+        "required": [
+          "n_observations",
+          "start",
+          "end",
+          "periods_per_year",
+          "mean_return",
+          "std_return",
+          "total_return",
+          "annualized_return",
+          "annualized_volatility",
+          "max_drawdown",
+          "skewness",
+          "excess_kurtosis"
+        ],
+        "title": "StatsOut",
+        "description": "Statistics computed when the series was built (per period unless annualised)."
+      },
+      "TailRiskOut": {
+        "properties": {
+          "level": {
+            "type": "number",
+            "title": "Level"
+          },
+          "method": {
+            "type": "string",
+            "title": "Method"
+          },
+          "value_at_risk": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value At Risk"
+          },
+          "conditional_value_at_risk": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Conditional Value At Risk"
+          }
+        },
+        "type": "object",
+        "required": [
+          "level",
+          "method",
+          "value_at_risk",
+          "conditional_value_at_risk"
+        ],
+        "title": "TailRiskOut",
+        "description": "VaR and CVaR per period, as positive loss fractions."
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "ValidationOut": {
+        "properties": {
+          "valid": {
+            "type": "boolean",
+            "title": "Valid"
+          },
+          "total_weight": {
+            "type": "number",
+            "title": "Total Weight"
+          },
+          "problems": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Problems"
+          }
+        },
+        "type": "object",
+        "required": [
+          "valid",
+          "total_weight",
+          "problems"
+        ],
+        "title": "ValidationOut",
+        "description": "Whether the weights form a valid portfolio (before downloading anything)."
+      },
+      "VolatilityAssumption": {
+        "type": "string",
+        "enum": [
+          "historical",
+          "assumed"
+        ],
+        "title": "VolatilityAssumption",
+        "description": "Volatility used to simulate."
+      },
+      "WeightOut": {
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
+          },
+          "weight": {
+            "type": "number",
+            "title": "Weight"
+          },
+          "previous_weight": {
+            "type": "number",
+            "title": "Previous Weight"
+          }
+        },
+        "type": "object",
+        "required": [
+          "symbol",
+          "weight",
+          "previous_weight"
+        ],
+        "title": "WeightOut",
+        "description": "Optimised weight of a holding and the one it replaces."
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "market",
+      "description": "Bars, comparisons, data quality and risk-free rates."
+    },
+    {
+      "name": "portfolios",
+      "description": "Validation, analytics and reports of portfolios."
+    },
+    {
+      "name": "analysis",
+      "description": "Monte Carlo, optimisation and savings plans."
+    },
+    {
+      "name": "system",
+      "description": "Providers and modules of the master."
+    },
+    {
+      "name": "health",
+      "description": "Liveness and readiness probes."
+    }
+  ]
+}

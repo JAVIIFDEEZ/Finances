@@ -55,6 +55,16 @@ hooks:
 record-fixtures *only:
     uv run python scripts/record_fixtures.py {{ only }}
 
+# ── Applications ──────────────────────────────────────────────────────
+
+# Serve the REST API with live reload (http://127.0.0.1:8000/docs).
+api:
+    uv run investinglab-api --reload
+
+# Write the API contract (OpenAPI) that the web client is generated from.
+openapi:
+    uv run investinglab-api --openapi apps/api/openapi.json
+
 # ── Documentation ─────────────────────────────────────────────────────
 
 # Serve the documentation site with live reload.

@@ -63,6 +63,7 @@ __all__ = [
     "PortfolioBacktest",
     "RebalanceKind",
     "RebalancePolicy",
+    "weight_problems",
 ]
 
 WEIGHT_TOLERANCE: Final = 1e-6
@@ -208,6 +209,34 @@ class PortfolioBacktest:
         return drawdown_episodes(self._values, top=top)
 
 
+def weight_problems(
+    weights: Sequence[tuple[str, float]], *, allow_short: bool = False
+) -> list[str]:
+    """Why ``(symbol, weight)`` pairs cannot be a portfolio's target weights (empty if valid).
+
+    The same rules :class:`Portfolio` enforces, usable before any series is downloaded: at
+    least one holding, no duplicated symbols, finite weights summing to 1 within
+    :data:`WEIGHT_TOLERANCE` and no negative weights unless ``allow_short``.
+    """
+    problems: list[str] = []
+    if not weights:
+        problems.append("at least one holding is required")
+    symbols = [symbol for symbol, _ in weights]
+    duplicated = sorted({s for s in symbols if symbols.count(s) > 1})
+    if duplicated:
+        problems.append(f"duplicated symbols {duplicated}")
+    infinite = [symbol for symbol, weight in weights if not math.isfinite(weight)]
+    if infinite:
+        problems.append(f"weights must be finite numbers, not for {infinite}")
+    total = math.fsum(weight for _, weight in weights if math.isfinite(weight))
+    if weights and not infinite and abs(total - 1.0) > WEIGHT_TOLERANCE:
+        problems.append(f"weights must sum to 1, got {total:.6f}")
+    shorts = [symbol for symbol, weight in weights if weight < 0]
+    if shorts and not allow_short:
+        problems.append(f"negative weights for {shorts}; pass allow_short=True to allow them")
+    return problems
+
+
 @dataclass(frozen=True, slots=True)
 class Holding:
     """A position in a portfolio: a price series and its target weight."""
@@ -268,18 +297,9 @@ class Portfolio:
         problems: list[str] = []
         if not self.name.strip():
             problems.append("name must not be empty")
-        if not holdings:
-            problems.append("at least one holding is required")
-        symbols = [h.symbol for h in holdings]
-        duplicated = sorted({s for s in symbols if symbols.count(s) > 1})
-        if duplicated:
-            problems.append(f"duplicated symbols {duplicated}")
-        total = math.fsum(h.weight for h in holdings)
-        if holdings and abs(total - 1.0) > WEIGHT_TOLERANCE:
-            problems.append(f"weights must sum to 1, got {total:.6f}")
-        shorts = [h.symbol for h in holdings if h.weight < 0]
-        if shorts and not self.allow_short:
-            problems.append(f"negative weights for {shorts}; pass allow_short=True to allow them")
+        problems.extend(
+            weight_problems([(h.symbol, h.weight) for h in holdings], allow_short=self.allow_short)
+        )
         frequencies = sorted({h.series.frequency.value for h in holdings})
         if len(frequencies) > 1:
             problems.append(f"mixed frequencies {frequencies}; resample to a common one")

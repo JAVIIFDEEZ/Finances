@@ -1,0 +1,554 @@
+"""Translation of domain objects into response schemas (no business logic here).
+
+Every figure the core computes is passed through as it is; the mappers only change its
+shape (DataFrames to lists, timestamps to ISO dates) and turn undefined numbers (NaN) into
+``null``, because JSON has no NaN.
+"""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Final
+
+import numpy as np
+import pandas as pd
+
+from investinglab import __version__ as core_version
+from investinglab.domain.series import PriceField
+from investinglab_api import __version__
+from investinglab_api.schemas.analysis import (
+    AssetPointOut,
+    CalibrationOut,
+    EstimateOut,
+    FanPointOut,
+    FrontierPointOut,
+    HistogramBinOut,
+    OptimizationOut,
+    OptimizedOut,
+    PlanFanPointOut,
+    PlanOut,
+    SimulationOut,
+    WeightOut,
+)
+from investinglab_api.schemas.common import Matrix, Point, finite
+from investinglab_api.schemas.market import (
+    BarOut,
+    CompareSeriesOut,
+    ComparisonOut,
+    ExchangeOut,
+    FailureOut,
+    InstrumentOut,
+    IssueOut,
+    MetricsOut,
+    QualityOut,
+    SeriesOut,
+    SourceOut,
+    StatsOut,
+    TailRiskOut,
+)
+from investinglab_api.schemas.meta import (
+    HealthOut,
+    ModuleOut,
+    ProviderOut,
+    RateLimitOut,
+    RequirementOut,
+    RiskFreeOut,
+)
+from investinglab_api.schemas.portfolio import (
+    DrawdownEpisodeOut,
+    HoldingOut,
+    PortfolioAnalyticsOut,
+    RiskContributionOut,
+)
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping, Sequence
+    from datetime import date, datetime
+
+    from investinglab.domain.instruments import Instrument
+    from investinglab.domain.metrics import RiskMetrics
+    from investinglab.domain.optimization import EfficientFrontier, OptimizationResult
+    from investinglab.domain.planning import PlanResult
+    from investinglab.domain.portfolio import Portfolio
+    from investinglab.domain.quality import DataQualityReport
+    from investinglab.domain.series import DataSource, PriceSeries, SeriesStats
+    from investinglab.domain.simulation import SimulationResult
+    from investinglab.modules import ModuleInfo
+    from investinglab.ports import ProviderCapabilities
+    from investinglab.services import BatchResult
+
+__all__ = [
+    "comparison_out",
+    "health_out",
+    "metrics_out",
+    "module_out",
+    "optimization_out",
+    "plan_out",
+    "portfolio_analytics_out",
+    "provider_out",
+    "quality_out",
+    "risk_free_out",
+    "series_out",
+    "simulation_out",
+]
+
+ISSUE_EXAMPLES: Final = 10
+"""Affected dates listed per data-quality issue."""
+HISTOGRAM_BINS: Final = 40
+"""Bins of the terminal-value histogram."""
+BASE: Final = 100.0
+"""Value of a rebased series at its first date."""
+
+
+# ── Primitives ───────────────────────────────────────────────────────
+
+
+def _time(stamp: pd.Timestamp | datetime | date) -> date | datetime:
+    """A session date for midnight labels without timezone, the instant otherwise."""
+    moment = pd.Timestamp(stamp)
+    if moment.tzinfo is None and moment == moment.normalize():
+        return moment.date()
+    return moment.to_pydatetime()
+
+
+def _points(series: pd.Series) -> list[Point]:
+    return [
+        Point(time=_time(stamp), value=finite(float(value)))
+        for stamp, value in zip(pd.DatetimeIndex(series.index), series.to_numpy(), strict=True)
+    ]
+
+
+def _matrix(frame: pd.DataFrame) -> Matrix:
+    return Matrix(
+        labels=[str(label) for label in frame.columns],
+        values=[[finite(float(value)) for value in row] for row in frame.to_numpy()],
+    )
+
+
+def _rebased(values: pd.Series) -> pd.Series:
+    observed = values.dropna()
+    first = float(observed.iloc[0])
+    return observed * (BASE / first)
+
+
+# ── Market data ──────────────────────────────────────────────────────
+
+
+def instrument_out(instrument: Instrument) -> InstrumentOut:
+    """An instrument's metadata."""
+    exchange = instrument.exchange
+    return InstrumentOut(
+        symbol=instrument.symbol,
+        name=instrument.name,
+        asset_class=instrument.asset_class,
+        currency=str(instrument.currency),
+        exchange=(
+            None
+            if exchange is None
+            else ExchangeOut(code=exchange.code, name=exchange.name, timezone=exchange.timezone)
+        ),
+    )
+
+
+def _source_out(source: DataSource) -> SourceOut:
+    return SourceOut(
+        provider=source.provider, dataset=source.dataset, retrieved_at=source.retrieved_at
+    )
+
+
+def _stats_out(stats: SeriesStats) -> StatsOut:
+    return StatsOut(
+        n_observations=stats.n_observations,
+        start=_time(stats.start),
+        end=_time(stats.end),
+        periods_per_year=stats.periods_per_year,
+        mean_return=finite(stats.mean_return),
+        std_return=finite(stats.std_return),
+        total_return=finite(stats.total_return),
+        annualized_return=finite(stats.annualized_return),
+        annualized_volatility=finite(stats.annualized_volatility),
+        max_drawdown=finite(stats.max_drawdown),
+        skewness=finite(stats.skewness),
+        excess_kurtosis=finite(stats.excess_kurtosis),
+    )
+
+
+def _bars(series: PriceSeries) -> list[BarOut]:
+    frame = series.bars
+    columns = {field: frame[field].to_numpy() for field in PriceField if field in frame.columns}
+    bars: list[BarOut] = []
+    for position, stamp in enumerate(pd.DatetimeIndex(frame.index)):
+        values = {str(field): finite(float(column[position])) for field, column in columns.items()}
+        bars.append(BarOut(time=_time(stamp), **values))  # type: ignore[arg-type]
+    return bars
+
+
+def series_out(series: PriceSeries) -> SeriesOut:
+    """A series with its bars and statistics."""
+    return SeriesOut(
+        instrument=instrument_out(series.instrument),
+        frequency=series.frequency,
+        adjustment=series.adjustment,
+        price_field=series.price_field,
+        source=_source_out(series.source),
+        stats=_stats_out(series.stats),
+        bars=_bars(series),
+    )
+
+
+def metrics_out(metrics: RiskMetrics) -> MetricsOut:
+    """Risk metrics."""
+    return MetricsOut(
+        start=_time(metrics.start),
+        end=_time(metrics.end),
+        periods=metrics.periods,
+        periods_per_year=metrics.periods_per_year,
+        total_return=finite(metrics.total_return),
+        annualized_return=finite(metrics.annualized_return),
+        annualized_volatility=finite(metrics.annualized_volatility),
+        sharpe_ratio=finite(metrics.sharpe_ratio),
+        sharpe_standard_error=finite(metrics.sharpe_standard_error),
+        sortino_ratio=finite(metrics.sortino_ratio),
+        calmar_ratio=finite(metrics.calmar_ratio),
+        max_drawdown=finite(metrics.max_drawdown),
+        best_period=finite(metrics.best_period),
+        worst_period=finite(metrics.worst_period),
+        positive_ratio=finite(metrics.positive_ratio),
+        skewness=finite(metrics.skewness),
+        excess_kurtosis=finite(metrics.excess_kurtosis),
+        risk_free_rate=finite(metrics.risk_free_rate),
+        risk_free_coverage=finite(metrics.risk_free_coverage),
+        tail=[
+            TailRiskOut(
+                level=tail.level,
+                method=str(tail.method),
+                value_at_risk=finite(tail.value_at_risk),
+                conditional_value_at_risk=finite(tail.conditional_value_at_risk),
+            )
+            for tail in metrics.tail
+        ],
+    )
+
+
+def comparison_out(
+    batch: BatchResult[PriceSeries],
+    metrics: Mapping[str, RiskMetrics],
+    correlation: pd.DataFrame | None,
+) -> ComparisonOut:
+    """Rebased performance, drawdowns, metrics and correlation of a batch."""
+    return ComparisonOut(
+        series=[
+            CompareSeriesOut(
+                instrument=instrument_out(series.instrument),
+                performance=_points(_rebased(series.prices)),
+                drawdown=_points(series.drawdown()),
+                stats=_stats_out(series.stats),
+                metrics=metrics_out(metrics[symbol]),
+            )
+            for symbol, series in batch.succeeded.items()
+        ],
+        correlation=None if correlation is None else _matrix(correlation),
+        failed=[
+            FailureOut(symbol=symbol, reason=failure.message)
+            for symbol, failure in batch.failed.items()
+        ],
+    )
+
+
+def quality_out(report: DataQualityReport) -> QualityOut:
+    """A data-quality diagnosis."""
+    return QualityOut(
+        symbol=report.symbol,
+        observations=report.observations,
+        start=_time(report.start),
+        end=_time(report.end),
+        expected_sessions=report.expected_sessions,
+        ok=report.ok,
+        worst_severity=report.worst_severity,
+        issues=[
+            IssueOut(
+                kind=issue.kind,
+                severity=issue.severity,
+                message=issue.message,
+                count=len(issue.timestamps),
+                examples=[_time(stamp) for stamp in issue.timestamps[:ISSUE_EXAMPLES]],
+            )
+            for issue in report.issues
+        ],
+    )
+
+
+def risk_free_out(currency: str, rates: pd.Series) -> RiskFreeOut:
+    """Point-in-time risk-free rates."""
+    return RiskFreeOut(currency=currency, rates=_points(rates))
+
+
+# ── Portfolios ───────────────────────────────────────────────────────
+
+
+def _contributions(table: pd.DataFrame) -> list[RiskContributionOut]:
+    annualized = "annualized_contribution" in table.columns
+    return [
+        RiskContributionOut(
+            symbol=str(symbol),
+            weight=float(row["weight"]),
+            marginal=finite(float(row["marginal"])),
+            contribution=finite(float(row["contribution"])),
+            share=finite(float(row["share"])),
+            annualized_contribution=(
+                finite(float(row["annualized_contribution"])) if annualized else None
+            ),
+        )
+        for symbol, row in table.iterrows()
+    ]
+
+
+def _episodes(table: pd.DataFrame) -> list[DrawdownEpisodeOut]:
+    return [
+        DrawdownEpisodeOut(
+            peak=_time(row["peak"]),
+            trough=_time(row["trough"]),
+            recovery=None if pd.isna(row["recovery"]) else _time(row["recovery"]),
+            depth=float(row["depth"]),
+            duration_periods=int(row["duration_periods"]),
+        )
+        for _, row in table.iterrows()
+    ]
+
+
+def portfolio_analytics_out(portfolio: Portfolio, metrics: RiskMetrics) -> PortfolioAnalyticsOut:
+    """History, metrics, correlation and risk decomposition of a portfolio."""
+    backtest = portfolio.backtest()
+    return PortfolioAnalyticsOut(
+        name=portfolio.name,
+        base_currency=str(portfolio.base_currency),
+        rebalance=str(portfolio.rebalance),
+        frequency=portfolio.frequency,
+        start=_time(backtest.start),
+        end=_time(backtest.end),
+        holdings=[
+            HoldingOut(
+                symbol=holding.symbol,
+                name=holding.series.instrument.name,
+                asset_class=holding.series.instrument.asset_class,
+                currency=str(holding.series.currency),
+                weight=holding.weight,
+            )
+            for holding in portfolio
+        ],
+        metrics=metrics_out(metrics),
+        value=_points(_rebased(backtest.values)),
+        drawdown=_points(backtest.drawdown()),
+        drawdown_episodes=_episodes(backtest.drawdown_episodes()),
+        correlation=_matrix(portfolio.correlation()),
+        risk_contributions=_contributions(portfolio.risk_contributions()),
+        effective_number_of_assets=portfolio.effective_number_of_assets,
+        total_turnover=backtest.total_turnover,
+    )
+
+
+# ── Simulation, optimisation, plans ──────────────────────────────────
+
+
+def _estimate(level: float, estimate: object) -> EstimateOut:
+    return EstimateOut(
+        level=level,
+        value=finite(getattr(estimate, "value", None)),
+        lower=finite(getattr(estimate, "lower", None)),
+        upper=finite(getattr(estimate, "upper", None)),
+        standard_error=finite(getattr(estimate, "standard_error", None)),
+    )
+
+
+def _histogram(values: np.ndarray) -> list[HistogramBinOut]:
+    counts, edges = np.histogram(values[np.isfinite(values)], bins=HISTOGRAM_BINS)
+    return [
+        HistogramBinOut(lower=float(edges[i]), upper=float(edges[i + 1]), count=int(counts[i]))
+        for i in range(len(counts))
+    ]
+
+
+def simulation_out(result: SimulationResult) -> SimulationOut:
+    """Fan chart, terminal distribution and tail risk."""
+    config = result.config
+    fan = result.percentile_paths((1, 5, 25, 50, 75, 95, 99))
+    calibration = result.calibration
+    levels = config.confidence_levels
+    return SimulationOut(
+        model=config.model,
+        n_paths=result.n_paths,
+        horizon=result.horizon,
+        periods_per_year=calibration.periods_per_year,
+        initial_value=config.initial_value,
+        start=_time(result.start),
+        fan=[
+            FanPointOut(period=period, **{str(k): float(v) for k, v in row.items()})
+            for period, row in enumerate(fan.to_dict("records"))  # periods 0..horizon
+        ],
+        terminal_histogram=_histogram(result.terminal_values),
+        expected_terminal_value=finite(result.expected_terminal_value),
+        median_terminal_value=finite(result.median_terminal_value),
+        probability_of_loss=finite(result.probability_of_loss),
+        value_at_risk=[_estimate(level, result.value_at_risk(level)) for level in levels],
+        conditional_value_at_risk=[
+            _estimate(level, result.conditional_value_at_risk(level)) for level in levels
+        ],
+        drawdown_at_risk=[
+            EstimateOut(
+                level=level,
+                value=finite(result.drawdown_at_risk(level)),
+                lower=None,
+                upper=None,
+                standard_error=None,
+            )
+            for level in levels
+        ],
+        calibration=CalibrationOut(
+            symbols=list(calibration.symbols),
+            weights=[float(w) for w in calibration.weights],
+            annual_expected_return=[
+                finite(float(v)) for v in calibration.annual_expected_return.to_numpy()
+            ],
+            annual_volatility=[finite(float(v)) for v in calibration.annual_volatility.to_numpy()],
+            observations=calibration.observations,
+            periods_per_year=calibration.periods_per_year,
+            shrinkage=finite(calibration.shrinkage),
+        ),
+    )
+
+
+def _optimized(result: OptimizationResult) -> OptimizedOut:
+    previous = result.previous_weights
+    return OptimizedOut(
+        weights=[
+            WeightOut(
+                symbol=str(symbol),
+                weight=float(weight),
+                previous_weight=float(previous.get(symbol, 0.0)),
+            )
+            for symbol, weight in result.weights.items()
+        ],
+        expected_return=finite(result.expected_return),
+        volatility=finite(result.volatility),
+        sharpe_ratio=finite(result.sharpe_ratio),
+        effective_number_of_assets=finite(result.effective_number_of_assets),
+        risk_contributions=_contributions(result.risk_contributions),
+    )
+
+
+def optimization_out(
+    result: OptimizationResult, frontier: EfficientFrontier | None
+) -> OptimizationOut:
+    """The optimal weights and the efficient frontier around them."""
+    symbols: Sequence[str] = result.estimates.symbols
+    points = frontier.points if frontier is not None else pd.DataFrame()
+    assets = frontier.assets if frontier is not None else pd.DataFrame()
+    return OptimizationOut(
+        objective=result.config.objective,
+        observations=result.estimates.observations,
+        shrinkage=finite(result.estimates.shrinkage),
+        result=_optimized(result),
+        frontier=[
+            FrontierPointOut(
+                expected_return=float(row["expected_return"]),
+                volatility=float(row["volatility"]),
+                sharpe_ratio=finite(float(row["sharpe_ratio"])),
+                weights={symbol: float(row[symbol]) for symbol in symbols},
+            )
+            for _, row in points.iterrows()
+        ],
+        assets=[
+            AssetPointOut(
+                symbol=str(symbol),
+                expected_return=finite(float(row["expected_return"])),
+                volatility=finite(float(row["volatility"])),
+            )
+            for symbol, row in assets.iterrows()
+        ],
+        minimum_variance=None if frontier is None else _optimized(frontier.minimum_variance),
+        maximum_sharpe=(
+            None
+            if frontier is None or frontier.maximum_sharpe is None
+            else _optimized(frontier.maximum_sharpe)
+        ),
+    )
+
+
+def plan_out(result: PlanResult, probability: float) -> PlanOut:
+    """Odds of a savings plan, in today's money."""
+    fan = result.percentile_paths((5, 25, 50, 75, 95))
+    contributed = result.contributed()
+    required = None if result.plan.goal is None else result.required_contribution(probability)
+    return PlanOut(
+        months=result.months,
+        currency=result.currency,
+        goal=result.plan.goal,
+        fan=[
+            PlanFanPointOut(
+                month=month,
+                contributed=float(contributed[month]),
+                **{str(k): float(v) for k, v in row.items()},
+            )
+            for month, row in enumerate(fan.to_dict("records"))  # months 0..months
+        ],
+        median_terminal_wealth=finite(result.median_terminal_wealth),
+        probability_of_success=finite(result.probability_of_success),
+        expected_shortfall=finite(result.expected_shortfall),
+        probability_of_ruin=finite(result.probability_of_ruin),
+        required_contribution=finite(required),
+        success_probability=probability,
+    )
+
+
+# ── Service metadata ─────────────────────────────────────────────────
+
+
+def health_out(providers: Sequence[str], *, offline: bool) -> HealthOut:
+    """Health of the service."""
+    return HealthOut(
+        status="ok",
+        version=__version__,
+        core_version=core_version,
+        providers=list(providers),
+        offline=offline,
+    )
+
+
+def provider_out(name: str, capabilities: ProviderCapabilities) -> ProviderOut:
+    """What a provider serves."""
+    return ProviderOut(
+        name=name,
+        datasets=sorted(capabilities.datasets),
+        asset_classes=sorted(capabilities.asset_classes),
+        frequencies=sorted(capabilities.frequencies, key=lambda frequency: frequency.rank),
+        requires_api_key=capabilities.requires_api_key,
+        max_history_days={
+            frequency.value: limit.days for frequency, limit in capabilities.max_history.items()
+        },
+        rate_limits=[
+            RateLimitOut(max_calls=limit.max_calls, period_seconds=limit.period_seconds)
+            for limit in capabilities.rate_limits
+        ],
+        identifiers=capabilities.identifiers,
+    )
+
+
+def module_out(module: ModuleInfo, language: str) -> ModuleOut:
+    """A module of the master with its traceability."""
+    return ModuleOut(
+        slug=module.slug,
+        block=module.block,
+        title=module.title(language),
+        summary=module.summary(language),
+        complete=module.complete,
+        requirements=[
+            RequirementOut(
+                id=requirement.id,
+                title=requirement.title(language),
+                status=requirement.status,
+                code=list(requirement.code),
+                tests=list(requirement.tests),
+                note=requirement.note(language),
+            )
+            for requirement in module.requirements
+        ],
+    )
