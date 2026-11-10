@@ -16,11 +16,11 @@ actualiza el estado del antiguo.
 | [0007](0007-time-representation.md) | Representación temporal: UTC en intradía y etiquetas de sesión en diario | Aceptado |
 | [0008](0008-alignment-without-artificial-fill.md) | Alineación de calendarios sin relleno artificial | Aceptado |
 | [0009](0009-point-in-time-economic-series.md) | Series macroeconómicas bitemporales (*point-in-time*) | Aceptado |
-| [0010](0010-multi-provider-ingestion.md) | Ingesta multifuente: puertos, registro, routing con *fallback* y lotes | Aceptado |
+| [0010](0010-multi-provider-ingestion.md) | Ingesta multifuente: puertos, registro, routing con *fallback* y lotes | Aceptado, ampliado por [0026](0026-ecb-reference-rates-and-identifier-routing.md) |
 | [0011](0011-parquet-duckdb-cache.md) | Caché de datos de mercado en Parquet consultada con DuckDB | Aceptado, ampliado por [0019](0019-bounded-memory-and-incremental-cache.md) |
 | [0012](0012-resilient-http-client.md) | Cliente HTTP común: reintentos, cuotas e higiene de secretos | Aceptado, ampliado por [0022](0022-same-origin-redirects-and-error-hygiene.md); su párrafo sobre Yahoo, sustituido por [0025](0025-yahoo-chart-adapter-and-cassettes.md) |
 | [0013](0013-risk-metrics-and-portfolio-engine.md) | Métricas de riesgo, correlaciones y motor de valoración de carteras | Aceptado, ampliado por [0021](0021-union-calendar-annualisation-and-portfolio-memo.md) |
-| [0014](0014-currency-conversion-and-risk-free-rate.md) | Conversión de divisas *as-of* y tipo libre de riesgo por divisa | Aceptado, ampliado por [0020](0020-risk-free-rate-conventions.md) |
+| [0014](0014-currency-conversion-and-risk-free-rate.md) | Conversión de divisas *as-of* y tipo libre de riesgo por divisa | Aceptado, ampliado por [0020](0020-risk-free-rate-conventions.md) y [0026](0026-ecb-reference-rates-and-identifier-routing.md) |
 | [0015](0015-data-quality-diagnostics.md) | Diagnóstico de calidad de datos con calendarios oficiales | Aceptado |
 | [0016](0016-monte-carlo-engine.md) | Motor Monte Carlo vectorizado con rebalanceo dentro de cada trayectoria | Aceptado, ampliado por [0017](0017-bilingual-reports-and-charts.md), [0019](0019-bounded-memory-and-incremental-cache.md) y [0024](0024-goal-based-planning.md) |
 | [0017](0017-bilingual-reports-and-charts.md) | Informes Markdown bilingües, gráficos de informe y delegación diferida del dominio | Aceptado |
@@ -32,6 +32,7 @@ actualiza el estado del antiguo.
 | [0023](0023-portfolio-optimization.md) | Optimización de carteras: objetivos, estimadores y resolución | Aceptado |
 | [0024](0024-goal-based-planning.md) | Planificación por objetivos: planes de ahorro con Monte Carlo mensual | Aceptado |
 | [0025](0025-yahoo-chart-adapter-and-cassettes.md) | Yahoo Finance con el endpoint *chart* y pruebas con casetes grabadas | Aceptado |
+| [0026](0026-ecb-reference-rates-and-identifier-routing.md) | El BCE como fuente oficial de divisas y tipos del euro, con enrutado por identificadores | Aceptado |
 
 ## Cómo añadir un ADR
 

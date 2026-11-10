@@ -4,10 +4,14 @@ InvestingLab descarga datos de varias fuentes con la misma interfaz: pides un s�
 fechas y una frecuencia, y recibes una `PriceSeries` validada. El `Toolkit` prueba las fuentes
 en orden de prioridad y pasa a la siguiente si una falla (ver [Guía del Toolkit](toolkit.md)).
 
-| Fuente | Clave | Qué sirve | Notas |
-|--------|-------|-----------|-------|
-| Ficheros locales | No | Lo que haya en tu carpeta | Sin red; ver la guía del Toolkit |
-| **Yahoo Finance** | No | Acciones, ETFs, fondos, índices, divisas, cripto y futuros | Registrada por defecto |
+| Orden | Fuente | Clave | Qué sirve |
+|-------|--------|-------|-----------|
+| 1 | Ficheros locales | No | Lo que haya en tu carpeta (sin red; ver la guía del Toolkit) |
+| 2 | **BCE** | No | Tipos de referencia del euro (divisas, diario) y €STR y tipos oficiales |
+| 3 | **Yahoo Finance** | No | Acciones, ETFs, fondos, índices, divisas, cripto y futuros |
+
+Cada fuente declara qué símbolos sirve, así que una acción va directa a Yahoo y `EURUSD=X`
+diario al BCE.
 
 ## Yahoo Finance
 
@@ -64,6 +68,25 @@ Para datos intradía hay que indicar `start`: sin él, el registro no elige Yaho
 
 Yahoo no tiene API oficial ni publica cuotas. El adaptador se limita a 4 peticiones por
 segundo y 1 500 por hora, reintenta los errores transitorios y respeta `Retry-After`.
+
+## Banco Central Europeo
+
+```python
+with Toolkit.from_settings() as tk:
+    eurusd = tk.series("EURUSD=X", start="2020-01-01")  # dólares por euro, oficial
+    usdeur = tk.series("USDEUR=X", start="2020-01-01")  # su inverso
+    gbpusd = tk.series("GBPUSD=X", start="2020-01-01")  # cruce: dos tipos del mismo día
+    tipos = tk.risk_free("EUR", eurusd.bars.index)  # €STR conocido en cada fecha
+```
+
+* **Divisas.** Los tipos de referencia de las 14:15 CET, publicados hacia las 16:00, de las
+  30 divisas que publica el BCE. Cada barra lleva solo el cierre y la fecha del *fixing*; los
+  festivos TARGET no tienen barra. Los pares sin euro se calculan con los dos tipos del mismo
+  día. Para intradía, o para un par sin tipo de referencia, responde Yahoo.
+* **Tipos de interés.** €STR (`EST.B.EU000A2X2A25.WT`) y los tipos oficiales del BCE
+  (`FM.D.U2.EUR.4F.KR.DFR.LEV`, `…MRR_FR…`, `…MLFR…`). Cada valor lleva el día en que se
+  conoció: €STR, el siguiente día hábil TARGET; los tipos oficiales, su propia fecha. Son la
+  fuente por defecto del tipo libre de riesgo en euros, sin necesidad de clave de FRED.
 
 ## Trabajar sin red
 

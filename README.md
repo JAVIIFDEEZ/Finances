@@ -12,8 +12,9 @@ Plataforma personal de análisis de mercados financieros:
 Se amplía módulo a módulo con lo aprendido en el Máster MIAX, con calidad de producto: arquitectura
 hexagonal verificada en CI, tipado estricto y tests de propiedades.
 
-> **Estado.** El núcleo del taller B1-T1 está implementado y descarga datos de Yahoo Finance
-> sin clave, además de tus propios ficheros. Quedan Alpha Vantage, FRED/ALFRED y el BCE.
+> **Estado.** El núcleo del taller B1-T1 está implementado y descarga datos sin clave de
+> Yahoo Finance y del BCE (divisas oficiales y €STR), además de tus propios ficheros. Quedan
+> Alpha Vantage y FRED/ALFRED, que necesitan clave.
 > Detalle por requisito: [matriz de trazabilidad](docs/modules/b1-toolkit.md). Hoja de ruta:
 > [plan maestro](docs/plan/plan-maestro.md).
 
@@ -21,7 +22,7 @@ hexagonal verificada en CI, tipado estricto y tests de propiedades.
 
 | Área | Capacidades |
 |------|-------------|
-| **Datos** | Descarga simultánea de N series. Yahoo Finance sin clave (acciones, ETFs, índices, divisas, cripto y futuros, de 1 minuto a 1 año) y ficheros propios (CSV/Parquet). Enrutado por capacidades y *fallback* entre proveedores, reintentos y límites de llamadas, caché Parquet + DuckDB. |
+| **Datos** | Descarga simultánea de N series. Yahoo Finance (acciones, ETFs, índices, divisas, cripto y futuros, de 1 minuto a 1 año) y BCE (tipos de referencia y €STR *point-in-time*), sin claves, y ficheros propios (CSV/Parquet). Enrutado por capacidades y *fallback* entre proveedores, reintentos y límites de llamadas, caché Parquet + DuckDB. |
 | **Calidad** | Validación estricta en los bordes. Detección, sin borrar nada, de outliers, splits sospechosos, precios congelados, OHLC incoherente y huecos frente al calendario oficial de cada mercado. |
 | **Series y carteras** | `PriceSeries` y `Portfolio` inmutables con estadísticos al crearse. Rebalanceo periódico, por bandas o comprar y mantener. Conversión de divisas *as-of*. Correlaciones y contribución al riesgo (Euler). |
 | **Riesgo** | Sharpe (con su intervalo de confianza), Sortino y Calmar. VaR/CVaR histórico, normal y Cornish-Fisher. Episodios de caída. Tipo libre de riesgo *point-in-time*. |
@@ -75,7 +76,7 @@ La demo completa del taller está en
 ### Fuentes de datos
 
 Los símbolos siguen el estilo de Yahoo (`SAN.MC`, `VOD.L`, `^GSPC`, `EURUSD=X`, `BTC-USD`) y se
-descargan sin clave. Las barras se etiquetan con su fecha de sesión, la sesión en curso no se
+descargan sin clave. Las divisas diarias y el tipo libre de riesgo en euros salen del BCE. Las barras se etiquetan con su fecha de sesión, la sesión en curso no se
 incluye y las cotizaciones en peniques se pasan a libras: [fuentes de datos](docs/guide/data-sources.md).
 Con `INVESTINGLAB_OFFLINE=true` solo se usan tus ficheros y la caché.
 
