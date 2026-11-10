@@ -31,7 +31,8 @@ packages/investinglab/   núcleo: librería Python pura (usable desde un noteboo
   tests/         unit/, property/, contract/, integration/, fixtures/, support/
 notebooks/       demos ejecutables, versionadas SIN resultados
 scripts/         utilidades de desarrollo (grabación de casetes)
-apps/api/        FastAPI (fase F6)        apps/web/   Next.js (fase F8)
+apps/api/        API REST FastAPI sin estado (ADR-0027): app → routers → use_cases/mappers → schemas
+apps/web/        Next.js (fase F8)
 docs/            Zensical: guide/, adr/, architecture/, plan/, reference/, modules/
 ```
 
@@ -46,6 +47,8 @@ docs/            Zensical: guide/, adr/, architecture/, plan/, reference/, modul
    necesitan.
 3. `services` y `ports` dependen de abstracciones, nunca de `httpx`, `duckdb`, `yfinance`…
 4. Cero lógica de negocio en routers de la API: validar → llamar caso de uso → mapear schema.
+   La API solo habla con el núcleo a través del `Toolkit` (nunca con `adapters`) y sus
+   errores son Problem Details (RFC 9457) con un `type` documentado en `docs/guide/api.md`.
 5. Nuevo proveedor = nuevo adaptador en `adapters/providers/<nombre>/` que implementa
    `MarketDataProvider` y/o `EconomicDataProvider`, declara sus `ProviderCapabilities`, usa
    `HttpClient` para la red y se registra en `ProviderRegistry`. Nada más cambia.
@@ -95,6 +98,8 @@ uv run just test-fast [args]  # pytest -x sin cobertura
 uv run just docs              # web de documentación con recarga en vivo
 uv run just traceability      # regenerar docs/modules/ desde el registro de módulos
 uv run just record-fixtures   # regrabar las casetes de los proveedores (necesita red)
+uv run just api               # API en http://127.0.0.1:8000/docs, con recarga
+uv run just openapi           # regenerar apps/api/openapi.json (un test exige que esté al día)
 ```
 
 ## Tests

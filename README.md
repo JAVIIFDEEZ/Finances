@@ -95,6 +95,12 @@ adjustment = "splits_and_dividends"
 
 Formato completo, columnas reconocidas y opciones: [guía del Toolkit](docs/guide/toolkit.md).
 
+## API
+
+`uv run just api` arranca la API REST en <http://127.0.0.1:8000/docs>: datos de mercado,
+análisis de carteras, Monte Carlo, optimización y planes de ahorro, con errores RFC 9457 y un
+contrato OpenAPI versionado en `apps/api/openapi.json`. Detalle: [guía de la API](docs/guide/api.md).
+
 ## Arquitectura
 
 ```
@@ -135,4 +141,4 @@ Convenciones del repositorio (ramas, commits, reglas de datos y de arquitectura)
 | `packages/investinglab` | Núcleo: librería Python con arquitectura hexagonal |
 | `notebooks/` | Demos ejecutables (se versionan sin resultados) |
 | `docs/` | Documentación (Zensical): guías, arquitectura, ADRs, módulos y referencia |
-| `apps/` | API (FastAPI) y web (Next.js), a partir de las fases F6 y F8 |
+| `apps/api/` | API REST (FastAPI) sobre el núcleo; la web (Next.js) llega en la fase F8 |
