@@ -1,0 +1,26 @@
+[project]
+name = "investinglab-api"
+version = "0.1.0.dev0"
+description = "InvestingLab REST API: market data, portfolio analytics, Monte Carlo, optimization and savings plans over HTTP."
+readme = "README.md"
+requires-python = ">=3.13"
+authors = [{ name = "Javier Fernández" }]
+classifiers = [
+  "Private :: Do Not Upload",
+  "Programming Language :: Python :: 3 :: Only",
+  "Typing :: Typed",
+]
+dependencies = [
+  "investinglab",
+  "fastapi>=0.162.4",
+  "uvicorn[standard]>=0.54.0",
+  "pydantic>=2.14.2",
+  "pydantic-settings>=2.16.2",
+]
+
+[project.scripts]
+investinglab-api = "investinglab_api.__main__:main"
+
+[build-system]
+requires = ["uv_build>=0.13.6,<0.14"]
+build-backend = "uv_build"
