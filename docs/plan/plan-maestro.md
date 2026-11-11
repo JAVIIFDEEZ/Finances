@@ -358,10 +358,13 @@ Investigué el estado actual de cada proveedor. Los límites de los planes gratu
 | **Global-q (Hou-Xue-Zhang)** y **Goyal-Welch** | Factores q5; predictores macro clásicos (dp, ep, tms, dfy, infl…) | M, A | Sin clave | Vistos en los notebooks del máster (con `tidyfinance` como referencia) | F11 |
 | **SIX Market Signal** (SIX 1BBO) | Cotizaciones (bid/ask) y operaciones de más de 4.000 acciones europeas, BME incluida, por ISIN | Tiempo real (solo el día en curso) | Token (`pk_…`) | Prueba de 1 mes con 1 petición/s y sin redistribución. Base de analítica de liquidez (spread en pb) | F11 |
 | **Cboe** | Histórico del VIX y otros índices de volatilidad | D | Sin clave | | F11 |
-| **ccxt** (Binance, Kraken, Coinbase, KuCoin…) | OHLCV cripto con histórico completo, order books, funding | 1m… | Endpoints públicos | Sustituye a los clientes propios de CryptoWorld | F12 |
-| **CoinGecko** | Capitalización, dominancia, metadatos | D | Clave demo gratuita | | F12 |
-| **Blockchain.com, Blockchair, DefiLlama** | Métricas on-chain, multichain, TVL | D | Sin clave | Portadas de CryptoWorld, más DefiLlama | F12 |
-| **alternative.me, CryptoCompare** | Fear & Greed cripto, noticias | D | Sin clave / clave | Portadas de CryptoWorld | F12 |
+| **ccxt** (Binance, Bybit, OKX, Kraken, Coinbase) | Velas cripto con histórico completo y flujo por vela; funding, interés abierto, foto del libro y ratio de largos y cortos donde hay perpetuos | 1m…1mo | Endpoints públicos | Sustituye a los clientes propios de CryptoWorld; varios *venues* con la misma interfaz | G1 |
+| **data.binance.vision** | Volcados históricos de velas y de operaciones agregadas | 1m… | Sin clave | Histórico largo sin gastar cuota de la API | G1, G11 |
+| **CoinGecko** | Capitalización, dominancia, metadatos | D | Clave demo gratuita | La clave demo no es de uso comercial | G1 |
+| **alternative.me** | Fear & Greed cripto | D | Sin clave | Portada de CryptoWorld | G1 |
+| **Deribit** | Superficie de opciones de BTC y ETH (volatilidad implícita, *skew*) | Fotos | Endpoints públicos | Solo cripto; detrás del puerto `OptionsDataProvider` | G5 |
+| **Blockscout, Blockchain.com, Blockchair, DefiLlama** | Métricas on-chain, transferencias y direcciones en varias cadenas, TVL | D, eventos | Sin clave | Portadas de CryptoWorld, más DefiLlama | G9 |
+| **CryptoCompare** | Noticias cripto | Eventos | Clave | Portada de CryptoWorld | G10 |
 | **Massive** (antes Polygon) | Agregados de EE. UU. | 1m…1d | Clave gratuita | 5 peticiones/min, 2 años de histórico | Backlog |
 | **CFTC COT** | Posicionamiento en futuros | W | Sin clave | | Backlog |
 | **GDELT, Finnhub (noticias)** | Noticias y tono | Eventos | Varía | Futuro módulo de sentimiento | Backlog |
@@ -384,7 +387,7 @@ Investigué el estado actual de cada proveedor. Los límites de los planes gratu
 | Equities e índices, diario | Yahoo → Tiingo → Alpha Vantage |
 | Equities EE. UU., intradía | Alpaca → Yahoo → Alpha Vantage |
 | FX | BCE → FRED → Yahoo |
-| Cripto | ccxt (Binance) → ccxt (Kraken) → CoinGecko |
+| Cripto | ccxt (Binance) → ccxt (Kraken) → Yahoo (`BTC-USD`) como último recurso |
 | Macro | FRED/ALFRED → BCE → DBnomics |
 
 **Almacenamiento:**
@@ -512,22 +515,34 @@ La conversión a tipo por periodo usa la convención del mercado monetario (ACT/
 
 ## 9. Integración con CryptoWorld (respuesta a tu punto 15)
 
-**Qué hay en CryptoWorld:**
-- Django 5 + DRF + Celery/Redis, y un frontend React/Vite. Unas 25k líneas.
-- Clientes para Binance, KuCoin y CoinGecko con cadena de fallback.
-- Un motor de análisis técnico de unas 900 líneas: RSI, MACD, Bollinger, medias, SAR, *signals dashboard*, patrones de velas, predicción con Random Forest y backtesting.
-- Métricas on-chain (Blockchain.com, Blockchair), noticias (CryptoCompare), Fear & Greed, alertas, cartera con largos y cortos, y 2FA.
+**Qué hay en CryptoWorld.** La primera versión de esta sección describía una versión muy anterior. La rama `develop` (1.346.1, octubre de 2026) es bastante más:
 
-**Propuesta: migración progresiva (*strangler*) hacia esta plataforma**, sin integrarse por HTTP con CryptoWorld ni crear una librería compartida.
+| Esta sección decía | `develop` 1.346.1 tiene |
+|---|---|
+| «Unas 25k líneas» | Unas 77k de backend (49k de código y 28k de tests) y 36k de frontend |
+| «Clientes para Binance, KuCoin y CoinGecko con cadena de *fallback*» | 9 clientes, entre ellos ccxt para órdenes reales, Deribit para opciones y Blockscout para cuatro cadenas |
+| «Motor de análisis técnico de unas 900 líneas» | Indicadores, panel de señales, acción del precio (FVG, *order blocks*, barridas de liquidez, CRT, AMD, ORB), estructura de precio y ficha de confluencia |
+| «Predicción con Random Forest y *backtesting*» | Conjunto de modelos con validación cruzada purgada, calibración y predicción conformal; backtest con costes, deslizamiento, funding, cortos y relleno a la apertura siguiente, y una suite de robustez completa |
+| (no aparecía) | Generador genético y NSGA-II sobre una gramática de estrategias, registro de pruebas, deflación por el número real de pruebas, CPCV, meta-modelo, incubación |
+| (no aparecía) | *Paper trading*, gestión de órdenes con límites y *kill-switch*, ejecución real, análisis de costes de ejecución |
+| (no aparecía) | HAR, carry, factores cripto, opciones, rupturas estructurales, calendario económico con estudio de eventos, estacionalidad |
+
+**El detalle está en [Integración de CryptoWorld](integracion-cryptoworld.md)**: inventario de los 19 módulos, mapa de correspondencia pieza a pieza, arquitectura destino, fases G0-G13 y matriz de paridad.
+
+**Propuesta: migración progresiva (*strangler*) hacia esta plataforma**, sin integrarse por HTTP con CryptoWorld ni crear una librería compartida. Los dos proyectos son complementarios: CryptoWorld aporta amplitud funcional y rigor estadístico; esta plataforma, el modelo de datos multiactivo y la calidad de ingeniería. Donde se solapan (HRP, VaR/CVaR, contribución al riesgo, correlaciones, calidad de datos, divisas, Monte Carlo) se queda la versión de aquí.
 
 | Pieza de CryptoWorld | Destino en la nueva plataforma |
 |----------------------|--------------------------------|
-| Clientes de Binance y KuCoin | **ccxt**: un solo adaptador para más de 100 exchanges con la misma interfaz. |
-| Cliente de CoinGecko, on-chain, noticias, Fear & Greed | Adaptadores que implementan los puertos del núcleo, devolviendo objetos de dominio. |
-| Motor de análisis técnico | `investinglab.analytics.technical`, **generalizado a cualquier `PriceSeries`** (también acciones e índices), tipado y con tests de propiedades. La librería `ta` está sin mantenimiento: los indicadores básicos se implementan vectorizados con NumPy, o con TA-Lib (decisión en un ADR). |
-| Predicción ML y backtesting | Se reescriben con un protocolo anti-*look-ahead* (walk-forward). Tienen más sentido en el bloque del máster dedicado a ML, como módulo propio. |
-| Alertas y Celery | Worker de jobs de la plataforma (fase F13). |
-| Pantallas (velas, Fear & Greed, multichain…) | Sección "Cripto" del frontend, reutilizando el diseño de los componentes. |
+| Clientes de exchange | **ccxt**: un solo adaptador para varios *venues* con la misma interfaz (G1). |
+| CoinGecko, on-chain, noticias, Fear & Greed | Adaptadores que implementan puertos del núcleo y devuelven objetos de dominio (G1, G9, G10). |
+| Análisis técnico, patrones y estructura | `investinglab.analytics.technical` y `analytics.patterns`, **generalizados a cualquier `PriceSeries`**, en NumPy y con tests de paridad y de propiedades (G2). |
+| Backtest y validación | `analytics.backtest` y `analytics.validation`, con costes por mercado, calendario y mundos nulos como puerta (G3). |
+| Generador de estrategias y ML | Laboratorio de investigación, con el número de pruebas tomado del registro de experimentos (G4). |
+| Volatilidad, carry y relaciones entre activos | `analytics`, con endpoint y pantalla (G5). |
+| Cartera del usuario | Libro de operaciones con lotes y divisas; el riesgo, con el motor de aquí (G6). |
+| *Paper trading* y ejecución | Dominio de órdenes rediseñado y proceso `apps/trader` aparte, apagado por defecto (G7). |
+| Alertas, notificaciones y Celery | Reglas de alerta, canales tras un puerto y el *worker* de la plataforma (G0b, G8). |
+| Autenticación | No se porta: se usa la de la sección 8. |
 
 CryptoWorld sigue funcionando tal cual mientras dura la migración. Cuando la nueva plataforma cubra sus funcionalidades, podrás archivarlo o mantenerlo como proyecto académico del TFG.
 
@@ -665,11 +680,34 @@ Cada fase va en su rama `feat/*`, con commits Conventional pequeños, y se cierr
 | **F9** | `feat/web-core-screens` | Dashboard, Explorador, Constructor, Análisis, Simulador; Vitest + Playwright | **Plataforma completa → `v0.2.0`** |
 | **F10** | `chore/containers` | Dockerfiles multi-stage sin root, compose completo (api, web, postgres), CI de imágenes, `just dev` levanta todo | Un comando |
 | **F11** | `feat/data-expansion` | Tiingo, Alpaca (intradía), SEC EDGAR (fundamentales point-in-time y filings), OpenFIGI (maestro de instrumentos), DBnomics, Eurostat, Banco de España, INE, US Treasury, Kenneth French, Cboe | Catálogo de datos |
-| **F12** | `feat/crypto` | ccxt, CoinGecko, on-chain, Fear & Greed, noticias; análisis técnico generalizado (portado de CryptoWorld); sección Cripto | Integración CryptoWorld |
+| **F12 → G0-G13** | varias | La integración de CryptoWorld no es una fase sino un programa: ver [Integración de CryptoWorld](integracion-cryptoworld.md) y la tabla siguiente | Paridad con CryptoWorld |
 | **F13** | `feat/jobs` | Worker (refrescos programados, alertas, simulaciones largas) — ADR: Procrastinate (cola sobre Postgres, sin Redis) frente a Taskiq + Redis; notificaciones en tiempo real por SSE | Plataforma "viva" |
 | **F14** | `chore/cloud` | Parquet en almacenamiento de objetos, secretos, observabilidad (OpenTelemetry + Sentry), backups, despliegue (ADR: Railway, Fly.io o VPS + Caddy) | Producción |
 
 Fases F0–F5: cumplen el taller al 100 %. Fases F6–F10: la plataforma. Fases F11 en adelante: crecimiento.
+
+### Programa de integración de CryptoWorld (G0-G13)
+
+Sustituye a F12. G0 reúne las fases F6, F7, F13 y F10 de la tabla anterior y se reparte en tres partes, intercaladas con las fases que no dependen de toda ella (decisión del 11-11-2026). El orden de trabajo es el de la tabla; el contenido completo y el criterio de terminado de cada fase están en [Integración de CryptoWorld, sección 8](integracion-cryptoworld.md#8-plan-por-fases-para-elevar-finances).
+
+| Fase | Contenido | Hito |
+|------|-----------|------|
+| **G0a** | Persistencia (F6): PostgreSQL, SQLAlchemy asíncrono y Alembic; propietario en todas las tablas; registro *append-only* con *hash* encadenado; carteras guardadas | Plataforma con estado |
+| **G1** | Datos cripto y derivados: ccxt (varios *venues*), flujo por vela (delta y CVD), funding e interés abierto, universo *point-in-time*, CoinGecko, Fear & Greed | Cripto como clase de activo |
+| **G2** | Análisis técnico multiactivo (indicadores, patrones, estructura, confluencia multimarco) y ficha de activo | Misma ficha para `SAN.MC`, `^GSPC`, `EURUSD=X` y `BTC/USDT` |
+| **G0b** | Trabajos en segundo plano (F13) y observabilidad mínima | Trabajos largos con `202` y seguimiento |
+| **G3** | Backtest con costes por mercado, validación anti-sobreajuste, mundos nulos como test nocturno y metodología | Backtest con veredicto e incertidumbre |
+| **G4** | Laboratorio de estrategias: gramática, algoritmo genético, NSGA-II, registro de experimentos, ML con *baseline* | Menos del 5 % de falsos positivos por *preset* |
+| **G5** | Volatilidad (HAR), Índice de Fragilidad, mesa de carry, régimen, lead-lag, correlaciones, rupturas, estacionalidad y estudio de eventos | Todo con endpoint, pantalla y nota de metodología |
+| **G0c** | Acceso con usuario (F7) y contenedores (F10) | Lista para guardar datos personales |
+| **G6** | Libro de operaciones con lotes y divisas; riesgo del libro, estrés observado y atribución por factor | Cartera real mixta valorada en euros |
+| **G7** | *Paper trading* y ejecución propia: órdenes con máquina de estados, *outbox*, `apps/trader` apagado por defecto | Cinco tests de fallo en verde |
+| **G8** | Alertas con disparo por flanco, notificaciones (app, email, push, Telegram, *webhook*) y tiempo real por SSE | **Mismo nivel funcional que CryptoWorld en lo esencial** |
+| **G9** | On-chain y forense | Sección «Cripto · On-chain» |
+| **G10** | Noticias y sentimiento | `NewsProvider` y `SentimentProvider` |
+| **G11** | Orderflow: `apps/collector`, *footprint*, perfil de volumen, liquidaciones | Orderflow con estudio de evidencias |
+| **G12** | Preparado para SaaS (opcional) | Solo tras revisar licencias de datos y regulación |
+| **G13** | Retirada de CryptoWorld | Matriz de paridad completa |
 
 ---
 
@@ -682,6 +720,12 @@ pública (sin polars), divisa base y tipo libre de riesgo, modelos de Monte Carl
 (Better Auth + JWKS), la API sirve datos y no gráficos, cliente generado con orval y migración
 desde CryptoWorld.
 
+Previstos para el programa de integración de CryptoWorld: 0029 persistencia y multiusuario;
+0030 cola de trabajos; 0031 tipos `FlowSeries` y `RateSeries`; 0032 registro de capacidades de
+producto; 0033 indicadores en NumPy; 0034 gráfico de velas; 0035 motor de backtest y modelo de
+costes; 0036 mundos nulos como puerta; 0037 `apps/trader` y *outbox*; 0038 custodia de claves;
+0039 tiempo real.
+
 ---
 
 ## 15. Decisiones confirmadas (31-10-2026)
@@ -691,14 +735,17 @@ desde CryptoWorld.
 3. **Merges:** los PR se mergean a `development` cuando la CI está en verde.
 4. **Macro:** FRED/ALFRED en modo point-in-time por defecto (misma clave de API para ambos).
 5. **Claves pendientes de conseguir:** FRED y Alpha Vantage (F2); Tiingo, Alpaca y CoinGecko (F11–F12).
-6. **CryptoWorld:** migración progresiva (sección 9).
+6. **CryptoWorld:** migración progresiva (sección 9), con el programa G0-G13 de [Integración de CryptoWorld](integracion-cryptoworld.md) (11-11-2026).
 
 ## 16. Dominios a permitir en el entorno de cloud
 
 - **F2:** `query1.finance.yahoo.com`, `query2.finance.yahoo.com`, `fc.yahoo.com`, `finance.yahoo.com`, `guce.yahoo.com`, `www.alphavantage.co`, `api.stlouisfed.org`, `data-api.ecb.europa.eu`
 - **F2 (FRED sin clave):** `fred.stlouisfed.org`
 - **F11:** `api.marketsignal.six-group.com`, `global-q.org`, `api.tiingo.com`, `data.alpaca.markets`, `www.sec.gov`, `data.sec.gov`, `api.openfigi.com`, `api.db.nomics.world`, `ec.europa.eu`, `www.bde.es`, `servicios.ine.es`, `api.fiscaldata.treasury.gov`, `home.treasury.gov`, `mba.tuck.dartmouth.edu`, `cdn.cboe.com`
-- **F12:** `api.binance.com`, `api.kraken.com`, `api.exchange.coinbase.com`, `api.kucoin.com`, `api.coingecko.com`, `api.blockchain.info`, `api.blockchair.com`, `api.llama.fi`, `api.alternative.me`, `min-api.cryptocompare.com`
+- **G1 (datos cripto):** `api.binance.com`, `fapi.binance.com`, `data-api.binance.vision`, `data.binance.vision`, `api.bybit.com`, `www.okx.com`, `api.kraken.com`, `api.exchange.coinbase.com`, `api.coingecko.com`, `api.alternative.me`
+- **G5 (opciones):** `www.deribit.com`
+- **G9 (on-chain):** `api.blockchain.info`, `api.blockchair.com`, `api.llama.fi` y las instancias de Blockscout que se usen (por ejemplo `eth.blockscout.com`)
+- **G10 (noticias):** `min-api.cryptocompare.com`
 
 ## 17. Aprendizajes de los notebooks del máster (Drive, 31-10-2026)
 
