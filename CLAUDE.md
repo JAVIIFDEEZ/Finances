@@ -32,7 +32,8 @@ packages/investinglab/   núcleo: librería Python pura (usable desde un noteboo
 notebooks/       demos ejecutables, versionadas SIN resultados
 scripts/         utilidades de desarrollo (grabación de casetes)
 apps/api/        API REST FastAPI sin estado (ADR-0027): app → routers → use_cases/mappers → schemas
-apps/web/        Next.js (fase F8)
+apps/web/        web Next.js 16 + TypeScript estricto (ADR-0028): src/app (pantallas), src/components,
+                 src/lib/api (cliente generado de apps/api/openapi.json), e2e/ (Playwright)
 docs/            Zensical: guide/, adr/, architecture/, plan/, reference/, modules/
 ```
 
@@ -98,8 +99,12 @@ uv run just test-fast [args]  # pytest -x sin cobertura
 uv run just docs              # web de documentación con recarga en vivo
 uv run just traceability      # regenerar docs/modules/ desde el registro de módulos
 uv run just record-fixtures   # regrabar las casetes de los proveedores (necesita red)
-uv run just api               # API en http://127.0.0.1:8000/docs, con recarga
-uv run just openapi           # regenerar apps/api/openapi.json (un test exige que esté al día)
+uv run just web-install       # instalar las dependencias de la web (pnpm; `just dev` lo hace si faltan)
+uv run just dev               # API (:8000) y web (http://localhost:3000) a la vez
+uv run just api               # solo la API, en http://127.0.0.1:8000/docs, con recarga
+uv run just openapi           # regenerar el contrato de la API y los tipos de la web (CI lo exige)
+uv run just web-check         # lint + typecheck + Vitest + build de la web
+uv run just web-e2e           # Playwright con la API sin red sobre datos sintéticos
 ```
 
 ## Tests
@@ -109,6 +114,11 @@ uv run just openapi           # regenerar apps/api/openapi.json (un test exige q
   `tests/fixtures/cassettes/<proveedor>/` con `just record-fixtures` y reproducidas con
   `support.cassettes` (URL y parámetros exactos). No se editan a mano.
 - Todo proveedor nuevo se añade como caso del contrato `tests/contract/`.
+- Web: Vitest para la lógica (`src/lib/__tests__/`) y Playwright de extremo a extremo con
+  la API real sin red sobre ficheros **sintéticos** (`e2e/synthetic_data.py`).
+- Gráficos de la web: ECharts con la paleta validada de `src/lib/theme/tokens.ts`; colores
+  ligados a la entidad, una tabla o lista de cifras junto a cada gráfico, nunca NaN en
+  pantalla («—»).
 - Los datos sintéticos (p. ej. GBM con semilla) van en una carpeta aparte y se nombran como
   sintéticos. Nunca se presentan como datos de mercado reales.
 - Factorías y estrategias de Hypothesis en `tests/support/` (importables como `support.*`):

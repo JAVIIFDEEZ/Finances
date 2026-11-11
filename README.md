@@ -95,6 +95,21 @@ adjustment = "splits_and_dividends"
 
 Formato completo, columnas reconocidas y opciones: [guía del Toolkit](docs/guide/toolkit.md).
 
+## Web
+
+```bash
+uv run just web-install   # una vez (Node 22 y pnpm)
+uv run just dev           # API y web: abre http://localhost:3000
+```
+
+Interfaz de terminal financiero en español e inglés, con tema oscuro y claro:
+* visión general de mercados;
+* explorador con velas, calidad de datos y comparación;
+* constructor y análisis de carteras;
+* Monte Carlo, optimización con frontera eficiente y planes de ahorro.
+
+Guía: [cómo ver la web](docs/guide/web.md).
+
 ## API
 
 `uv run just api` arranca la API REST en <http://127.0.0.1:8000/docs>: datos de mercado,
@@ -141,4 +156,5 @@ Convenciones del repositorio (ramas, commits, reglas de datos y de arquitectura)
 | `packages/investinglab` | Núcleo: librería Python con arquitectura hexagonal |
 | `notebooks/` | Demos ejecutables (se versionan sin resultados) |
 | `docs/` | Documentación (Zensical): guías, arquitectura, ADRs, módulos y referencia |
-| `apps/api/` | API REST (FastAPI) sobre el núcleo; la web (Next.js) llega en la fase F8 |
+| `apps/api/` | API REST (FastAPI) sobre el núcleo |
+| `apps/web/` | Web (Next.js 16) sobre la API |
