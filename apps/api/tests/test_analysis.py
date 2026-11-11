@@ -143,3 +143,16 @@ def test_a_plan_without_a_goal_has_no_required_contribution(
     assert body["goal"] is None
     assert body["probability_of_success"] is None
     assert body["required_contribution"] is None
+
+
+def test_an_assumed_return_replaces_the_historical_drift(
+    client: TestClient, portfolio: Callable[..., Body]
+) -> None:
+    plan = {"portfolio": portfolio(), "years": 20, "contribution": 300, "n_paths": 1_000}
+
+    flat = client.post("/api/v1/plans", json={**plan, "expected_return": 0.0}).json()
+    growing = client.post("/api/v1/plans", json={**plan, "expected_return": 0.08}).json()
+    invalid = client.post("/api/v1/plans", json={**plan, "expected_return": -1.5})
+
+    assert growing["median_terminal_wealth"] > flat["median_terminal_wealth"] * 1.5
+    assert invalid.status_code == 422
