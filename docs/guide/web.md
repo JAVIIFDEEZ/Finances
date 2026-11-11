@@ -67,7 +67,17 @@ pnpm dev
 
 ## Problemas frecuentes
 
-* **«La API no responde»**: arranca la API (`uv run just api`) o usa `uv run just dev`.
+* **«API sin conexión»** (un aviso arriba en todas las pantallas): la API no está en marcha
+  u **otro programa ocupa su puerto** (8000). `uv run just dev` comprueba los puertos antes de
+  arrancar y dice cuál está ocupado. Para saber qué programa es:
+  `Get-Process -Id (Get-NetTCPConnection -LocalPort 8000 -State Listen).OwningProcess` en
+  PowerShell o `lsof -i :8000` en Linux y macOS. Ciérralo o usa otro puerto con
+  `INVESTINGLAB_API_PORT=8010`: con `just dev`, la web lo sigue sola. En cuanto la API
+  responde, la web se recupera sin recargar la página.
+* **`uv` no se reconoce** en una terminal: no está en el PATH de esa terminal. Abre una nueva
+  después de instalarlo, o mira dónde está en una terminal donde sí funcione
+  (`(Get-Command uv).Source` en PowerShell) y añade esa carpeta al PATH. Con el entorno del
+  proyecto activado, `investinglab-api --reload` arranca la API sin pasar por uv.
 * **La página se queda en «Cargando…»** con `just dev`: ábrela en <http://localhost:3000>
   o <http://127.0.0.1:3000>. En desarrollo, Next.js no sirve sus recursos internos a otros
   *hosts*; usa `uv run just preview` o añade el *host* a `allowedDevOrigins` en
