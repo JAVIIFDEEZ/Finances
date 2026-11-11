@@ -16,6 +16,9 @@ const securityHeaders = [
 const config: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  // In development Next.js only serves its own resources (live reload) to localhost: without
+  // this, the page opened at http://127.0.0.1:3000 never becomes interactive.
+  allowedDevOrigins: ["127.0.0.1"],
   // Some sources (the ECB portal) can take over 30 s on a cold cache: give the proxy room.
   experimental: { proxyTimeout: 120_000 },
   async rewrites() {
