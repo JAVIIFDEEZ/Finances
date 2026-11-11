@@ -92,6 +92,17 @@ dev:
     (cd apps/web && pnpm dev) &
     wait
 
+# Like dev, but the production build of the web app: faster pages, no live reload.
+preview:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    [ -d apps/web/node_modules ] || (cd apps/web && pnpm install)
+    (cd apps/web && pnpm build)
+    trap 'kill 0' EXIT INT TERM
+    uv run investinglab-api &
+    (cd apps/web && pnpm start) &
+    wait
+
 # ── Documentation ─────────────────────────────────────────────────────
 
 # Serve the documentation site with live reload.

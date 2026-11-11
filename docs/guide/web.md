@@ -55,6 +55,7 @@ pnpm dev
 | Comando | Qué hace |
 |---------|----------|
 | `uv run just web` | Solo la web con recarga (necesita la API en marcha) |
+| `uv run just preview` | API y *build* de producción de la web: páginas más rápidas, sin recarga |
 | `uv run just web-check` | `lint`, `typecheck`, tests unitarios (Vitest) y *build* |
 | `uv run just web-e2e` | Tests de extremo a extremo (Playwright) con datos sintéticos |
 | `uv run just openapi` | Regenera el contrato de la API y los tipos del cliente web |
@@ -62,6 +63,10 @@ pnpm dev
 ## Problemas frecuentes
 
 * **«La API no responde»**: arranca la API (`uv run just api`) o usa `uv run just dev`.
+* **La página se queda en «Cargando…»** con `just dev`: ábrela en <http://localhost:3000>
+  o <http://127.0.0.1:3000>. En desarrollo, Next.js no sirve sus recursos internos a otros
+  *hosts*; usa `uv run just preview` o añade el *host* a `allowedDevOrigins` en
+  `apps/web/next.config.ts`.
 * **Un símbolo no aparece**: Yahoo usa sufijos por mercado (`.MC` Madrid, `.DE` Xetra,
   `.L` Londres, `.PA` París). Algunos índices no publican su divisa (`^STOXX50E`) y la
   plataforma no la adivina.
