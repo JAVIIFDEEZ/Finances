@@ -30,7 +30,7 @@ packages/investinglab/   núcleo: librería Python pura (usable desde un noteboo
     toolkit.py   fachada pública y composition root para notebooks (ADR-0018)
   tests/         unit/, property/, contract/, integration/, fixtures/, support/
 notebooks/       demos ejecutables, versionadas SIN resultados
-scripts/         utilidades de desarrollo (grabación de casetes)
+scripts/         utilidades de desarrollo: casetes, arranque de API y web (`dev.py`), limpieza
 apps/api/        API REST FastAPI sin estado (ADR-0027): app → routers → use_cases/mappers → schemas
 apps/web/        web Next.js 16 + TypeScript estricto (ADR-0028): src/app (pantallas), src/components,
                  src/lib/api (cliente generado de apps/api/openapi.json), e2e/ (Playwright)
@@ -107,6 +107,10 @@ uv run just openapi           # regenerar el contrato de la API y los tipos de l
 uv run just web-check         # lint + typecheck + Vitest + build de la web
 uv run just web-e2e           # Playwright con la API sin red sobre datos sintéticos
 ```
+
+Las recetas de `just` corren con bash en Linux y macOS y con PowerShell en Windows: cada línea
+es un comando simple que entienden ambos (nada de `&&`, `cd`, variables en línea ni scripts de
+bash). Lo que necesite más lógica va a un script de Python en `scripts/`, tipado y con tests.
 
 ## Tests
 

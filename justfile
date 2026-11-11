@@ -2,9 +2,14 @@
 #
 # `just` itself is pinned in uv.lock (package `rust-just`), so after `uv sync` every
 # recipe is available as `uv run just <recipe>` (or plain `just` if installed globally).
+#
+# Recipes run with bash on Linux and macOS and with PowerShell on Windows (where `bash` is
+# often WSL's, which cannot see Windows' node and pnpm). So every line is a plain command
+# that both shells understand; anything more goes into a Python script in scripts/.
 
 set dotenv-load := false
 set shell := ["bash", "-euo", "pipefail", "-c"]
+set windows-shell := ["powershell.exe", "-NoLogo", "-NoProfile", "-Command"]
 
 core := "packages/investinglab"
 
@@ -64,44 +69,39 @@ api:
 # Write the API contract (OpenAPI) and regenerate the web client's types from it.
 openapi:
     uv run investinglab-api --openapi apps/api/openapi.json
-    cd apps/web && pnpm api:types
+    pnpm --dir apps/web run api:types
 
 # Install the web app's dependencies (Node 22 and pnpm).
+[working-directory: 'apps/web']
 web-install:
-    cd apps/web && pnpm install
+    pnpm install
 
 # Serve the web app with live reload (http://localhost:3000; needs the API).
+[working-directory: 'apps/web']
 web:
-    cd apps/web && pnpm dev
+    pnpm dev
 
 # Lint, typecheck, unit-test and build the web app.
+[working-directory: 'apps/web']
 web-check:
-    cd apps/web && pnpm lint && pnpm typecheck && pnpm test && pnpm build
+    pnpm lint
+    pnpm typecheck
+    pnpm test
+    pnpm build
 
 # End-to-end tests: offline API over synthetic data and the built web app.
+[working-directory: 'apps/web']
 web-e2e:
-    cd apps/web && pnpm build && pnpm e2e --trace off
+    pnpm build
+    pnpm e2e --trace off
 
 # Run the API and the web app together: open http://localhost:3000 (Ctrl+C stops both).
 dev:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    [ -d apps/web/node_modules ] || (cd apps/web && pnpm install)
-    trap 'kill 0' EXIT INT TERM
-    uv run investinglab-api --reload &
-    (cd apps/web && pnpm dev) &
-    wait
+    uv run python scripts/dev.py
 
 # Like dev, but the production build of the web app: faster pages, no live reload.
 preview:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    [ -d apps/web/node_modules ] || (cd apps/web && pnpm install)
-    (cd apps/web && pnpm build)
-    trap 'kill 0' EXIT INT TERM
-    uv run investinglab-api &
-    (cd apps/web && pnpm start) &
-    wait
+    uv run python scripts/dev.py --preview
 
 # ── Documentation ─────────────────────────────────────────────────────
 
@@ -121,5 +121,4 @@ traceability:
 
 # Remove caches and build artefacts.
 clean:
-    rm -rf .mypy_cache .ruff_cache .pytest_cache .hypothesis .coverage coverage.xml htmlcov site dist
-    find . -type d -name __pycache__ -prune -exec rm -rf {} +
+    uv run python scripts/clean.py

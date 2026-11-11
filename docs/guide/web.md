@@ -8,7 +8,12 @@ REST, que a su vez usa el núcleo de Python ([ADR-0028](../adr/0028-institutiona
 
 * [uv](https://docs.astral.sh/uv/) (ya lo usas para el núcleo).
 * Node.js 22 o superior y [pnpm](https://pnpm.io/) 10. Con Node 22 basta con
-  `corepack enable` para tener pnpm.
+  `corepack enable pnpm`. En Windows, si Node.js está en `C:\Program Files`, ejecútalo en
+  una terminal de administrador o instala pnpm con `npm install -g pnpm@10`. Después, abre
+  una terminal nueva y comprueba que `pnpm --version` responde.
+
+Los comandos son los mismos en Linux, macOS y Windows: `just` usa bash en los dos primeros y
+PowerShell en Windows.
 
 ## Arrancarlo todo con un comando
 
@@ -71,3 +76,6 @@ pnpm dev
   `.L` Londres, `.PA` París). Algunos índices no publican su divisa (`^STOXX50E`) y la
   plataforma no la adivina.
 * **Va lento la primera vez**: es la descarga inicial; el resto sale de la caché.
+* **En Windows, `pnpm` no se encuentra** (o salen rutas `/mnt/c/...`, señal de que se usó
+  el bash de WSL): actualiza el repositorio, instala pnpm como se indica en los requisitos
+  y abre una terminal nueva.
