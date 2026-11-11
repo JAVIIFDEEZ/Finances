@@ -7,6 +7,7 @@ import { useMemo } from "react";
 import { Sparkline, TimeSeriesChart } from "@/components/charts/charts";
 import { useI18n, useTheme } from "@/components/providers";
 import { Badge, Button, Card, PageHeader, ProblemAlert, Skeleton, Stat } from "@/components/ui";
+import { failureOf } from "@/lib/api/client";
 import { useAnalytics, useBars, useHealth, useModules, useProviders, useRiskFree } from "@/lib/api/queries";
 import { toPortfolioIn, usePortfolio } from "@/lib/portfolio/store";
 import { rangeStart, thin } from "@/lib/util/dates";
@@ -41,7 +42,7 @@ function WatchTile({ symbol, name, digits }: { symbol: string; name: string; dig
       {bars.isLoading ? (
         <Skeleton className="h-[86px]" />
       ) : bars.isError ? (
-        <p className="text-xs text-muted">{t("error.unavailable")}</p>
+        <p className="text-xs text-muted">{t(failureOf(bars.error) === "api" ? "error.apiShort" : "error.unavailable")}</p>
       ) : (
         <>
           <div className="flex items-end justify-between gap-2">

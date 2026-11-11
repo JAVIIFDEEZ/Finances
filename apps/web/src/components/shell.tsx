@@ -12,17 +12,22 @@ import {
   Menu,
   Moon,
   PiggyBank,
+  RotateCw,
   Search,
   Sun,
   Target,
+  Unplug,
   X,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { useI18n, useTheme } from "@/components/providers";
-import { cn, Segmented } from "@/components/ui";
+import { useQueryClient } from "@tanstack/react-query";
+
+import { Button, cn, Segmented } from "@/components/ui";
+import { failureOf } from "@/lib/api/client";
 import { useHealth } from "@/lib/api/queries";
 import type { MessageKey } from "@/lib/i18n/messages";
 
@@ -149,6 +154,42 @@ function ApiStatus() {
       />
       <span>{health.isLoading ? t("common.loading") : label}</span>
       {online && health.data ? <span className="hidden text-muted lg:inline">· {health.data.providers.join(", ")}</span> : null}
+    </div>
+  );
+}
+
+/**
+ * One explanation when the API does not answer, instead of one in every card; when it
+ * answers again, whatever failed meanwhile is fetched again.
+ */
+function ApiBanner() {
+  const { t } = useI18n();
+  const health = useHealth();
+  const queryClient = useQueryClient();
+  const wasDown = useRef(false);
+  useEffect(() => {
+    if (health.isError) {
+      wasDown.current = true;
+    } else if (health.isSuccess && wasDown.current) {
+      wasDown.current = false;
+      void queryClient.refetchQueries({ type: "active", predicate: (query) => query.state.status === "error" });
+    }
+  }, [health.isError, health.isSuccess, queryClient]);
+  if (!health.isError || failureOf(health.error) !== "api") return null;
+  return (
+    <div
+      role="alert"
+      className="mb-6 flex items-start gap-3 rounded-lg border border-[color-mix(in_srgb,var(--critical)_35%,transparent)] bg-[color-mix(in_srgb,var(--critical)_6%,var(--surface))] p-4"
+    >
+      <Unplug aria-hidden className="mt-0.5 size-4 shrink-0 text-critical-text" />
+      <div className="min-w-0 flex-1">
+        <p className="font-medium text-text">{t("shell.api.offline")}</p>
+        <p className="mt-0.5 text-text-2">{t("error.network")}</p>
+      </div>
+      <Button size="sm" variant="ghost" onClick={() => void queryClient.invalidateQueries()}>
+        <RotateCw aria-hidden className="size-3.5" />
+        {t("common.retry")}
+      </Button>
     </div>
   );
 }
@@ -313,6 +354,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </header>
         <main id="content" className="mx-auto w-full max-w-[1440px] flex-1 px-4 py-6 md:px-6">
+          <ApiBanner />
           {children}
         </main>
       </div>

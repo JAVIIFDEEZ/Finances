@@ -23,6 +23,27 @@ test("the overview shows the markets, the portfolio and the platform", async ({ 
   expect(errors).toEqual([]);
 });
 
+test("when the API does not answer, one banner says so and the screens recover by themselves", async ({ page }) => {
+  const errors = trackErrors(page);
+  // Another program on the API's port: it answers, but not with InvestingLab's Problem Details.
+  const foreign = (route: Parameters<Parameters<Page["route"]>[1]>[0]) =>
+    route.fulfill({ status: 404, contentType: "text/html", body: "<h1>Not Found</h1>" });
+  await page.route("**/health/**", foreign);
+  await page.route("**/api/v1/**", foreign);
+  await page.goto("/");
+
+  const banner = page.getByRole("alert").filter({ hasText: "API sin conexión" });
+  await expect(banner).toContainText("ningún otro programa ocupe su puerto");
+  await expect(page.getByText("La API no responde.").first()).toBeVisible();
+  await expect(page.getByText("Ningún proveedor tiene ese instrumento.")).toHaveCount(0);
+
+  await page.unrouteAll();
+  await expect(banner).toBeHidden({ timeout: 20_000 });
+  await expect(page.getByText("Rentabilidad anualizada").first()).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText("La API no responde.")).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
 test("an instrument is found with the search and explored", async ({ page }) => {
   const errors = trackErrors(page);
   await page.goto("/markets");

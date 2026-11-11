@@ -19,7 +19,8 @@ export function useHealth() {
   return useQuery({
     queryKey: ["health"],
     queryFn: async () => unwrap(await api.GET("/health/ready")),
-    refetchInterval: MINUTE,
+    // While the API is down, look again every few seconds: the screens recover by themselves.
+    refetchInterval: (query) => (query.state.status === "error" ? 5_000 : MINUTE),
     retry: 1,
   });
 }

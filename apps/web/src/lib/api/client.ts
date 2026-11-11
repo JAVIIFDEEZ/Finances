@@ -42,6 +42,20 @@ function isProblem(value: unknown): value is Problem {
   );
 }
 
+/**
+ * What failed, in terms the user can act on. The InvestingLab API answers every error with
+ * Problem Details, so any other failure means the API itself did not answer: it is not
+ * running, the proxy could not reach it, or another program holds its port.
+ */
+export type Failure = "api" | "notFound" | "invalid" | "sources";
+
+export function failureOf(error: unknown): Failure {
+  if (!(error instanceof ApiError) || error.problem === null) return "api";
+  if (error.status === 404) return "notFound";
+  if (error.status === 422) return "invalid";
+  return "sources";
+}
+
 /** The data of an openapi-fetch result, or an {@link ApiError}. */
 export function unwrap<T>(result: { data?: T; error?: unknown; response: Response }): T {
   if (result.data !== undefined && result.response.ok) {
