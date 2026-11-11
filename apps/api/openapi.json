@@ -2664,6 +2664,19 @@
             "title": "Goal",
             "description": "Target in today's money."
           },
+          "expected_return": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": -1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Return",
+            "description": "Annual nominal return to assume for the portfolio; null uses its historical drift, which over decades rarely persists."
+          },
           "n_paths": {
             "type": "integer",
             "minimum": 100.0,

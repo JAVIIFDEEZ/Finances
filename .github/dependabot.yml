@@ -24,3 +24,16 @@ updates:
         patterns: ["*"]
     commit-message:
       prefix: ci
+
+  - package-ecosystem: npm
+    directory: /apps/web
+    schedule:
+      interval: weekly
+      day: monday
+    target-branch: development
+    groups:
+      web-dependencies:
+        patterns: ["*"]
+    commit-message:
+      prefix: build
+      include: scope

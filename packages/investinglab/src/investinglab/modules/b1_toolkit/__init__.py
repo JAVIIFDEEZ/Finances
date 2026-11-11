@@ -6,7 +6,7 @@ writes reports with charts. Everything reusable lives in the core (domain, analy
 services, reporting, toolkit); this module only declares what the workshop covers and where.
 """
 
-from investinglab.modules.registry import REGISTRY, ModuleInfo, Requirement, RequirementStatus
+from investinglab.modules.registry import REGISTRY, ModuleInfo, Requirement
 
 __all__ = ["MODULE"]
 
@@ -49,6 +49,8 @@ MODULE = REGISTRY.register(
                     "investinglab.adapters.http.client.HttpClient",
                     "investinglab.adapters.storage.parquet.ParquetSeriesStore",
                     "investinglab.adapters.providers.files.LocalFilesProvider",
+                    "investinglab.adapters.providers.yahoo.YahooFinanceProvider",
+                    "investinglab.adapters.providers.ecb.EcbProvider",
                     "investinglab.toolkit.Toolkit.many",
                 ),
                 tests=(
@@ -57,18 +59,21 @@ MODULE = REGISTRY.register(
                     "unit/adapters/test_http_client.py",
                     "unit/adapters/test_parquet_store.py",
                     "unit/adapters/test_local_files.py",
+                    "unit/adapters/test_yahoo.py",
+                    "unit/adapters/test_ecb.py",
+                    "contract/test_market_data_providers.py",
+                    "contract/test_economic_providers.py",
                     "unit/test_toolkit.py",
                 ),
-                status=RequirementStatus.PARTIAL,
                 note_es=(
-                    "Infraestructura completa (enrutado, reintentos, caché, lotes) y fuente de "
-                    "ficheros locales. Faltan los proveedores remotos (Yahoo, Alpha Vantage, "
-                    "FRED/ALFRED, BCE: fase F2b), pendientes de acceso a red."
+                    "Yahoo Finance y el BCE sin clave, ficheros locales y, con clave, Alpha "
+                    "Vantage y FRED/ALFRED cuando se configuren (fase F2b). Enrutado por "
+                    "capacidades, reintentos, caché y lotes concurrentes."
                 ),
                 note_en=(
-                    "Complete infrastructure (routing, retries, cache, batches) and the local "
-                    "files source. Remote providers (Yahoo, Alpha Vantage, FRED/ALFRED, ECB: "
-                    "phase F2b) await network access."
+                    "Yahoo Finance and the ECB without a key, local files and, with keys, Alpha "
+                    "Vantage and FRED/ALFRED once configured (phase F2b). Capability routing, "
+                    "retries, cache and concurrent batches."
                 ),
             ),
             Requirement(

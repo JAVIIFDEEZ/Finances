@@ -60,8 +60,8 @@ def test_b1_toolkit_is_registered() -> None:
     assert [r.id for r in MODULE.requirements] == ["4.1", "4.2", "4.3", "4.4", "4.5", "4.6"]
     assert MODULE.title("en") == "Portfolio analysis toolkit"
     assert MODULE.summary("es").startswith("Librería")
-    assert not MODULE.complete  # remote providers (F2b) are still pending
-    assert MODULE.requirements[1].status is RequirementStatus.PARTIAL
+    assert MODULE.complete  # Yahoo and the ECB completed the multi-source ingestion (4.2)
+    assert MODULE.requirements[1].status is RequirementStatus.DONE
 
 
 def test_the_published_matrix_is_up_to_date() -> None:
@@ -74,8 +74,9 @@ def test_english_matrix() -> None:
     matrix = render_traceability(MODULE, "en")
 
     assert matrix.startswith("# Portfolio analysis toolkit · B1 · Taller 1")
-    assert "| Partial |" in matrix
-    assert "Remote providers" in matrix
+    assert "| Done |" in matrix
+    assert "| Partial |" not in matrix
+    assert "Yahoo Finance and the ECB without a key" in matrix
 
 
 def test_registry_rules() -> None:

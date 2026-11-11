@@ -244,6 +244,14 @@ class PlanIn(RequestModel):
     )
     inflation: FiniteFloat = Field(default=0.02, description="Annual inflation.")
     goal: FiniteFloat | None = Field(default=None, gt=0, description="Target in today's money.")
+    expected_return: FiniteFloat | None = Field(
+        default=None,
+        gt=-1,
+        description=(
+            "Annual nominal return to assume for the portfolio; null uses its historical "
+            "drift, which over decades rarely persists."
+        ),
+    )
     n_paths: int = Field(default=5_000, ge=100)
     seed: int | None = 42
     success_probability: FiniteFloat = Field(
@@ -262,8 +270,15 @@ class PlanIn(RequestModel):
         )
 
     def to_config(self) -> SimulationConfig:
-        """Monte Carlo settings of the plan."""
-        return SimulationConfig(n_paths=self.n_paths, seed=self.seed)
+        """Monte Carlo settings of the plan: historical volatility, assumed or historical drift."""
+        if self.expected_return is None:
+            return SimulationConfig(n_paths=self.n_paths, seed=self.seed)
+        return SimulationConfig(
+            n_paths=self.n_paths,
+            seed=self.seed,
+            drift=DriftAssumption.ASSUMED,
+            expected_returns=self.expected_return,
+        )
 
 
 class PlanFanPointOut(ApiModel):
