@@ -1,0 +1,9 @@
+.next/
+node_modules/
+next-env.d.ts
+playwright-report/
+test-results/
+*.tsbuildinfo
+.e2e/
+# Written by `next dev` on every run (agent hints): generated, not ours.
+AGENTS.md
