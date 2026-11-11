@@ -7,6 +7,7 @@ they only run on Linux, like the CI; Windows takes the ``taskkill`` branch inste
 from __future__ import annotations
 
 import importlib.util
+import socket
 import subprocess
 import sys
 import time
@@ -84,15 +85,21 @@ def test_pnpm_is_run_directly_or_through_corepack(monkeypatch: pytest.MonkeyPatc
 @pytest.fixture
 def launcher(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> dict[str, list[Any]]:
     """The launcher with pnpm, the steps and the servers recorded instead of run."""
-    recorded: dict[str, list[Any]] = {"steps": [], "servers": [], "codes": []}
+    recorded: dict[str, list[Any]] = {"steps": [], "servers": [], "codes": [], "envs": []}
 
-    def step(command: list[str], *, cwd: Path, check: bool) -> subprocess.CompletedProcess[bytes]:
+    def step(
+        command: list[str], *, cwd: Path, env: dict[str, str], check: bool
+    ) -> subprocess.CompletedProcess[bytes]:
         recorded["steps"].append((command, cwd, check))
+        recorded["envs"].append(env)
         code = recorded["codes"].pop(0) if recorded["codes"] else 0
         return subprocess.CompletedProcess(command, code)
 
+    for variable in ("INVESTINGLAB_API_PORT", "INVESTINGLAB_API_URL"):
+        monkeypatch.delenv(variable, raising=False)
     monkeypatch.setattr(dev, "WEB", tmp_path)
     monkeypatch.setattr(dev, "pnpm", lambda: ["pnpm"])
+    monkeypatch.setattr(dev, "listening", lambda port, host="127.0.0.1": False)
     monkeypatch.setattr(subprocess, "run", step)
 
     def run(servers: list[Any]) -> int:
@@ -126,6 +133,69 @@ def test_preview_builds_and_serves_without_reload(launcher: dict[str, list[Any]]
     api, app = launcher["servers"]
     assert api.command == [sys.executable, "-m", "investinglab_api"]
     assert app.command == ["pnpm", "start"]
+
+
+def test_the_web_app_follows_the_api_port(
+    launcher: dict[str, list[Any]], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("INVESTINGLAB_API_PORT", "8123")
+
+    assert dev.main([]) == 0
+
+    api, app = launcher["servers"]
+    assert api.env is None  # the API reads INVESTINGLAB_API_PORT itself
+    assert app.env["INVESTINGLAB_API_URL"] == "http://127.0.0.1:8123"
+    assert launcher["envs"][0]["INVESTINGLAB_API_URL"] == "http://127.0.0.1:8123"  # install
+
+
+def test_an_explicit_api_url_wins(
+    launcher: dict[str, list[Any]], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("INVESTINGLAB_API_URL", "http://10.0.0.5:9000")
+
+    assert dev.main([]) == 0
+
+    assert launcher["servers"][1].env["INVESTINGLAB_API_URL"] == "http://10.0.0.5:9000"
+
+
+@pytest.mark.parametrize("port", ["api", "70000", "0"])
+def test_the_api_port_must_be_a_port_number(monkeypatch: pytest.MonkeyPatch, port: str) -> None:
+    monkeypatch.setenv("INVESTINGLAB_API_PORT", port)
+
+    with pytest.raises(SystemExit, match="INVESTINGLAB_API_PORT must be a port number"):
+        dev.api_port()
+
+
+@pytest.mark.parametrize(
+    ("busy", "advice"),
+    [(8000, "INVESTINGLAB_API_PORT"), (3000, "another `just dev`")],
+    ids=["api", "web"],
+)
+def test_busy_ports_are_reported_before_anything_starts(
+    launcher: dict[str, list[Any]],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    busy: int,
+    advice: str,
+) -> None:
+    monkeypatch.setattr(dev, "listening", lambda port, host="127.0.0.1": port == busy)
+
+    assert dev.main([]) == 1
+
+    error = capsys.readouterr().err
+    assert f"Port {busy}" in error
+    assert advice in error
+    assert launcher["steps"] == []
+    assert launcher["servers"] == []
+
+
+def test_listening_tells_whether_a_program_holds_a_port() -> None:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
+        server.bind(("127.0.0.1", 0))
+        server.listen()
+        port = server.getsockname()[1]
+        assert dev.listening(port)
+    assert not dev.listening(port)
 
 
 def test_a_failed_step_stops_before_the_servers(launcher: dict[str, list[Any]]) -> None:

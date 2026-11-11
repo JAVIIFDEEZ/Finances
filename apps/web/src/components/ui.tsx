@@ -11,7 +11,9 @@ import { forwardRef, useEffect, type ButtonHTMLAttributes, type InputHTMLAttribu
 import { twMerge } from "tailwind-merge";
 
 import { useI18n } from "@/components/providers";
-import { ApiError } from "@/lib/api/client";
+import { ApiError, failureOf, type Failure } from "@/lib/api/client";
+import { useHealth } from "@/lib/api/queries";
+import type { MessageKey } from "@/lib/i18n/messages";
 
 export function cn(...inputs: ClassValue[]): string {
   return twMerge(clsx(inputs));
@@ -232,19 +234,21 @@ export function Refreshing({ active, children }: { active: boolean; children: Re
 
 // ── Problems ─────────────────────────────────────────────────────────
 
+const FAILURE_MESSAGES: Record<Failure, MessageKey> = {
+  api: "error.network",
+  notFound: "error.notFound",
+  invalid: "error.invalid",
+  sources: "error.unavailable",
+};
+
 /** Problem Details mapped to a message the user can act on, with the request id. */
 export function ProblemAlert({ error, onRetry }: { error: unknown; onRetry?: () => void }) {
   const { t } = useI18n();
+  const health = useHealth();
   const apiError = error instanceof ApiError ? error : null;
-  const status = apiError?.status ?? 0;
-  const summary =
-    !apiError || status === 0 || status === 502 || status === 500 && !apiError.problem
-      ? t("error.network")
-      : status === 404
-        ? t("error.notFound")
-        : status === 422
-          ? t("error.invalid")
-          : t("error.unavailable");
+  const failure = failureOf(error);
+  // While the shell's banner explains that the API does not answer, a short line is enough.
+  const summary = t(failure === "api" && health.isError ? "error.apiShort" : FAILURE_MESSAGES[failure]);
   const detail = apiError?.problem?.errors?.map((e) => e.message).join(" · ") || apiError?.problem?.detail;
   return (
     <div role="alert" className="flex items-start gap-3 rounded-lg border border-[color-mix(in_srgb,var(--critical)_35%,transparent)] bg-[color-mix(in_srgb,var(--critical)_6%,var(--surface))] p-4">

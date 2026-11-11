@@ -5,6 +5,10 @@ PowerShell on Windows). Each server runs in a process group of its own: Ctrl+C s
 together with every process they started (uvicorn's reloader, Next.js workers), and when one
 of them stops on its own the other one is stopped too.
 
+Before starting, it checks that no other program holds the ports (the API's, 8000 unless
+``INVESTINGLAB_API_PORT`` says otherwise, and the web app's 3000) and points the web app at
+the API's port, so running both elsewhere takes a single variable.
+
 Usage::
 
     uv run python scripts/dev.py            # API and web app, both with live reload
@@ -18,6 +22,7 @@ import contextlib
 import os
 import shutil
 import signal
+import socket
 import subprocess
 import sys
 import time
@@ -26,12 +31,13 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Mapping, Sequence
     from types import FrameType
 
 ROOT = Path(__file__).resolve().parents[1]
 WEB = ROOT / "apps" / "web"
-ADDRESSES = "API: http://127.0.0.1:8000/docs | web: http://localhost:3000 | Ctrl+C stops both"
+LOCALHOST = "127.0.0.1"
+WEB_PORT = 3000
 POLL_SECONDS = 0.2
 
 
@@ -42,6 +48,7 @@ class Server:
     name: str
     command: Sequence[str]
     cwd: Path
+    env: Mapping[str, str] | None = None
 
 
 class _StopRequest:
@@ -63,17 +70,53 @@ def pnpm() -> list[str]:
     raise SystemExit("pnpm not found: install Node.js 22 or later and run `corepack enable pnpm`.")
 
 
+def api_port() -> int:
+    """The API's port: ``INVESTINGLAB_API_PORT``, as the API itself reads it, or 8000."""
+    value = os.environ.get("INVESTINGLAB_API_PORT", "8000").strip()
+    if not value.isdigit() or not 0 < int(value) < 65536:  # noqa: PLR2004 - TCP's range
+        raise SystemExit(f"INVESTINGLAB_API_PORT must be a port number, not {value!r}.")
+    return int(value)
+
+
+def listening(port: int, host: str = LOCALHOST) -> bool:
+    """Whether some program already accepts connections on ``host:port``."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        probe.settimeout(1.0)
+        return probe.connect_ex((host, port)) == 0
+
+
+def busy_ports(api: int) -> list[str]:
+    """What to do about each port another program already holds (none: ready to start)."""
+    problems = []
+    if listening(api):
+        problems.append(
+            f"Port {api} (API) is already in use by another program. Stop it, or run the API "
+            "on another port with INVESTINGLAB_API_PORT: the web app follows it."
+        )
+    if listening(WEB_PORT):
+        problems.append(
+            f"Port {WEB_PORT} (web app) is already in use by another program "
+            "(another `just dev` or `just preview`?). Stop it first."
+        )
+    return problems
+
+
 def start(server: Server) -> subprocess.Popen[bytes]:
     """Start a server in a process group of its own, so that its whole tree can be stopped."""
     if sys.platform == "win32":
         return subprocess.Popen(  # noqa: S603 - our own commands, without a shell
             server.command,
             cwd=server.cwd,
+            env=server.env,
             stdin=subprocess.DEVNULL,
             creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
         )
     return subprocess.Popen(  # noqa: S603 - our own commands, without a shell
-        server.command, cwd=server.cwd, stdin=subprocess.DEVNULL, start_new_session=True
+        server.command,
+        cwd=server.cwd,
+        env=server.env,
+        stdin=subprocess.DEVNULL,
+        start_new_session=True,
     )
 
 
@@ -154,20 +197,31 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--preview", action="store_true", help="serve the production build (no live reload)"
     )
     arguments = parser.parse_args(argv)
+    port = api_port()
+    if problems := busy_ports(port):
+        print("\n".join(problems), file=sys.stderr)  # noqa: T201
+        return 1
     node = pnpm()
+    # The web app proxies to the API (next.config.ts), also when it is built: same variable.
+    web_env = {"INVESTINGLAB_API_URL": f"http://{LOCALHOST}:{port}", **os.environ}
     steps = [] if (WEB / "node_modules").is_dir() else [[*node, "install"]]
     if arguments.preview:
         steps.append([*node, "build"])
     try:
         for step in steps:
-            if (code := subprocess.run(step, cwd=WEB, check=False).returncode) != 0:  # noqa: S603
-                return code
+            done = subprocess.run(step, cwd=WEB, env=web_env, check=False)  # noqa: S603
+            if done.returncode != 0:
+                return done.returncode
     except KeyboardInterrupt:
         return 130
     api = [sys.executable, "-m", "investinglab_api", *([] if arguments.preview else ["--reload"])]
     web = [*node, "start" if arguments.preview else "dev"]
-    print(ADDRESSES, flush=True)  # noqa: T201
-    return run([Server("API", api, ROOT), Server("web", web, WEB)])
+    print(  # noqa: T201
+        f"API: http://{LOCALHOST}:{port}/docs | web: http://localhost:{WEB_PORT} | "
+        "Ctrl+C stops both",
+        flush=True,
+    )
+    return run([Server("API", api, ROOT), Server("web", web, WEB, web_env)])
 
 
 if __name__ == "__main__":

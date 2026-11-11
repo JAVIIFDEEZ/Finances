@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { ApiError, unwrap } from "@/lib/api/client";
+import { ApiError, failureOf, unwrap } from "@/lib/api/client";
 
 const problem = {
   type: "https://example.test/api.md#data-not-found",
@@ -31,5 +31,23 @@ describe("unwrap", () => {
 
   it("copes with failures that are not Problem Details (a proxy error page)", () => {
     expect(() => unwrap({ error: "<html>", response: new Response(null, { status: 502 }) })).toThrow("HTTP 502");
+  });
+});
+
+describe("failureOf", () => {
+  const answered = (status: number) => new ApiError(status, { ...problem, status });
+
+  it("blames the API when it did not answer: down, unreachable or another program on its port", () => {
+    expect(failureOf(new TypeError("Failed to fetch"))).toBe("api");
+    expect(failureOf(new ApiError(500, null))).toBe("api"); // the proxy could not reach it
+    expect(failureOf(new ApiError(404, null))).toBe("api"); // someone else answered
+    expect(failureOf(new ApiError(405, null))).toBe("api");
+  });
+
+  it("reads what the API answered", () => {
+    expect(failureOf(answered(404))).toBe("notFound");
+    expect(failureOf(answered(422))).toBe("invalid");
+    expect(failureOf(answered(503))).toBe("sources"); // every provider failed
+    expect(failureOf(answered(504))).toBe("sources");
   });
 });
