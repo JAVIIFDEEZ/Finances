@@ -3,7 +3,7 @@
 # ever cloned. Install with `just setup`.
 default_install_hook_types: [pre-commit, commit-msg]
 default_stages: [pre-commit]
-exclude: ^(docs/enunciados/|uv\.lock$)
+exclude: ^(docs/enunciados/|uv\.lock$|apps/web/pnpm-lock\.yaml$)
 
 repos:
   - repo: local
