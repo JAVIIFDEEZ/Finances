@@ -37,6 +37,7 @@ def test_the_server_runs_the_factory_with_the_settings(monkeypatch: pytest.Monke
     assert app == "investinglab_api.app:create_app"
     assert options["factory"] is True
     assert (options["host"], options["port"], options["reload"]) == ("127.0.0.1", 8123, True)
+    assert options["access_log"] is False  # the API's own access log has the request id
 
 
 def test_the_default_app_wires_and_closes_its_own_toolkit() -> None:

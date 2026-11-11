@@ -34,6 +34,7 @@ def main(argv: list[str] | None = None) -> int:
         port=settings.port,
         reload=arguments.reload,
         log_config=None,  # structlog configures the logging
+        access_log=False,  # the API logs every request itself, with its request id
         proxy_headers=False,
     )
     return 0
