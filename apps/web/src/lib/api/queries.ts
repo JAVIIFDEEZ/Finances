@@ -6,9 +6,9 @@
  * screen (`placeholderData: keepPreviousData`): refetches keep the frame.
  */
 
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { api, unwrap, type Schemas } from "@/lib/api/client";
+import { api, ApiError, unwrap, type Schemas } from "@/lib/api/client";
 import type { Locale } from "@/lib/i18n/messages";
 
 const MINUTE = 60_000;
@@ -135,5 +135,55 @@ export function usePlan(request: Schemas["PlanIn"] | null) {
     enabled: request !== null,
     placeholderData: keepPreviousData,
     staleTime: Infinity,
+  });
+}
+
+// ── Saved portfolios ─────────────────────────────────────────────────
+
+const SAVED = ["saved-portfolios"] as const;
+
+/** Which problem of the API an error is (the fragment of its `type`), if it is one. */
+export function problemKind(error: unknown): string | null {
+  if (!(error instanceof ApiError) || error.problem === null) return null;
+  return error.problem.type.split("#").pop() ?? null;
+}
+
+export function useSavedPortfolios() {
+  return useQuery({
+    queryKey: SAVED,
+    queryFn: async () => unwrap(await api.GET("/api/v1/portfolios", { params: { query: { limit: 200 } } })),
+    // Without a database there is nothing to retry: the screen explains it instead.
+    retry: (failures, error) => problemKind(error) !== "persistence-not-configured" && failures < 1,
+    staleTime: MINUTE,
+  });
+}
+
+/** Save a portfolio: a new record, or a new version of the one read at `saved.version`. */
+export function useSavePortfolio() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ portfolio, saved }: { portfolio: Schemas["PortfolioIn"]; saved: { id: string; version: number } | null }) =>
+      saved === null
+        ? unwrap(await api.POST("/api/v1/portfolios", { body: portfolio }))
+        : unwrap(
+            await api.PUT("/api/v1/portfolios/{portfolio_id}", {
+              params: { path: { portfolio_id: saved.id }, header: { "if-match": `"${saved.version}"` } },
+              body: portfolio,
+            }),
+          ),
+    onSettled: () => client.invalidateQueries({ queryKey: SAVED }),
+  });
+}
+
+export function useDeleteSavedPortfolio() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, version }: { id: string; version: number }) => {
+      const result = await api.DELETE("/api/v1/portfolios/{portfolio_id}", {
+        params: { path: { portfolio_id: id }, header: { "if-match": `"${version}"` } },
+      });
+      if (!result.response.ok) unwrap(result);
+    },
+    onSettled: () => client.invalidateQueries({ queryKey: SAVED }),
   });
 }
