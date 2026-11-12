@@ -12,7 +12,8 @@ con lo aprendido en el Máster MIAX. Objetivo de calidad: repositorio profesiona
 
 - Hoja de ruta y fases: `docs/plan/plan-maestro.md`
 - Decisiones de arquitectura: `docs/adr/` (MADR 4)
-- Proyecto hermano a migrar progresivamente: CryptoWorld (ver plan, sección 9)
+- Proyecto hermano a migrar progresivamente: CryptoWorld. Programa por fases G0-G13, mapa pieza a
+  pieza y matriz de paridad: `docs/plan/integracion-cryptoworld.md`
 
 ## Estructura
 
