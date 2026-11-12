@@ -84,6 +84,45 @@ test("the portfolio is validated live and analysed", async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
+test("a portfolio is saved, changed, reopened and deleted", async ({ page }) => {
+  test.skip(!process.env.INVESTINGLAB_E2E_DATABASE_URL, "needs PostgreSQL (INVESTINGLAB_E2E_DATABASE_URL)");
+  const errors = trackErrors(page);
+  const name = `E2E ${Date.now()}`;
+  await page.goto("/portfolio");
+  const saved = page.locator("section").filter({ has: page.getByRole("heading", { name: "Carteras guardadas" }) });
+
+  // Save the analysed portfolio under a new name.
+  await page.getByLabel("Nombre de la cartera").fill(name);
+  await page.getByRole("button", { name: "Analizar cartera" }).click();
+  await saved.getByRole("button", { name: /Guardar cartera|Guardar como nueva/ }).click();
+  await expect(saved.getByRole("status")).toHaveText("Guardada.");
+  const row = saved.getByRole("listitem").filter({ hasText: name });
+  await expect(row).toContainText("abierta");
+
+  // A second save with the same name is refused and explained, not an error page.
+  await saved.getByRole("button", { name: "Guardar como nueva" }).click();
+  await expect(saved.getByRole("alert")).toContainText("Ya tienes una cartera con ese nombre");
+
+  // Change it: the saved record moves to a new version.
+  await page.getByLabel("Nombre de la cartera").fill(`${name} v2`);
+  await page.getByRole("button", { name: "Analizar cartera" }).click();
+  await saved.getByRole("button", { name: "Guardar cambios" }).click();
+  await expect(saved.getByRole("listitem").filter({ hasText: `${name} v2` })).toBeVisible();
+
+  // It survives a reload, and opening it restores the definition.
+  await page.getByLabel("Nombre de la cartera").fill("Otra");
+  await page.getByRole("button", { name: "Analizar cartera" }).click();
+  await page.reload();
+  await page.getByRole("button", { name: `Abrir ${name} v2` }).click();
+  await expect(page.getByLabel("Nombre de la cartera")).toHaveValue(`${name} v2`);
+
+  // Delete it, with a confirmation.
+  await page.getByRole("button", { name: `Borrar ${name} v2` }).click();
+  await saved.getByRole("button", { name: "¿Borrar?" }).click();
+  await expect(saved.getByRole("listitem").filter({ hasText: name })).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
 test("Monte Carlo, optimisation and savings plans run", async ({ page }) => {
   const errors = trackErrors(page);
   await page.goto("/simulation");

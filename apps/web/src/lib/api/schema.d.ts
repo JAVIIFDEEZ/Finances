@@ -33,7 +33,10 @@ export interface paths {
         };
         /**
          * Readiness
-         * @description The service can answer: the toolkit is wired and its providers registered.
+         * @description The service can answer: the toolkit is wired, and the database (if any) is reported.
+         *
+         *     The endpoints that need no stored state keep working without a database, so its state is
+         *     information here, not a failure.
          */
         get: operations["ready_health_ready_get"];
         put?: never;
@@ -182,6 +185,58 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portfolios": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List saved portfolios
+         * @description The owner's portfolios, most recently updated first.
+         */
+        get: operations["list_saved_api_v1_portfolios_get"];
+        put?: never;
+        /**
+         * Save a portfolio
+         * @description Save a portfolio under its name; the `ETag` is the version later changes must quote.
+         */
+        post: operations["save_api_v1_portfolios_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portfolios/{portfolio_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read a saved portfolio
+         * @description One saved portfolio and its current version (`ETag`).
+         */
+        get: operations["read_saved_api_v1_portfolios__portfolio_id__get"];
+        /**
+         * Replace a saved portfolio
+         * @description Replace the portfolio read at the version in `If-Match`; nothing is lost if it changed.
+         */
+        put: operations["replace_api_v1_portfolios__portfolio_id__put"];
+        post?: never;
+        /**
+         * Delete a saved portfolio
+         * @description Delete the portfolio read at the version in `If-Match`.
+         */
+        delete: operations["delete_api_v1_portfolios__portfolio_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -590,6 +645,13 @@ export interface components {
              * @description Whether remote providers are disabled.
              */
             offline: boolean;
+            /**
+             * Database
+             * @description State of the database behind the endpoints that store data.
+             * @default not_configured
+             * @enum {string}
+             */
+            database?: "not_configured" | "ok" | "migrations_pending" | "unavailable";
         };
         /**
          * HistogramBinOut
@@ -1131,6 +1193,11 @@ export interface components {
             attempts?: {
                 [key: string]: string;
             }[] | null;
+            /**
+             * Current Version
+             * @description Version the record is at now (``version-conflict``).
+             */
+            current_version?: number | null;
         };
         /**
          * ProblemError
@@ -1291,6 +1358,47 @@ export interface components {
              * @description Decimal rates; null before any publication.
              */
             rates: components["schemas"]["Point"][];
+        };
+        /**
+         * SavedPortfolioOut
+         * @description A portfolio saved by its owner.
+         */
+        SavedPortfolioOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Version
+             * @description 1 when saved; one more after every change (the ETag).
+             */
+            version: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** @description The definition: send it to analyse it. */
+            portfolio: components["schemas"]["PortfolioIn"];
+        };
+        /**
+         * SavedPortfolioPage
+         * @description A page of saved portfolios, most recently updated first.
+         */
+        SavedPortfolioPage: {
+            /** Items */
+            items: components["schemas"]["SavedPortfolioOut"][];
+            /**
+             * Next Cursor
+             * @description Send it as `cursor` to get the next page; null on the last one.
+             */
+            next_cursor: string | null;
         };
         /**
          * SeriesOut
@@ -1907,6 +2015,319 @@ export interface operations {
                 };
             };
             /** @description Every provider able to serve the data failed; retry later. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_saved_api_v1_portfolios_get: {
+        parameters: {
+            query?: {
+                /** @description Most portfolios in a page. */
+                limit?: number;
+                /** @description `next_cursor` of the page before. */
+                cursor?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedPortfolioPage"];
+                };
+            };
+            /** @description The request breaks the schema, a limit or a domain rule. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The API runs without a database, or the database is not answering. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    save_api_v1_portfolios_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PortfolioIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedPortfolioOut"];
+                };
+            };
+            /** @description The owner already has a record with that name. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The request breaks the schema, a limit or a domain rule. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The API runs without a database, or the database is not answering. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    read_saved_api_v1_portfolios__portfolio_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                portfolio_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedPortfolioOut"];
+                };
+            };
+            /** @description The owner has no such portfolio. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The request breaks the schema, a limit or a domain rule. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The API runs without a database, or the database is not answering. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    replace_api_v1_portfolios__portfolio_id__put: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Version the change applies to: the `ETag` last read (`"3"`). */
+                "if-match"?: string | null;
+            };
+            path: {
+                portfolio_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PortfolioIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedPortfolioOut"];
+                };
+            };
+            /** @description The owner has no such portfolio. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The owner already has a record with that name. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The record changed since the version sent in `If-Match`. */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The request breaks the schema, a limit or a domain rule. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The change needs an `If-Match` header with the version last read. */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The API runs without a database, or the database is not answering. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    delete_api_v1_portfolios__portfolio_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Version the change applies to: the `ETag` last read (`"3"`). */
+                "if-match"?: string | null;
+            };
+            path: {
+                portfolio_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The owner has no such portfolio. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The record changed since the version sent in `If-Match`. */
+            412: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The request breaks the schema, a limit or a domain rule. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The change needs an `If-Match` header with the version last read. */
+            428: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The API runs without a database, or the database is not answering. */
             503: {
                 headers: {
                     [name: string]: unknown;

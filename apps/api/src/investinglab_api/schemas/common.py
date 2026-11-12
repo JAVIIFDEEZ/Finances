@@ -96,3 +96,6 @@ class Problem(ApiModel):
     attempts: list[dict[str, str]] | None = Field(
         default=None, description="Providers tried for unavailable data, with their errors."
     )
+    current_version: int | None = Field(
+        default=None, description="Version the record is at now (``version-conflict``)."
+    )

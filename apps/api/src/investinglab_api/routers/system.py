@@ -6,6 +6,7 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, HTTPException, Query, Request
 
+from investinglab.config import get_logger
 from investinglab.modules import REGISTRY
 from investinglab_api.dependencies import ToolkitDep
 from investinglab_api.mappers import health_out, module_out, provider_out
@@ -14,6 +15,7 @@ from investinglab_api.schemas.meta import HealthOut, ModuleOut, ProviderOut
 __all__ = ["router"]
 
 router = APIRouter()
+log = get_logger(__name__)
 
 Language = Annotated[Literal["es", "en"], Query(description="Language of the texts.")]
 
@@ -30,8 +32,16 @@ async def live(request: Request, toolkit: ToolkitDep) -> HealthOut:
 
 @router.get("/health/ready", tags=["health"], summary="Readiness", response_model=HealthOut)
 async def ready(request: Request, toolkit: ToolkitDep) -> HealthOut:
-    """The service can answer: the toolkit is wired and its providers registered."""
-    return health_out(toolkit.providers, offline=_offline(request))
+    """The service can answer: the toolkit is wired, and the database (if any) is reported.
+
+    The endpoints that need no stored state keep working without a database, so its state is
+    information here, not a failure.
+    """
+    database = getattr(request.app.state, "database", None)
+    state = "not_configured" if database is None else str(await database.status())
+    if state not in {"not_configured", "ok"}:
+        log.warning("database_not_ready", state=state)
+    return health_out(toolkit.providers, offline=_offline(request), database=state)
 
 
 @router.get(

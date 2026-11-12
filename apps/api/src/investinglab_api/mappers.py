@@ -14,6 +14,7 @@ import pandas as pd
 
 from investinglab import __version__ as core_version
 from investinglab.domain.series import PriceField
+from investinglab.ports import PortfolioSpec
 from investinglab_api import __version__
 from investinglab_api.schemas.analysis import (
     AssetPointOut,
@@ -55,9 +56,14 @@ from investinglab_api.schemas.meta import (
 )
 from investinglab_api.schemas.portfolio import (
     DrawdownEpisodeOut,
+    HoldingIn,
     HoldingOut,
     PortfolioAnalyticsOut,
+    PortfolioIn,
+    RebalanceIn,
     RiskContributionOut,
+    SavedPortfolioOut,
+    SavedPortfolioPage,
 )
 
 if TYPE_CHECKING:
@@ -73,7 +79,7 @@ if TYPE_CHECKING:
     from investinglab.domain.series import DataSource, PriceSeries, SeriesStats
     from investinglab.domain.simulation import SimulationResult
     from investinglab.modules import ModuleInfo
-    from investinglab.ports import ProviderCapabilities
+    from investinglab.ports import Page, ProviderCapabilities, Stored
     from investinglab.services import BatchResult
 
 __all__ = [
@@ -84,9 +90,12 @@ __all__ = [
     "optimization_out",
     "plan_out",
     "portfolio_analytics_out",
+    "portfolio_spec",
     "provider_out",
     "quality_out",
     "risk_free_out",
+    "saved_portfolio_out",
+    "saved_portfolio_page",
     "series_out",
     "simulation_out",
 ]
@@ -502,14 +511,65 @@ def plan_out(result: PlanResult, probability: float) -> PlanOut:
 # ── Service metadata ─────────────────────────────────────────────────
 
 
-def health_out(providers: Sequence[str], *, offline: bool) -> HealthOut:
+def health_out(
+    providers: Sequence[str], *, offline: bool, database: str = "not_configured"
+) -> HealthOut:
     """Health of the service."""
-    return HealthOut(
-        status="ok",
-        version=__version__,
-        core_version=core_version,
-        providers=list(providers),
-        offline=offline,
+    return HealthOut.model_validate(
+        {
+            "status": "ok",
+            "version": __version__,
+            "core_version": core_version,
+            "providers": list(providers),
+            "offline": offline,
+            "database": database,
+        }
+    )
+
+
+def portfolio_spec(request: PortfolioIn) -> PortfolioSpec:
+    """The definition to store for a portfolio request."""
+    return PortfolioSpec(
+        name=request.name,
+        weights=tuple((holding.symbol, holding.weight) for holding in request.holdings),
+        base_currency=request.base_currency,
+        rebalance=request.rebalance.to_policy(),
+        allow_short=request.allow_short,
+        start=request.start,
+        end=request.end,
+        frequency=request.frequency,
+    )
+
+
+def saved_portfolio_out(record: Stored[PortfolioSpec]) -> SavedPortfolioOut:
+    """A saved portfolio, with its definition in the shape the analyses take."""
+    spec = record.value
+    rebalance = RebalanceIn(kind=spec.rebalance.kind, band=spec.rebalance.band)
+    if spec.rebalance.frequency is not None:
+        rebalance = rebalance.model_copy(update={"frequency": spec.rebalance.frequency})
+    return SavedPortfolioOut(
+        id=record.id,
+        version=record.version,
+        created_at=record.created_at,
+        updated_at=record.updated_at,
+        portfolio=PortfolioIn(
+            name=spec.name,
+            holdings=[HoldingIn(symbol=symbol, weight=weight) for symbol, weight in spec.weights],
+            base_currency=spec.base_currency,
+            rebalance=rebalance,
+            allow_short=spec.allow_short,
+            start=spec.start,
+            end=spec.end,
+            frequency=spec.frequency,
+        ),
+    )
+
+
+def saved_portfolio_page(page: Page[Stored[PortfolioSpec]]) -> SavedPortfolioPage:
+    """A page of saved portfolios."""
+    return SavedPortfolioPage(
+        items=[saved_portfolio_out(record) for record in page.items],
+        next_cursor=page.next_cursor,
     )
 
 

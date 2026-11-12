@@ -32,7 +32,9 @@ packages/investinglab/   núcleo: librería Python pura (usable desde un noteboo
   tests/         unit/, property/, contract/, integration/, fixtures/, support/
 notebooks/       demos ejecutables, versionadas SIN resultados
 scripts/         utilidades de desarrollo: casetes, arranque de API y web (`dev.py`), limpieza
-apps/api/        API REST FastAPI sin estado (ADR-0027): app → routers → use_cases/mappers → schemas
+apps/api/        API REST FastAPI (ADR-0027): app → routers → use_cases/mappers → schemas;
+                 persistence/ (PostgreSQL, SQLAlchemy, migraciones Alembic; ADR-0029)
+compose.yaml     servicios locales con Docker (por ahora, PostgreSQL)
 apps/web/        web Next.js 16 + TypeScript estricto (ADR-0028): src/app (pantallas), src/components,
                  src/lib/api (cliente generado de apps/api/openapi.json), e2e/ (Playwright)
 docs/            Zensical: guide/, adr/, architecture/, plan/, reference/, modules/
@@ -51,10 +53,16 @@ docs/            Zensical: guide/, adr/, architecture/, plan/, reference/, modul
 4. Cero lógica de negocio en routers de la API: validar → llamar caso de uso → mapear schema.
    La API solo habla con el núcleo a través del `Toolkit` (nunca con `adapters`) y sus
    errores son Problem Details (RFC 9457) con un `type` documentado en `docs/guide/api.md`.
-5. Nuevo proveedor = nuevo adaptador en `adapters/providers/<nombre>/` que implementa
+5. Estado de usuario ([ADR-0029](docs/adr/0029-relational-persistence-and-owners.md)): los
+   repositorios son `Protocol` en `ports/` y se implementan en `apps/api/persistence/`; solo
+   ese paquete y `app.py` importan SQLAlchemy. Toda tabla nueva lleva `owner_id` con
+   `ddl.owner_isolation()` en su migración (o se declara en `GLOBAL_TABLES`), todo método de
+   repositorio recibe el propietario y lo ajeno responde 404. Lo que no debe reescribirse
+   (experimentos, ejecución, auditoría) va al `AuditLog`, en la misma transacción que el cambio.
+6. Nuevo proveedor = nuevo adaptador en `adapters/providers/<nombre>/` que implementa
    `MarketDataProvider` y/o `EconomicDataProvider`, declara sus `ProviderCapabilities`, usa
    `HttpClient` para la red y se registra en `ProviderRegistry`. Nada más cambia.
-6. Nuevo bloque del máster = nuevo paquete en `modules/` que se registra con su `ModuleInfo`:
+7. Nuevo bloque del máster = nuevo paquete en `modules/` que se registra con su `ModuleInfo`:
    requisitos redactados por nosotros → código → tests (un test exige que todo exista; la
    matriz de `docs/modules/` se regenera con `just traceability`). Lo reutilizable va al
    núcleo (`analytics`, `services`…), no se queda atrapado dentro del módulo.
@@ -104,6 +112,9 @@ uv run just web-install       # instalar las dependencias de la web (pnpm; `just
 uv run just dev               # API (:8000, o INVESTINGLAB_API_PORT) y web (:3000) a la vez
 uv run just preview           # igual, con la build de producción de la web (sin recarga)
 uv run just api               # solo la API, en http://127.0.0.1:8000/docs, con recarga
+uv run just db-up             # PostgreSQL local con Docker (compose.yaml)
+uv run just db-upgrade        # llevar la base de datos al esquema de esta versión
+uv run just db-revision "…"   # borrador de migración desde los modelos (revisarlo a mano)
 uv run just openapi           # regenerar el contrato de la API y los tipos de la web (CI lo exige)
 uv run just web-check         # lint + typecheck + Vitest + build de la web
 uv run just web-e2e           # Playwright con la API sin red sobre datos sintéticos
@@ -131,6 +142,10 @@ bash). Lo que necesite más lógica va a un script de Python en `scripts/`, tipa
   generan datos **sintéticos** con proveedor `synthetic`.
 - Property-based testing con `hypothesis` para estadísticos y Monte Carlo.
 - Marcadores: `integration` (BD, filesystem pesado) y `network` (nunca en CI).
+- Base de datos: los tests crean su propia base de datos en el servidor de
+  `INVESTINGLAB_TEST_DATABASE_URL` y se conectan con un rol sin privilegios. Sin la variable
+  se saltan; en la CI, que falte es un error. Cada repositorio pasa el mismo contrato en
+  memoria (`support.repositories`) y en PostgreSQL (`test_repository_contract.py`).
 - Los notebooks se versionan sin resultados y un test los ejecuta de principio a fin con
   ficheros sintéticos temporales (`tests/unit/test_notebooks.py`).
 

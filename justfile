@@ -66,6 +66,18 @@ record-fixtures *only:
 api:
     uv run investinglab-api --reload
 
+# Start a local PostgreSQL with Docker (the database of INVESTINGLAB_API_DATABASE_URL).
+db-up:
+    docker compose up --detach --wait postgres
+
+# Bring the database to the schema this version needs.
+db-upgrade:
+    uv run investinglab-api db upgrade
+
+# Draft a migration from the models (review it: add row-level security and grants).
+db-revision message:
+    uv run investinglab-api db revision -m "{{ message }}"
+
 # Write the API contract (OpenAPI) and regenerate the web client's types from it.
 openapi:
     uv run investinglab-api --openapi apps/api/openapi.json

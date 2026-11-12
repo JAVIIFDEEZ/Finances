@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING
 import pandas as pd
 
 from investinglab.domain import align, weight_problems
+from investinglab.domain.errors import InvalidPortfolioError
 from investinglab.services import DataUnavailableError
 
 if TYPE_CHECKING:
@@ -33,6 +34,7 @@ if TYPE_CHECKING:
 __all__ = [
     "Comparison",
     "PortfolioAnalytics",
+    "accept_weights",
     "build_portfolio",
     "compare",
     "optimize",
@@ -83,6 +85,17 @@ def validate_weights(request: PortfolioIn) -> list[str]:
     """Problems of the target weights, before downloading anything (empty when valid)."""
     pairs = [(holding.symbol, holding.weight) for holding in request.holdings]
     return weight_problems(pairs, allow_short=request.allow_short)
+
+
+def accept_weights(request: PortfolioIn) -> None:
+    """Refuse to store a portfolio whose weights break the domain's rules.
+
+    Raises:
+        InvalidPortfolioError: With every problem found.
+    """
+    found = validate_weights(request)
+    if found:
+        raise InvalidPortfolioError(request.name, found)
 
 
 async def build_portfolio(toolkit: AsyncToolkit, request: PortfolioIn) -> Portfolio:

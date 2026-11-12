@@ -12,13 +12,15 @@ curl "http://127.0.0.1:8000/api/v1/market/bars?symbol=SAN.MC&start=2024-01-01"
 
 | Método | Ruta | Qué devuelve |
 |--------|------|--------------|
-| GET | `/health/live`, `/health/ready` | Estado, versión y proveedores registrados |
+| GET | `/health/live`, `/health/ready` | Estado, versión, proveedores registrados y estado de la base de datos |
 | GET | `/api/v1/providers` | Capacidades de cada proveedor (frecuencias, cuotas, historia) |
 | GET | `/api/v1/modules`, `/api/v1/modules/{slug}` | Módulos del máster y su trazabilidad (`language=es\|en`) |
 | GET | `/api/v1/market/bars` | Barras de un instrumento con metadatos, procedencia y estadísticos |
 | POST | `/api/v1/market/compare` | Rendimiento base 100, caídas, métricas y correlación de varios |
 | GET | `/api/v1/market/quality` | Diagnóstico de calidad frente al calendario oficial |
 | GET | `/api/v1/rates/risk-free` | Tipo libre de riesgo conocido cada día hábil |
+| GET, POST | `/api/v1/portfolios` | Carteras guardadas: listar (paginado por cursor) y guardar |
+| GET, PUT, DELETE | `/api/v1/portfolios/{id}` | Leer, sustituir y borrar una cartera guardada (con versión) |
 | POST | `/api/v1/portfolios/validate` | Validación de pesos sin descargar nada |
 | POST | `/api/v1/portfolios/analytics` | Historia, métricas, caídas, correlación y contribución al riesgo |
 | POST | `/api/v1/portfolios/report` | Informe Markdown (`language=es\|en`) |
@@ -55,6 +57,26 @@ Una cartera se describe en el cuerpo:
 * **Contrato.** `apps/api/openapi.json` es el documento OpenAPI versionado. Si cambias la API,
   regenera el fichero con `uv run just openapi`; un test lo exige.
 
+## Carteras guardadas y versiones
+
+Necesitan base de datos ([guía de persistencia](persistence.md)). Cada cartera guardada tiene
+una **versión**, que viaja en la cabecera `ETag`. Para cambiarla o borrarla hay que citar la
+versión leída en `If-Match`; así, dos pestañas no se pisan los cambios en silencio.
+
+```bash
+curl -i -X POST http://127.0.0.1:8000/api/v1/portfolios -H "Content-Type: application/json" \
+  -d '{"name": "Núcleo", "holdings": [{"symbol": "SAN.MC", "weight": 1}]}'
+# 201 Created · ETag: "1" · Location: …/api/v1/portfolios/<id>
+
+curl -i -X PUT http://127.0.0.1:8000/api/v1/portfolios/<id> -H 'If-Match: "1"' \
+  -H "Content-Type: application/json" -d '{"name": "Núcleo v2", "holdings": […]}'
+# 200 OK · ETag: "2"        (412 si alguien la cambió antes; 428 sin If-Match)
+```
+
+El campo `portfolio` de la respuesta es el mismo cuerpo que aceptan los análisis: se puede
+enviar tal cual a `/api/v1/portfolios/analytics`. Solo se guardan carteras válidas (las mismas
+reglas que `/portfolios/validate`) y el nombre es único por propietario.
+
 ## Errores
 
 Todos los errores siguen [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457)
@@ -90,6 +112,28 @@ proveedor consultado y su respuesta.
 
 `503`. Los proveedores capaces de servir los datos fallaron (red, cuota, respuesta
 malformada). Si el fallo es transitorio, la respuesta lleva `Retry-After`.
+
+### name-conflict
+
+`409`. Ya tienes un registro con ese nombre.
+
+### version-conflict
+
+`412`. El registro cambió desde la versión citada en `If-Match`. `current_version` y la
+cabecera `ETag` dicen cuál es la actual: léelo de nuevo y repite el cambio.
+
+### precondition-required
+
+`428`. Un cambio o un borrado llegó sin `If-Match`.
+
+### persistence-not-configured
+
+`503`. El endpoint guarda datos y la API funciona sin base de datos
+(`INVESTINGLAB_API_DATABASE_URL`). El resto de la API no se ve afectado.
+
+### persistence-unavailable
+
+`503`. La base de datos no responde. La respuesta lleva `Retry-After`.
 
 ### timeout
 

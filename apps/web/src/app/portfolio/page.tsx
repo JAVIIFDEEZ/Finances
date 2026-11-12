@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 
 import { CorrelationHeatmap, GroupedBars, TimeSeriesChart } from "@/components/charts/charts";
 import { PortfolioBuilder } from "@/components/portfolio/builder";
+import { SavedPortfolios } from "@/components/portfolio/saved";
 import { useI18n, useTheme } from "@/components/providers";
 import { Badge, Button, Card, PageHeader, ProblemAlert, Refreshing, Skeleton, Stat, StatGrid } from "@/components/ui";
 import { postText } from "@/lib/api/client";
@@ -198,8 +199,9 @@ export default function PortfolioPage() {
     <>
       <PageHeader title={t("portfolio.title")} subtitle={t("portfolio.subtitle")} />
       <div className="grid items-start gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
-        <div className="xl:sticky xl:top-20">
+        <div className="flex flex-col gap-6">
           <PortfolioBuilder />
+          <SavedPortfolios />
         </div>
         <Analysis />
       </div>

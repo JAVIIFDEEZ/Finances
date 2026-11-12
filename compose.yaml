@@ -1,0 +1,31 @@
+# Local services for development. For now, only the database:
+#
+#   uv run just db-up        # start PostgreSQL and wait until it accepts connections
+#   uv run just db-upgrade   # create or update the schema
+#
+# The API and the web app run on the host with `uv run just dev` (containers for them
+# arrive with phase F10). Data lives in the `postgres-data` volume:
+# `docker compose down --volumes` deletes it.
+name: investinglab
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: investinglab
+      POSTGRES_PASSWORD: ${INVESTINGLAB_POSTGRES_PASSWORD:-investinglab}
+      POSTGRES_DB: investinglab
+    ports:
+      # This machine only: there is no authentication in front of the API yet.
+      - "127.0.0.1:${INVESTINGLAB_POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready --username investinglab --dbname investinglab"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  postgres-data:

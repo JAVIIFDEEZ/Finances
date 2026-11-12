@@ -1,7 +1,9 @@
 /**
  * The portfolio being worked on, shared by every analysis screen and kept in this browser.
  *
- * It is a draft: the API recomputes everything from it, nothing is stored server-side yet.
+ * It is a draft: the API recomputes everything from it. Saving it in the server is explicit
+ * (see ``SavedPortfolios``); ``saved`` then remembers which record the draft comes from and
+ * the version read, so a later save cannot overwrite a change made elsewhere.
  */
 
 import { z } from "zod";
@@ -94,10 +96,42 @@ export function toPortfolioIn(draft: PortfolioDraft): Schemas["PortfolioIn"] {
   };
 }
 
+function rebalanceChoice(rebalance: Schemas["RebalanceIn"] | undefined): RebalanceChoice {
+  if (rebalance?.kind === "buy_and_hold") return "buy_and_hold";
+  if (rebalance?.kind === "threshold") return "threshold";
+  return rebalance?.frequency === "1q" ? "quarterly" : "periodic";
+}
+
+/** The draft of a saved definition (weights back to percent, without float noise). */
+export function fromPortfolioIn(portfolio: Schemas["PortfolioIn"]): PortfolioDraft {
+  return {
+    name: portfolio.name ?? "Portfolio",
+    holdings: portfolio.holdings.map((h) => ({
+      symbol: h.symbol,
+      weight: Math.round(h.weight * 1e8) / 1e6,
+    })),
+    baseCurrency: portfolio.base_currency ?? null,
+    rebalance: rebalanceChoice(portfolio.rebalance),
+    start: portfolio.start ?? "",
+    allowShort: portfolio.allow_short ?? false,
+  };
+}
+
+/** The saved record a draft comes from, and the version last read. */
+export interface SavedRef {
+  id: string;
+  version: number;
+}
+
 interface PortfolioState {
   draft: PortfolioDraft;
+  saved: SavedRef | null;
   setDraft: (draft: PortfolioDraft) => void;
   setWeights: (weights: Record<string, number>) => void;
+  /** Work on a saved portfolio (or note that the draft has just been saved). */
+  open: (record: Schemas["SavedPortfolioOut"]) => void;
+  /** Keep the draft but forget the record it came from (it was deleted). */
+  detach: () => void;
   reset: () => void;
 }
 
@@ -105,7 +139,14 @@ export const usePortfolio = create<PortfolioState>()(
   persist(
     (set) => ({
       draft: DEFAULT_PORTFOLIO,
+      saved: null,
       setDraft: (draft) => set({ draft }),
+      open: (record) =>
+        set({
+          draft: fromPortfolioIn(record.portfolio),
+          saved: { id: record.id, version: record.version },
+        }),
+      detach: () => set({ saved: null }),
       setWeights: (weights) =>
         set((state) => ({
           draft: {
@@ -116,7 +157,7 @@ export const usePortfolio = create<PortfolioState>()(
             })),
           },
         })),
-      reset: () => set({ draft: DEFAULT_PORTFOLIO }),
+      reset: () => set({ draft: DEFAULT_PORTFOLIO, saved: null }),
     }),
     {
       name: "investinglab.portfolio",

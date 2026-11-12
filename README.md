@@ -116,6 +116,9 @@ Guía: [cómo ver la web](docs/guide/web.md).
 análisis de carteras, Monte Carlo, optimización y planes de ahorro, con errores RFC 9457 y un
 contrato OpenAPI versionado en `apps/api/openapi.json`. Detalle: [guía de la API](docs/guide/api.md).
 
+Con una base de datos PostgreSQL (opcional) guarda además tus carteras, con propietario, versión
+y registro de auditoría: [guía de persistencia](docs/guide/persistence.md).
+
 ## Arquitectura
 
 ```

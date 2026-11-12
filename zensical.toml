@@ -12,7 +12,7 @@ copyright = "© InvestingLab — uso privado"
 nav = [
   { "Inicio" = "index.md" },
   { "Plan" = ["plan/plan-maestro.md", "plan/integracion-cryptoworld.md"] },
-  { "Guías" = ["guide/toolkit.md", "guide/data-sources.md", "guide/optimization.md", "guide/planning.md", "guide/api.md", "guide/web.md"] },
+  { "Guías" = ["guide/toolkit.md", "guide/data-sources.md", "guide/optimization.md", "guide/planning.md", "guide/api.md", "guide/persistence.md", "guide/web.md"] },
   { "Módulos del máster" = ["modules/b1-toolkit.md"] },
   { "Arquitectura" = [
     "architecture/index.md",
@@ -52,6 +52,7 @@ nav = [
     "adr/0026-ecb-reference-rates-and-identifier-routing.md",
     "adr/0027-stateless-analytics-api.md",
     "adr/0028-institutional-web-app.md",
+    "adr/0029-relational-persistence-and-owners.md",
   ] },
   { "Referencia API" = [
     "reference/index.md",

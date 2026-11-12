@@ -23,6 +23,7 @@ def test_health_reports_the_providers_and_the_offline_mode(client: TestClient) -
         "core_version": core_version,
         "providers": ["synthetic", "rates"],
         "offline": True,
+        "database": "not_configured",
     }
 
 
@@ -101,6 +102,8 @@ def test_the_openapi_document_describes_every_endpoint(client: TestClient) -> No
         "/api/v1/market/compare",
         "/api/v1/market/quality",
         "/api/v1/rates/risk-free",
+        "/api/v1/portfolios",
+        "/api/v1/portfolios/{portfolio_id}",
         "/api/v1/portfolios/validate",
         "/api/v1/portfolios/analytics",
         "/api/v1/portfolios/report",
