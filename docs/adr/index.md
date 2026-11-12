@@ -35,6 +35,7 @@ actualiza el estado del antiguo.
 | [0026](0026-ecb-reference-rates-and-identifier-routing.md) | El BCE como fuente oficial de divisas y tipos del euro, con enrutado por identificadores | Aceptado |
 | [0027](0027-stateless-analytics-api.md) | API REST sin estado sobre el Toolkit, con Problem Details y contrato OpenAPI versionado | Aceptado |
 | [0028](0028-institutional-web-app.md) | Web institucional: Next.js, cliente tipado desde el contrato OpenAPI y gráficos con paleta validada | Aceptado |
+| [0029](0029-relational-persistence-and-owners.md) | Persistencia relacional con propietario en cada tabla y registro *append-only* | Aceptado |
 
 ## Cómo añadir un ADR
 

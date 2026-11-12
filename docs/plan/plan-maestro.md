@@ -692,7 +692,7 @@ Sustituye a F12. G0 reúne las fases F6, F7, F13 y F10 de la tabla anterior y se
 
 | Fase | Contenido | Hito |
 |------|-----------|------|
-| **G0a** | Persistencia (F6): PostgreSQL, SQLAlchemy asíncrono y Alembic; propietario en todas las tablas; registro *append-only* con *hash* encadenado; carteras guardadas | Plataforma con estado |
+| **G0a** | Persistencia (F6) ([ADR-0029](../adr/0029-relational-persistence-and-owners.md)) ✅: PostgreSQL, SQLAlchemy asíncrono y Alembic; propietario en todas las tablas, con seguridad a nivel de fila; registro *append-only* con *hash* encadenado; carteras guardadas con versión en la API y en la web | Plataforma con estado |
 | **G1** | Datos cripto y derivados: ccxt (varios *venues*), flujo por vela (delta y CVD), funding e interés abierto, universo *point-in-time*, CoinGecko, Fear & Greed | Cripto como clase de activo |
 | **G2** | Análisis técnico multiactivo (indicadores, patrones, estructura, confluencia multimarco) y ficha de activo | Misma ficha para `SAN.MC`, `^GSPC`, `EURUSD=X` y `BTC/USDT` |
 | **G0b** | Trabajos en segundo plano (F13) y observabilidad mínima | Trabajos largos con `202` y seguimiento |
