@@ -30,6 +30,10 @@ class HealthOut(ApiModel):
     core_version: str
     providers: list[str] = Field(description="Registered providers, in order of preference.")
     offline: bool = Field(description="Whether remote providers are disabled.")
+    database: Literal["not_configured", "ok", "migrations_pending", "unavailable"] = Field(
+        default="not_configured",
+        description="State of the database behind the endpoints that store data.",
+    )
 
 
 class RateLimitOut(ApiModel):

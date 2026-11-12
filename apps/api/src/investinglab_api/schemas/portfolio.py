@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 from typing import Self
+from uuid import UUID
 
 from pydantic import Field, model_validator
 
@@ -28,6 +29,8 @@ __all__ = [
     "PortfolioIn",
     "RebalanceIn",
     "RiskContributionOut",
+    "SavedPortfolioOut",
+    "SavedPortfolioPage",
     "ValidationOut",
 ]
 
@@ -94,6 +97,25 @@ class PortfolioIn(DateRange):
     def weights(self) -> dict[str, float]:
         """Target weight by symbol."""
         return {holding.symbol: holding.weight for holding in self.holdings}
+
+
+class SavedPortfolioOut(ApiModel):
+    """A portfolio saved by its owner."""
+
+    id: UUID
+    version: int = Field(description="1 when saved; one more after every change (the ETag).")
+    created_at: datetime
+    updated_at: datetime
+    portfolio: PortfolioIn = Field(description="The definition: send it to analyse it.")
+
+
+class SavedPortfolioPage(ApiModel):
+    """A page of saved portfolios, most recently updated first."""
+
+    items: list[SavedPortfolioOut]
+    next_cursor: str | None = Field(
+        description="Send it as `cursor` to get the next page; null on the last one."
+    )
 
 
 class ValidationOut(ApiModel):

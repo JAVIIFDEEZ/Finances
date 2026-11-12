@@ -3,7 +3,7 @@
   "info": {
     "title": "InvestingLab API",
     "summary": "Market data, portfolio analytics and simulation for the InvestingLab web app.",
-    "description": "\nREST API of **InvestingLab**: market data from several providers, portfolio analytics,\nMonte Carlo simulation, portfolio optimisation and savings plans.\n\n* Errors are [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457) Problem Details\n  (`application/problem+json`) with a documented `type`.\n* Every response carries an `X-Request-ID` (send your own to correlate logs).\n* Dates are ISO 8601: session dates for daily and coarser data, UTC instants intraday.\n* Undefined figures are `null`: no value is ever invented.\n",
+    "description": "\nREST API of **InvestingLab**: market data from several providers, portfolio analytics,\nMonte Carlo simulation, portfolio optimisation and savings plans.\n\n* Errors are [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457) Problem Details\n  (`application/problem+json`) with a documented `type`.\n* Every response carries an `X-Request-ID` (send your own to correlate logs).\n* Dates are ISO 8601: session dates for daily and coarser data, UTC instants intraday.\n* Undefined figures are `null`: no value is ever invented.\n* Saved records carry a version in their `ETag`; a change quotes it in `If-Match`.\n",
     "version": "0.1.0.dev0"
   },
   "paths": {
@@ -35,7 +35,7 @@
           "health"
         ],
         "summary": "Readiness",
-        "description": "The service can answer: the toolkit is wired and its providers registered.",
+        "description": "The service can answer: the toolkit is wired, and the database (if any) is reported.\n\nThe endpoints that need no stored state keep working without a database, so its state is\ninformation here, not a failure.",
         "operationId": "ready_health_ready_get",
         "responses": {
           "200": {
@@ -643,6 +643,514 @@
           },
           "503": {
             "description": "Every provider able to serve the data failed; retry later.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/portfolios": {
+      "get": {
+        "tags": [
+          "portfolios"
+        ],
+        "summary": "List saved portfolios",
+        "description": "The owner's portfolios, most recently updated first.",
+        "operationId": "list_saved_api_v1_portfolios_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "description": "Most portfolios in a page.",
+              "default": 50,
+              "title": "Limit"
+            },
+            "description": "Most portfolios in a page."
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`next_cursor` of the page before.",
+              "title": "Cursor"
+            },
+            "description": "`next_cursor` of the page before."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedPortfolioPage"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request breaks the schema, a limit or a domain rule.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The API runs without a database, or the database is not answering.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "portfolios"
+        ],
+        "summary": "Save a portfolio",
+        "description": "Save a portfolio under its name; the `ETag` is the version later changes must quote.",
+        "operationId": "save_api_v1_portfolios_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PortfolioIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedPortfolioOut"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The owner already has a record with that name.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request breaks the schema, a limit or a domain rule.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The API runs without a database, or the database is not answering.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/portfolios/{portfolio_id}": {
+      "get": {
+        "tags": [
+          "portfolios"
+        ],
+        "summary": "Read a saved portfolio",
+        "description": "One saved portfolio and its current version (`ETag`).",
+        "operationId": "read_saved_api_v1_portfolios__portfolio_id__get",
+        "parameters": [
+          {
+            "name": "portfolio_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Portfolio Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedPortfolioOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The owner has no such portfolio.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request breaks the schema, a limit or a domain rule.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The API runs without a database, or the database is not answering.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "portfolios"
+        ],
+        "summary": "Replace a saved portfolio",
+        "description": "Replace the portfolio read at the version in `If-Match`; nothing is lost if it changed.",
+        "operationId": "replace_api_v1_portfolios__portfolio_id__put",
+        "parameters": [
+          {
+            "name": "portfolio_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Portfolio Id"
+            }
+          },
+          {
+            "name": "if-match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Version the change applies to: the `ETag` last read (`\"3\"`).",
+              "title": "If-Match"
+            },
+            "description": "Version the change applies to: the `ETag` last read (`\"3\"`)."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PortfolioIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedPortfolioOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The owner has no such portfolio.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The owner already has a record with that name.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "The record changed since the version sent in `If-Match`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request breaks the schema, a limit or a domain rule.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "428": {
+            "description": "The change needs an `If-Match` header with the version last read.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The API runs without a database, or the database is not answering.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "portfolios"
+        ],
+        "summary": "Delete a saved portfolio",
+        "description": "Delete the portfolio read at the version in `If-Match`.",
+        "operationId": "delete_api_v1_portfolios__portfolio_id__delete",
+        "parameters": [
+          {
+            "name": "portfolio_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Portfolio Id"
+            }
+          },
+          {
+            "name": "if-match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Version the change applies to: the `ETag` last read (`\"3\"`).",
+              "title": "If-Match"
+            },
+            "description": "Version the change applies to: the `ETag` last read (`\"3\"`)."
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "The owner has no such portfolio.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "The record changed since the version sent in `If-Match`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request breaks the schema, a limit or a domain rule.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "428": {
+            "description": "The change needs an `If-Match` header with the version last read.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The API runs without a database, or the database is not answering.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1817,6 +2325,18 @@
             "type": "boolean",
             "title": "Offline",
             "description": "Whether remote providers are disabled."
+          },
+          "database": {
+            "type": "string",
+            "enum": [
+              "not_configured",
+              "ok",
+              "migrations_pending",
+              "unavailable"
+            ],
+            "title": "Database",
+            "description": "State of the database behind the endpoints that store data.",
+            "default": "not_configured"
           }
         },
         "type": "object",
@@ -3144,6 +3664,18 @@
             ],
             "title": "Attempts",
             "description": "Providers tried for unavailable data, with their errors."
+          },
+          "current_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Version",
+            "description": "Version the record is at now (``version-conflict``)."
           }
         },
         "type": "object",
@@ -3563,6 +4095,74 @@
         ],
         "title": "RiskFreeOut",
         "description": "Effective annual risk-free rate known at each business day."
+      },
+      "SavedPortfolioOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version",
+            "description": "1 when saved; one more after every change (the ETag)."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "portfolio": {
+            "$ref": "#/components/schemas/PortfolioIn",
+            "description": "The definition: send it to analyse it."
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "version",
+          "created_at",
+          "updated_at",
+          "portfolio"
+        ],
+        "title": "SavedPortfolioOut",
+        "description": "A portfolio saved by its owner."
+      },
+      "SavedPortfolioPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SavedPortfolioOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor",
+            "description": "Send it as `cursor` to get the next page; null on the last one."
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "SavedPortfolioPage",
+        "description": "A page of saved portfolios, most recently updated first."
       },
       "SeriesOut": {
         "properties": {
@@ -4217,7 +4817,7 @@
     },
     {
       "name": "portfolios",
-      "description": "Validation, analytics and reports of portfolios."
+      "description": "Saved portfolios, validation, analytics and reports."
     },
     {
       "name": "analysis",

@@ -137,6 +137,10 @@ exempt-modules = ["typing", "typing_extensions", "numpy", "pandas"]
 [tool.ruff.lint.per-file-ignores]
 # FastAPI evaluates endpoint annotations at runtime: their imports must stay importable.
 "apps/api/src/investinglab_api/routers/**" = ["TC001", "TC002", "TC003"]
+# SQLAlchemy resolves the Mapped[...] annotations of the models at runtime.
+"apps/api/src/investinglab_api/persistence/models.py" = ["TC003"]
+# Migrations are scripts Alembic loads by path; their names start with the revision number.
+"apps/api/src/investinglab_api/persistence/migrations/**" = ["INP001", "N999"]
 "**/tests/**" = [
   "ANN",     # fixtures and tests do not need full annotations
   "D",       # test names are the documentation
@@ -305,6 +309,20 @@ type = "forbidden"
 source_modules = ["investinglab_api"]
 forbidden_modules = ["investinglab.adapters", "httpx", "duckdb", "pyarrow", "matplotlib"]
 allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "Only the persistence package and the app factory know the database (ADR-0029)"
+type = "forbidden"
+source_modules = [
+  "investinglab_api.routers",
+  "investinglab_api.use_cases",
+  "investinglab_api.mappers",
+  "investinglab_api.schemas",
+  "investinglab_api.dependencies",
+  "investinglab_api.problems",
+  "investinglab",
+]
+forbidden_modules = ["investinglab_api.persistence", "sqlalchemy", "alembic", "psycopg"]
 
 [[tool.importlinter.contracts]]
 name = "API layers: routers call use cases and mappers, which only know schemas and the core"
