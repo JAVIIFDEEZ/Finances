@@ -93,7 +93,7 @@ function InstrumentView({ symbol }: { symbol: string }) {
         </div>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(300px,1fr)]">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(300px,1fr)]">
         <Card title={t("markets.price")} subtitle={series ? `${series.instrument.currency} · ${t("markets.adjustment")} ${t(`adjustment.${series.adjustment}` as "adjustment.raw")}` : undefined}>
           {series ? (
             <Refreshing active={bars.isFetching}>
@@ -141,7 +141,7 @@ function InstrumentView({ symbol }: { symbol: string }) {
         </Card>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(300px,1fr)]">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(300px,1fr)]">
         <Card title={t("markets.drawdown")}>
           {comparison.isError ? (
             <ProblemAlert error={comparison.error} onRetry={() => void comparison.refetch()} />
@@ -307,7 +307,7 @@ function CompareView() {
                 lines={series.map((s) => ({ name: s.instrument.symbol, color: colorOf(s.instrument.symbol), points: s.performance.map((p) => ({ time: String(p.time), value: p.value })) }))}
               />
             </Card>
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(320px,2fr)]">
+            <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(320px,2fr)]">
               <Card title={t("markets.drawdown")}>
                 <TimeSeriesChart
                   height={260}

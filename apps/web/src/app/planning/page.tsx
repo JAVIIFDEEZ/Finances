@@ -83,7 +83,7 @@ export default function PlanningPage() {
       <div className="mb-6">
         <PortfolioSummary />
       </div>
-      <div className="grid items-start gap-6 xl:grid-cols-[300px_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[300px_minmax(0,1fr)]">
         <Card title={t("simulation.parameters")}>
           <form className="flex flex-col gap-4" onSubmit={submit}>
             <div className="grid grid-cols-2 gap-3">

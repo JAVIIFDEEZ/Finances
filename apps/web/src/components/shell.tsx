@@ -125,7 +125,7 @@ function Navigation({ onNavigate }: { onNavigate?: () => void }) {
                 onClick={onNavigate}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "flex h-8 items-center gap-2.5 rounded-md px-2.5 text-[13px] font-medium transition-colors",
+                  "flex h-8 items-center gap-2.5 rounded-md px-2.5 text-[13px] font-medium transition-colors pointer-coarse:h-[44px] pointer-coarse:text-[15px]",
                   active ? "bg-accent-wash text-accent-strong" : "text-text-2 hover:bg-surface-2 hover:text-text",
                 )}
               >

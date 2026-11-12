@@ -56,7 +56,7 @@ export default function SimulationPage() {
       <div className="mb-6">
         <PortfolioSummary />
       </div>
-      <div className="grid items-start gap-6 xl:grid-cols-[300px_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[300px_minmax(0,1fr)]">
         <Card title={t("simulation.parameters")} subtitle={t("simulation.note")}>
           <form className="flex flex-col gap-4" onSubmit={submit}>
             <Field label={t("simulation.model")} htmlFor="sim-model">
@@ -129,7 +129,7 @@ export default function SimulationPage() {
                     axisName={t("simulation.sessions")}
                   />
                 </Card>
-                <div className="grid gap-6 2xl:grid-cols-[minmax(0,3fr)_minmax(320px,2fr)]">
+                <div className="grid grid-cols-1 gap-6 2xl:grid-cols-[minmax(0,3fr)_minmax(320px,2fr)]">
                   <Card title={t("simulation.histogram")}>
                     <HistogramChart
                       label={t("simulation.histogram")}
