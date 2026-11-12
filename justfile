@@ -115,6 +115,10 @@ dev:
 preview:
     uv run python scripts/dev.py --preview
 
+# Like preview, and also reachable from a phone on the same Wi-Fi (no login yet: home only).
+mobile:
+    uv run python scripts/dev.py --preview --lan
+
 # ── Documentation ─────────────────────────────────────────────────────
 
 # Serve the documentation site with live reload.

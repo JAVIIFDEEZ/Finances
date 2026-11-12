@@ -122,7 +122,8 @@ def test_dev_installs_missing_dependencies_and_reloads(launcher: dict[str, list[
         [sys.executable, "-m", "investinglab_api", "--reload"],
         dev.ROOT,
     )
-    assert (app.name, app.command, app.cwd) == ("web", ["pnpm", "dev"], web)
+    assert (app.name, app.cwd) == ("web", web)
+    assert app.command == ["pnpm", "dev", "--hostname", "127.0.0.1"]  # this machine only
 
 
 def test_preview_builds_and_serves_without_reload(launcher: dict[str, list[Any]]) -> None:
@@ -133,7 +134,35 @@ def test_preview_builds_and_serves_without_reload(launcher: dict[str, list[Any]]
     assert launcher["steps"] == [(["pnpm", "build"], dev.WEB, False)]
     api, app = launcher["servers"]
     assert api.command == [sys.executable, "-m", "investinglab_api"]
-    assert app.command == ["pnpm", "start"]
+    assert app.command == ["pnpm", "start", "--hostname", "127.0.0.1"]
+
+
+def test_lan_serves_the_web_app_to_the_network_and_says_where(
+    launcher: dict[str, list[Any]],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    (dev.WEB / "node_modules").mkdir()
+    monkeypatch.setattr(dev, "lan_address", lambda: "192.168.1.74")
+
+    assert dev.main(["--preview", "--lan"]) == 0
+
+    api, app = launcher["servers"]
+    assert app.command == ["pnpm", "start", "--hostname", "0.0.0.0"]  # noqa: S104
+    assert "--host" not in " ".join(api.command)  # the API never leaves this machine
+    output = capsys.readouterr().out
+    assert "http://192.168.1.74:3000" in output
+    assert "no login" in output
+
+    monkeypatch.setattr(dev, "lan_address", lambda: None)
+    assert dev.main(["--preview", "--lan"]) == 0
+    assert "port 3000 of this machine" in capsys.readouterr().out
+
+
+def test_the_lan_address_is_a_network_address_or_nothing() -> None:
+    address = dev.lan_address()
+
+    assert address is None or (address.count(".") == 3 and not address.startswith("127."))
 
 
 def test_the_web_app_follows_the_api_port(
