@@ -13,6 +13,7 @@ import { asLocale, asTheme, LOCALE_COOKIE, THEME_COOKIE } from "@/lib/preference
 export const metadata: Metadata = {
   title: { default: "InvestingLab", template: "%s · InvestingLab" },
   description: "Market data, portfolio analytics, Monte Carlo simulation, optimisation and savings plans.",
+  appleWebApp: { capable: true, title: "InvestingLab", statusBarStyle: "black-translucent" },
 };
 
 export const viewport: Viewport = {

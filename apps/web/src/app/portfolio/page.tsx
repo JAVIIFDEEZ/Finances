@@ -118,7 +118,7 @@ function Analysis() {
           <TimeSeriesChart height={200} label={t("markets.drawdown")} format={percent} lines={[{ name: data.name, color, area: true, points: data.drawdown.map((p) => ({ time: String(p.time), value: p.value })) }]} />
         </Card>
 
-        <div className="grid gap-6 xl:grid-cols-2">
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
           <Card title={t("portfolio.contributions")} subtitle={`${t("portfolio.effectiveAssets")}: ${fmt.number(data.effective_number_of_assets, 1)}`}>
             <GroupedBars
               label={t("portfolio.contributions")}
@@ -135,7 +135,7 @@ function Analysis() {
           </Card>
         </div>
 
-        <div className="grid gap-6 2xl:grid-cols-2">
+        <div className="grid grid-cols-1 gap-6 2xl:grid-cols-2">
           <Card title={t("portfolio.episodes")} padded={false}>
             <div className="overflow-x-auto">
             <table className="w-full whitespace-nowrap text-[13px]">
@@ -198,7 +198,7 @@ export default function PortfolioPage() {
   return (
     <>
       <PageHeader title={t("portfolio.title")} subtitle={t("portfolio.subtitle")} />
-      <div className="grid items-start gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
         <div className="flex flex-col gap-6">
           <PortfolioBuilder />
           <SavedPortfolios />

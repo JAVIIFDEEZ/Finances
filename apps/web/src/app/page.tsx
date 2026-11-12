@@ -195,7 +195,7 @@ function PortfolioCard() {
         </Link>
       }
     >
-      <div className="grid gap-5 lg:grid-cols-[1fr_2fr]">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_2fr]">
         <ul className="flex flex-col gap-1.5">
           {draft.holdings.map((holding) => (
             <li key={holding.symbol} className="flex items-center justify-between gap-3 text-[13px]">
@@ -248,7 +248,7 @@ export default function OverviewPage() {
       <div className="mb-6">
         <PortfolioCard />
       </div>
-      <div className="grid items-start gap-6 xl:grid-cols-3">
+      <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-3">
         <div className="xl:col-span-1">
           <RiskFreeCard />
         </div>

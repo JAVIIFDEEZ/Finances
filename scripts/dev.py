@@ -10,10 +10,15 @@ date first. Before starting, it checks that no other program holds the ports (th
 ``INVESTINGLAB_API_PORT`` says otherwise, and the web app's 3000) and points the web app at
 the API's port, so running both elsewhere takes a single variable.
 
+By default both listen on this machine only. ``--lan`` serves the web app to the local
+network as well, to open it from a phone on the same Wi-Fi: the API stays on this machine (the
+web app proxies to it), but there is no login yet, so anyone on that network can use it.
+
 Usage::
 
     uv run python scripts/dev.py            # API and web app, both with live reload
     uv run python scripts/dev.py --preview  # API and the production build of the web app
+    uv run python scripts/dev.py --preview --lan   # ...also reachable from the local network
 """
 
 from __future__ import annotations
@@ -107,6 +112,21 @@ def database_configured() -> bool:
     from investinglab_api.settings import ApiSettings  # noqa: PLC0415 - only the launcher needs it
 
     return ApiSettings().database_url is not None
+
+
+def lan_address() -> str | None:
+    """This machine's address on the local network, if it has one.
+
+    No packet is sent: connecting a UDP socket only asks the system which interface it
+    would use.
+    """
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
+        try:
+            probe.connect(("192.0.2.1", 9))  # TEST-NET-1: never routed
+        except OSError:
+            return None
+        address: str = probe.getsockname()[0]
+    return None if address.startswith("127.") else address
 
 
 def start(server: Server) -> subprocess.Popen[bytes]:
@@ -204,6 +224,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--preview", action="store_true", help="serve the production build (no live reload)"
     )
+    parser.add_argument(
+        "--lan",
+        action="store_true",
+        help="serve the web app to the local network too (to open it from a phone)",
+    )
     arguments = parser.parse_args(argv)
     port = api_port()
     if problems := busy_ports(port):
@@ -227,12 +252,21 @@ def main(argv: Sequence[str] | None = None) -> int:
     except KeyboardInterrupt:
         return 130
     api = [sys.executable, "-m", "investinglab_api", *([] if arguments.preview else ["--reload"])]
-    web = [*node, "start" if arguments.preview else "dev"]
+    host = "0.0.0.0" if arguments.lan else LOCALHOST  # noqa: S104 - asked for with --lan
+    web = [*node, "start" if arguments.preview else "dev", "--hostname", host]
     print(  # noqa: T201
         f"API: http://{LOCALHOST}:{port}/docs | web: http://localhost:{WEB_PORT} | "
         "Ctrl+C stops both",
         flush=True,
     )
+    if arguments.lan:
+        address = lan_address()
+        where = f"http://{address}:{WEB_PORT}" if address else f"port {WEB_PORT} of this machine"
+        print(  # noqa: T201
+            f"From a phone on the same Wi-Fi: {where}\n"
+            "There is no login yet: anyone on this network can open it. Use it at home only.",
+            flush=True,
+        )
     return run([Server("API", api, ROOT), Server("web", web, WEB, web_env)])
 
 

@@ -59,7 +59,7 @@ export default function OptimizationPage() {
       <div className="mb-6">
         <PortfolioSummary />
       </div>
-      <div className="grid items-start gap-6 xl:grid-cols-[300px_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[300px_minmax(0,1fr)]">
         <Card title={t("simulation.parameters")} subtitle={t("optimization.estimates")}>
           <form className="flex flex-col gap-4" onSubmit={submit}>
             <Field label={t("optimization.objective")} htmlFor="opt-objective">
@@ -130,7 +130,7 @@ export default function OptimizationPage() {
                     names={{ frontier: t("optimization.frontier"), assets: t("portfolio.holdings"), volatility: t("metric.volatility"), expectedReturn: t("optimization.expectedReturn") }}
                   />
                 </Card>
-                <div className="grid gap-6 2xl:grid-cols-2">
+                <div className="grid grid-cols-1 gap-6 2xl:grid-cols-2">
                   <Card title={t("optimization.weights")}>
                     <GroupedBars
                       label={t("optimization.weights")}

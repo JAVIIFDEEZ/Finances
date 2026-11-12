@@ -54,12 +54,12 @@ export function Card({
   return (
     <section className={cn("rounded-lg border hairline bg-surface", className)}>
       {title ? (
-        <div className="flex items-start justify-between gap-3 border-b hairline px-4 py-3">
+        <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2 border-b hairline px-4 py-3">
           <div className="min-w-0">
             <h2 className="text-[13px] font-semibold uppercase tracking-[0.04em] text-text-2">{title}</h2>
             {subtitle ? <p className="mt-0.5 text-xs text-muted">{subtitle}</p> : null}
           </div>
-          {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
+          {actions ? <div className="flex min-w-0 flex-wrap items-center gap-2">{actions}</div> : null}
         </div>
       ) : null}
       <div className={cn(padded && "p-4")}>{children}</div>
@@ -79,7 +79,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonHTMLAttributes<HTMLBut
         type={type}
         className={cn(
           "inline-flex items-center justify-center gap-1.5 rounded-md font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50",
-          size === "sm" ? "h-7 px-2.5 text-xs" : "h-9 px-3.5 text-sm",
+          size === "sm" ? "h-7 px-2.5 text-xs pointer-coarse:h-[40px] pointer-coarse:px-3" : "h-9 px-3.5 text-sm pointer-coarse:h-[44px]",
           variant === "primary" && "bg-accent text-on-accent hover:bg-accent-strong",
           variant === "secondary" && "border hairline bg-surface-2 text-text hover:bg-surface-3",
           variant === "ghost" && "text-text-2 hover:bg-surface-2 hover:text-text",
@@ -104,7 +104,7 @@ export function Field({ label, hint, children, htmlFor }: { label: string; hint?
 }
 
 const fieldClass =
-  "h-9 w-full rounded-md border hairline bg-surface-2 px-2.5 text-sm text-text placeholder:text-muted focus-visible:border-accent";
+  "h-9 w-full rounded-md border hairline bg-surface-2 px-2.5 text-sm text-text placeholder:text-muted focus-visible:border-accent pointer-coarse:h-[44px] pointer-coarse:text-[16px]";
 
 export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(function Input(
   { className, ...props },
@@ -145,7 +145,7 @@ export function Segmented<T extends string>({
             aria-checked={selected}
             onClick={() => onChange(option.value)}
             className={cn(
-              "h-7 rounded-[5px] px-2.5 text-xs font-medium transition-colors",
+              "h-7 rounded-[5px] px-2.5 text-xs font-medium transition-colors pointer-coarse:h-[36px] pointer-coarse:px-3",
               selected ? "bg-surface text-text shadow-[0_0_0_1px_var(--border)]" : "text-text-2 hover:text-text",
             )}
           >
