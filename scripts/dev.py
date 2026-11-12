@@ -5,7 +5,8 @@ PowerShell on Windows). Each server runs in a process group of its own: Ctrl+C s
 together with every process they started (uvicorn's reloader, Next.js workers), and when one
 of them stops on its own the other one is stopped too.
 
-Before starting, it checks that no other program holds the ports (the API's, 8000 unless
+When a database is configured (``INVESTINGLAB_API_DATABASE_URL``), its schema is brought up to
+date first. Before starting, it checks that no other program holds the ports (the API's, 8000 unless
 ``INVESTINGLAB_API_PORT`` says otherwise, and the web app's 3000) and points the web app at
 the API's port, so running both elsewhere takes a single variable.
 
@@ -99,6 +100,13 @@ def busy_ports(api: int) -> list[str]:
             "(another `just dev` or `just preview`?). Stop it first."
         )
     return problems
+
+
+def database_configured() -> bool:
+    """Whether the API will use a database (the environment or ``.env`` name one)."""
+    from investinglab_api.settings import ApiSettings  # noqa: PLC0415 - only the launcher needs it
+
+    return ApiSettings().database_url is not None
 
 
 def start(server: Server) -> subprocess.Popen[bytes]:
@@ -208,6 +216,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     if arguments.preview:
         steps.append([*node, "build"])
     try:
+        if database_configured():
+            migrate = [sys.executable, "-m", "investinglab_api", "db", "upgrade"]
+            if (code := subprocess.run(migrate, cwd=ROOT, check=False).returncode) != 0:  # noqa: S603
+                return code
         for step in steps:
             done = subprocess.run(step, cwd=WEB, env=web_env, check=False)  # noqa: S603
             if done.returncode != 0:

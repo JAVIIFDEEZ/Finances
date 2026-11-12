@@ -19,16 +19,22 @@ __all__ = ["main"]
 
 
 def _database(argv: list[str]) -> int:
-    """``db upgrade`` and ``db current``."""
+    """``db upgrade``, ``db current`` and (for development) ``db revision -m "what changes"``."""
     from investinglab_api.persistence import migrate  # noqa: PLC0415 - only for this command
 
     parser = argparse.ArgumentParser(prog="investinglab-api db", description=_database.__doc__)
-    parser.add_argument("action", choices=["upgrade", "current"])
-    action = parser.parse_args(argv).action
+    parser.add_argument("action", choices=["upgrade", "current", "revision"])
+    parser.add_argument("-m", "--message", help="what the new revision changes")
+    arguments = parser.parse_args(argv)
+    action = arguments.action
     url = get_api_settings().database_url
     if url is None:
         sys.stderr.write("Set INVESTINGLAB_API_DATABASE_URL to the database to migrate.\n")
         return 2
+    if action == "revision":
+        if not arguments.message:
+            parser.error("revision needs -m with what it changes")
+        migrate.revision(url.get_secret_value(), arguments.message)
     if action == "upgrade":
         migrate.upgrade(url.get_secret_value())
     current = migrate.current_revision(url.get_secret_value())

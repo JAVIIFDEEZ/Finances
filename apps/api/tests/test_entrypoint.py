@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 
 from investinglab_api import __main__ as cli
 from investinglab_api.app import create_app
+from investinglab_api.persistence import migrate
 from investinglab_api.settings import get_api_settings
 
 if TYPE_CHECKING:
@@ -59,6 +60,25 @@ def test_db_reports_and_upgrades_the_schema(
     output = capsys.readouterr().out
     assert output.count("Database at revision 0001 (this version needs 0001)") == 2
     assert "postgres:" not in output  # the URL and its password are never printed
+
+
+def test_db_revision_drafts_a_migration_from_the_models(monkeypatch: pytest.MonkeyPatch) -> None:
+    drafted: list[tuple[str | None, dict[str, Any]]] = []
+    monkeypatch.setattr(
+        "alembic.command.revision",
+        lambda config, **options: drafted.append((config.attributes["url"], options)),
+    )
+    monkeypatch.setattr(migrate, "current_revision", lambda url: "0001")
+    monkeypatch.setenv("INVESTINGLAB_API_DATABASE_URL", "postgresql+psycopg://localhost/x")
+    get_api_settings.cache_clear()
+
+    assert cli.main(["db", "revision", "-m", "add ledgers"]) == 0
+    with pytest.raises(SystemExit):  # a revision without a message says nothing to a reviewer
+        cli.main(["db", "revision"])
+
+    assert drafted == [
+        ("postgresql+psycopg://localhost/x", {"message": "add ledgers", "autogenerate": True})
+    ]
 
 
 def test_the_default_app_wires_and_closes_its_own_toolkit() -> None:

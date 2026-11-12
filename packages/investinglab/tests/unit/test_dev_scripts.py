@@ -88,7 +88,7 @@ def launcher(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> dict[str, list[
     recorded: dict[str, list[Any]] = {"steps": [], "servers": [], "codes": [], "envs": []}
 
     def step(
-        command: list[str], *, cwd: Path, env: dict[str, str], check: bool
+        command: list[str], *, cwd: Path, check: bool, env: dict[str, str] | None = None
     ) -> subprocess.CompletedProcess[bytes]:
         recorded["steps"].append((command, cwd, check))
         recorded["envs"].append(env)
@@ -100,6 +100,7 @@ def launcher(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> dict[str, list[
     monkeypatch.setattr(dev, "WEB", tmp_path)
     monkeypatch.setattr(dev, "pnpm", lambda: ["pnpm"])
     monkeypatch.setattr(dev, "listening", lambda port, host="127.0.0.1": False)
+    monkeypatch.setattr(dev, "database_configured", lambda: False)
     monkeypatch.setattr(subprocess, "run", step)
 
     def run(servers: list[Any]) -> int:
@@ -196,6 +197,36 @@ def test_listening_tells_whether_a_program_holds_a_port() -> None:
         port = server.getsockname()[1]
         assert dev.listening(port)
     assert not dev.listening(port)
+
+
+def test_the_schema_is_migrated_first_when_a_database_is_configured(
+    launcher: dict[str, list[Any]], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(dev, "database_configured", lambda: True)
+    migrate = [sys.executable, "-m", "investinglab_api", "db", "upgrade"]
+
+    assert dev.main([]) == 0
+    assert launcher["steps"][0] == (migrate, dev.ROOT, False)
+    assert len(launcher["servers"]) == 2
+
+    launcher["steps"].clear()
+    launcher["servers"].clear()
+    launcher["codes"].append(1)  # the database is down, or a migration fails
+
+    assert dev.main([]) == 1
+    assert [command for command, _, _ in launcher["steps"]] == [migrate]
+    assert launcher["servers"] == []
+
+
+def test_the_launcher_reads_the_database_from_the_api_settings(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.chdir(tmp_path)  # no .env here
+    monkeypatch.delenv("INVESTINGLAB_API_DATABASE_URL", raising=False)
+    assert not dev.database_configured()
+
+    monkeypatch.setenv("INVESTINGLAB_API_DATABASE_URL", "postgresql+psycopg://localhost/x")
+    assert dev.database_configured()
 
 
 def test_a_failed_step_stops_before_the_servers(launcher: dict[str, list[Any]]) -> None:

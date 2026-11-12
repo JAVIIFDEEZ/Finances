@@ -18,7 +18,7 @@ from sqlalchemy.exc import ProgrammingError
 if TYPE_CHECKING:
     from sqlalchemy.engine import Engine
 
-__all__ = ["alembic_config", "current_revision", "head_revision", "upgrade"]
+__all__ = ["alembic_config", "current_revision", "head_revision", "revision", "upgrade"]
 
 MIGRATIONS = Path(__file__).parent / "migrations"
 
@@ -44,6 +44,15 @@ def head_revision() -> str:
 def upgrade(url: str, revision: str = "head") -> None:
     """Bring the database to ``revision`` (the latest by default)."""
     command.upgrade(alembic_config(url), revision)
+
+
+def revision(url: str, message: str) -> None:
+    """Write a new migration with what the models have and the database lacks.
+
+    A draft to review: Alembic does not see row-level security, triggers or grants, which
+    every new table needs (see :mod:`investinglab_api.persistence.ddl`).
+    """
+    command.revision(alembic_config(url), message=message, autogenerate=True)
 
 
 def current_revision(url: str) -> str | None:
