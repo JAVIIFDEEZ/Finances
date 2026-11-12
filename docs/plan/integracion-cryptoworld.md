@@ -28,6 +28,7 @@
 | D4 | Formato | **Markdown en tu carpeta + Proyecto** | Este fichero. |
 | D5 | Publicación del documento (11-nov-2026) | **En el repositorio, sin los fallos abiertos de CryptoWorld** | Este fichero: los defectos abiertos de CryptoWorld quedan como requisitos de diseño para Finances, sin cifras, ficheros ni líneas. |
 | D6 | Orden de trabajo (11-nov-2026) | **Intercalado** | Persistencia (G0a) → G1 → G2 → trabajos en segundo plano (G0b) → G3 → G4 → G5 → acceso con usuario y contenedores (G0c) → G6 en adelante. Detalle en §8. |
+| D8 | Alcance (12-nov-2026) | **Todo, para cualquier clase de activo** | Cada pieza que se porta se diseña para acciones, índices, ETF, divisas, materias primas, renta fija y cripto a la vez; no se entrega una versión «solo cripto» para generalizarla después. Lo que solo existe en un mercado (funding, on-chain, opciones de Deribit) queda tras un puerto que declara a qué clases de activo aplica, y cada pantalla dice por qué no hay dato cuando no aplica. |
 | D7 | Decisiones abiertas de §10 (11-nov-2026) | **Aplicar la recomendación, con ADR** | Cada decisión técnica se cierra con la recomendación de §10 y su ADR al empezar la fase que la necesita. Se consultan antes las que tocan dinero real, claves, despliegue o el archivo de CryptoWorld (§10.4, §10.7, §10.8 y §10.10). |
 
 ---

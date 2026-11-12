@@ -43,6 +43,34 @@ La documentación interactiva de la API está en <http://127.0.0.1:8000/docs>.
 
 La cartera de trabajo se guarda en tu navegador y la comparten todas las pantallas de análisis.
 
+## Verla desde el móvil
+
+La web se adapta a la pantalla del teléfono: menú desplegable, botones del tamaño de un dedo y
+ninguna pantalla con desplazamiento lateral.
+
+Por defecto solo responde en tu ordenador. Para abrirla desde un móvil conectado a la **misma
+Wi-Fi**:
+
+```bash
+uv run just mobile          # compila la web y la sirve también a tu red local
+```
+
+El comando imprime la dirección que hay que abrir en el navegador del móvil, del tipo
+`http://192.168.1.74:3000`. La API sigue respondiendo solo en tu ordenador; el móvil habla
+con la web y la web con la API.
+
+* **Windows** pregunta la primera vez si permites a Node.js aceptar conexiones: acepta para
+  redes privadas. Si el móvil no carga la página, revisa esa regla del cortafuegos y que el
+  móvil no esté en la red de invitados del router.
+* **Como una app**: en iPhone (Safari), Compartir → «Añadir a pantalla de inicio»; en Android
+  (Chrome), menú → «Añadir a pantalla de inicio». Se abre a pantalla completa con su icono.
+* **Seguridad**: todavía no hay acceso con usuario, así que cualquiera conectado a esa red
+  puede abrirla y ver tus carteras guardadas. Úsalo solo en tu red de casa y para el
+  comando (Ctrl+C) cuando termines.
+* **Fuera de casa**: hasta que llegue el acceso con usuario (fase G0c) no la expongas a
+  Internet. Una red privada como Tailscale entre tu ordenador y tu móvil sí es segura: con
+  ella instalada en ambos, `just mobile` y la dirección de Tailscale de tu ordenador bastan.
+
 ## Sin red
 
 Con `INVESTINGLAB_OFFLINE=true` la API solo usa tus ficheros locales
@@ -61,6 +89,7 @@ pnpm dev
 |---------|----------|
 | `uv run just web` | Solo la web con recarga (necesita la API en marcha) |
 | `uv run just preview` | API y *build* de producción de la web: páginas más rápidas, sin recarga |
+| `uv run just mobile` | Como `preview`, y además accesible desde el móvil en la misma Wi-Fi |
 | `uv run just web-check` | `lint`, `typecheck`, tests unitarios (Vitest) y *build* |
 | `uv run just web-e2e` | Tests de extremo a extremo (Playwright) con datos sintéticos |
 | `uv run just openapi` | Regenera el contrato de la API y los tipos del cliente web |

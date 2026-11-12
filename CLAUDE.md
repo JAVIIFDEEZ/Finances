@@ -111,6 +111,7 @@ uv run just record-fixtures   # regrabar las casetes de los proveedores (necesit
 uv run just web-install       # instalar las dependencias de la web (pnpm; `just dev` lo hace si faltan)
 uv run just dev               # API (:8000, o INVESTINGLAB_API_PORT) y web (:3000) a la vez
 uv run just preview           # igual, con la build de producción de la web (sin recarga)
+uv run just mobile            # como preview, y accesible desde el móvil en la misma Wi-Fi (sin login: solo en casa)
 uv run just api               # solo la API, en http://127.0.0.1:8000/docs, con recarga
 uv run just db-up             # PostgreSQL local con Docker (compose.yaml)
 uv run just db-upgrade        # llevar la base de datos al esquema de esta versión
@@ -133,6 +134,9 @@ bash). Lo que necesite más lógica va a un script de Python en `scripts/`, tipa
 - Todo proveedor nuevo se añade como caso del contrato `tests/contract/`.
 - Web: Vitest para la lógica (`src/lib/__tests__/`) y Playwright de extremo a extremo con
   la API real sin red sobre ficheros **sintéticos** (`e2e/synthetic_data.py`).
+- Móvil: toda pantalla nueva entra en `SCREENS` de `e2e/mobile.spec.ts` (sin desplazamiento
+  lateral a 390 px); las rejillas llevan `grid-cols-1` de base y los controles usan los
+  componentes de `ui.tsx`, que ya crecen en pantallas táctiles.
 - Gráficos de la web: ECharts con la paleta validada de `src/lib/theme/tokens.ts`; colores
   ligados a la entidad, una tabla o lista de cifras junto a cada gráfico, nunca NaN en
   pantalla («—»).
