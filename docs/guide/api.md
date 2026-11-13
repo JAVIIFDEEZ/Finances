@@ -23,6 +23,7 @@ curl "http://127.0.0.1:8000/api/v1/market/holding-rates?symbol=BTC/USDT:USDT&kin
 | POST | `/api/v1/market/compare` | Rendimiento base 100, caídas, métricas y correlación de varios |
 | GET | `/api/v1/market/quality` | Diagnóstico de calidad frente al calendario oficial |
 | GET | `/api/v1/rates/risk-free` | Tipo libre de riesgo conocido cada día hábil |
+| GET | `/api/v1/economic/series` | Una serie económica con la fecha de publicación de cada valor (`FNG`, €STR…; `mode` elige las *vintages*) |
 | GET, POST | `/api/v1/portfolios` | Carteras guardadas: listar (paginado por cursor) y guardar |
 | GET, PUT, DELETE | `/api/v1/portfolios/{id}` | Leer, sustituir y borrar una cartera guardada (con versión) |
 | POST | `/api/v1/portfolios/validate` | Validación de pesos sin descargar nada |

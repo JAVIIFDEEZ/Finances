@@ -233,6 +233,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/economic/series": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * An economic series
+         * @description Values of an economic series with the day each became public.
+         */
+        get: operations["series_api_v1_economic_series_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/portfolios": {
         parameters: {
             query?: never;
@@ -571,6 +591,50 @@ export interface components {
          * @enum {string}
          */
         DriftAssumption: "historical" | "zero" | "risk_free" | "assumed";
+        /**
+         * EconomicObservationOut
+         * @description One published value of an observation.
+         */
+        EconomicObservationOut: {
+            /**
+             * Time
+             * Format: date
+             * @description Period measured.
+             */
+            time: string;
+            /**
+             * Published At
+             * Format: date
+             * @description Day the value became public (point-in-time).
+             */
+            published_at: string;
+            /** Value */
+            value: number;
+        };
+        /**
+         * EconomicSeriesOut
+         * @description An economic series with every vintage the request asked for (ADR-0009).
+         */
+        EconomicSeriesOut: {
+            /** Series Id */
+            series_id: string;
+            /** Title */
+            title: string;
+            /** Units */
+            units: string;
+            frequency: components["schemas"]["Frequency"];
+            source: components["schemas"]["SourceOut"];
+            /**
+             * Has Revisions
+             * @description Whether any observation has several vintages.
+             */
+            has_revisions: boolean;
+            /**
+             * Observations
+             * @description Sorted by period and publication date.
+             */
+            observations: components["schemas"]["EconomicObservationOut"][];
+        };
         /**
          * EstimateOut
          * @description A Monte Carlo estimate with its 95 % confidence interval.
@@ -1885,6 +1949,12 @@ export interface components {
             problems: string[];
         };
         /**
+         * VintageMode
+         * @description Which published versions of an economic series to retrieve (ADR-0009).
+         * @enum {string}
+         */
+        VintageMode: "first_release" | "all_vintages" | "latest";
+        /**
          * VolatilityAssumption
          * @description Volatility used to simulate.
          * @enum {string}
@@ -2359,6 +2429,65 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RiskFreeOut"];
+                };
+            };
+            /** @description No provider has the requested data. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The request breaks the schema, a limit or a domain rule. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Every provider able to serve the data failed; retry later. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    series_api_v1_economic_series_get: {
+        parameters: {
+            query: {
+                /** @description Provider id: FNG (crypto Fear & Greed), EST.B.EU000A2X2A25.WT (€STR)... */
+                series_id: string;
+                /** @description First period (inclusive). */
+                start?: string | null;
+                /** @description Last period (inclusive). */
+                end?: string | null;
+                /** @description Vintages: first releases (point-in-time), all, latest. */
+                mode?: components["schemas"]["VintageMode"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EconomicSeriesOut"];
                 };
             };
             /** @description No provider has the requested data. */

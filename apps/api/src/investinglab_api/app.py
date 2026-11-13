@@ -24,7 +24,7 @@ from investinglab_api import __version__
 from investinglab_api.middleware import REQUEST_ID_HEADER, RequestContextMiddleware
 from investinglab_api.persistence import Database, SqlPortfolioRepository
 from investinglab_api.problems import install_problem_handlers
-from investinglab_api.routers import market, saved_portfolios, system
+from investinglab_api.routers import economic, market, saved_portfolios, system
 from investinglab_api.routers import portfolios as portfolio_analysis
 from investinglab_api.settings import ApiSettings, get_api_settings
 
@@ -126,7 +126,13 @@ def create_app(
         max_age=600,
     )
     app.add_middleware(RequestContextMiddleware)
-    routers = (system.router, market.router, saved_portfolios.router, portfolio_analysis.router)
+    routers = (
+        system.router,
+        market.router,
+        economic.router,
+        saved_portfolios.router,
+        portfolio_analysis.router,
+    )
     for router in routers:
         app.include_router(router)
     return app

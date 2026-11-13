@@ -958,6 +958,141 @@
         }
       }
     },
+    "/api/v1/economic/series": {
+      "get": {
+        "tags": [
+          "economic"
+        ],
+        "summary": "An economic series",
+        "description": "Values of an economic series with the day each became public.",
+        "operationId": "series_api_v1_economic_series_get",
+        "parameters": [
+          {
+            "name": "series_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[A-Za-z0-9._\\-]+$",
+              "description": "Provider id: FNG (crypto Fear & Greed), EST.B.EU000A2X2A25.WT (\u20acSTR)...",
+              "examples": [
+                "FNG"
+              ],
+              "title": "Series Id"
+            },
+            "description": "Provider id: FNG (crypto Fear & Greed), EST.B.EU000A2X2A25.WT (\u20acSTR)..."
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First period (inclusive).",
+              "title": "Start"
+            },
+            "description": "First period (inclusive)."
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last period (inclusive).",
+              "title": "End"
+            },
+            "description": "Last period (inclusive)."
+          },
+          {
+            "name": "mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/VintageMode",
+              "description": "Vintages: first releases (point-in-time), all, latest.",
+              "default": "first_release"
+            },
+            "description": "Vintages: first releases (point-in-time), all, latest."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EconomicSeriesOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No provider has the requested data.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request breaks the schema, a limit or a domain rule.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Every provider able to serve the data failed; retry later.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/portfolios": {
       "get": {
         "tags": [
@@ -2373,6 +2508,81 @@
         ],
         "title": "DriftAssumption",
         "description": "Expected return used to simulate."
+      },
+      "EconomicObservationOut": {
+        "properties": {
+          "time": {
+            "type": "string",
+            "format": "date",
+            "title": "Time",
+            "description": "Period measured."
+          },
+          "published_at": {
+            "type": "string",
+            "format": "date",
+            "title": "Published At",
+            "description": "Day the value became public (point-in-time)."
+          },
+          "value": {
+            "type": "number",
+            "title": "Value"
+          }
+        },
+        "type": "object",
+        "required": [
+          "time",
+          "published_at",
+          "value"
+        ],
+        "title": "EconomicObservationOut",
+        "description": "One published value of an observation."
+      },
+      "EconomicSeriesOut": {
+        "properties": {
+          "series_id": {
+            "type": "string",
+            "title": "Series Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "units": {
+            "type": "string",
+            "title": "Units"
+          },
+          "frequency": {
+            "$ref": "#/components/schemas/Frequency"
+          },
+          "source": {
+            "$ref": "#/components/schemas/SourceOut"
+          },
+          "has_revisions": {
+            "type": "boolean",
+            "title": "Has Revisions",
+            "description": "Whether any observation has several vintages."
+          },
+          "observations": {
+            "items": {
+              "$ref": "#/components/schemas/EconomicObservationOut"
+            },
+            "type": "array",
+            "title": "Observations",
+            "description": "Sorted by period and publication date."
+          }
+        },
+        "type": "object",
+        "required": [
+          "series_id",
+          "title",
+          "units",
+          "frequency",
+          "source",
+          "has_revisions",
+          "observations"
+        ],
+        "title": "EconomicSeriesOut",
+        "description": "An economic series with every vintage the request asked for (ADR-0009)."
       },
       "EstimateOut": {
         "properties": {
@@ -5508,6 +5718,16 @@
         ],
         "title": "ValidationOut",
         "description": "Whether the weights form a valid portfolio (before downloading anything)."
+      },
+      "VintageMode": {
+        "type": "string",
+        "enum": [
+          "first_release",
+          "all_vintages",
+          "latest"
+        ],
+        "title": "VintageMode",
+        "description": "Which published versions of an economic series to retrieve (ADR-0009)."
       },
       "VolatilityAssumption": {
         "type": "string",
