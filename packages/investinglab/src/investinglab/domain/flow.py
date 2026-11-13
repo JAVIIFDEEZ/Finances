@@ -21,18 +21,19 @@ from typing import TYPE_CHECKING, Final
 import numpy as np
 import pandas as pd
 
-from investinglab.domain.errors import IncompatibleSeriesError, InvalidSeriesError
+from investinglab.domain.errors import DomainError, IncompatibleSeriesError, InvalidSeriesError
 from investinglab.domain.series import (
     MIN_OBSERVATIONS,
     TIME_INDEX_NAME,
     DataSource,
+    calendar_periods,
     validate_time_index,
 )
+from investinglab.domain.time import Frequency
 
 if TYPE_CHECKING:
     from investinglab.domain.instruments import Instrument
     from investinglab.domain.series import PriceSeries
-    from investinglab.domain.time import Frequency
 
 __all__ = ["FlowField", "FlowSeries"]
 
@@ -243,6 +244,43 @@ class FlowSeries:
     ) -> FlowSeries:
         """Sub-series with timestamps in ``[start, end]`` (both inclusive)."""
         return FlowSeries(self.instrument, self.frequency, self.source, self._flow.loc[start:end])
+
+    def resample(self, frequency: Frequency | str) -> FlowSeries:
+        """Aggregate the flow to a coarser frequency, labelled like the price bars.
+
+        Every column is a quantity, so each one is summed. The labels follow
+        :meth:`PriceSeries.resample <investinglab.domain.series.PriceSeries.resample>`:
+        intraday bins keep their open time, intraday flow aggregated to days uses the session
+        dates of the market's timezone, and weeks, months, quarters and years are labelled with
+        their last observed session. Periods without bars are left out, never filled.
+
+        Raises:
+            DomainError: If ``frequency`` is not coarser than the current one.
+        """
+        target = Frequency(frequency)
+        if not self.frequency.is_finer_than(target):
+            raise DomainError(
+                f"Can only resample to a coarser frequency than {self.frequency.value!r}, "
+                f"got {target.value!r}"
+            )
+        flow = self._flow
+        if target.is_intraday:
+            bins = flow.resample(target.pandas_rule, label="left", closed="left")
+            return self._with(bins.sum(min_count=1).dropna(how="all"), target)
+        if self.frequency.is_intraday:
+            local = pd.DatetimeIndex(flow.index).tz_convert(self.instrument.timezone)
+            flow = flow.groupby(local.tz_localize(None).normalize(), sort=True).sum()
+            if target is Frequency.DAY_1:
+                return self._with(flow, target)
+        sessions = pd.DatetimeIndex(flow.index)
+        periods = calendar_periods(sessions, target)
+        aggregated = flow.groupby(periods, sort=True).sum()
+        last_session = sessions.to_series().groupby(periods).max()
+        aggregated.index = pd.DatetimeIndex(last_session.loc[aggregated.index].to_numpy())
+        return self._with(aggregated, target)
+
+    def _with(self, flow: pd.DataFrame, frequency: Frequency) -> FlowSeries:
+        return FlowSeries(self.instrument, frequency, self.source, flow)
 
     def aligned_with(self, prices: PriceSeries) -> FlowSeries:
         """The flow of the bars ``prices`` has: same instrument, frequency and timestamps.
