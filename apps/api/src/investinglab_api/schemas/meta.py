@@ -7,6 +7,7 @@ from typing import Literal
 from pydantic import Field
 
 from investinglab.domain.instruments import AssetClass
+from investinglab.domain.rate_series import RateKind
 from investinglab.domain.time import Frequency
 from investinglab.modules import RequirementStatus
 from investinglab.ports import Dataset
@@ -54,6 +55,7 @@ class ProviderOut(ApiModel):
     max_history_days: dict[str, int] = Field(description="Look-back limit by frequency.")
     rate_limits: list[RateLimitOut]
     identifiers: str | None = Field(description="Pattern of the identifiers it serves.")
+    rate_kinds: list[RateKind] = Field(description="Holding rates it serves, if any.")
 
 
 class RequirementOut(ApiModel):

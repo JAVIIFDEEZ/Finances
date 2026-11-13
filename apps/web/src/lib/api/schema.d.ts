@@ -127,6 +127,49 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/market/flow": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Trade flow of an instrument
+         * @description Volume of each bar and, when the source reports the aggressor, delta and CVD.
+         *
+         *     The bars are the same as those of ``/market/bars``. A venue's pair (``BTC/USDT``) brings
+         *     the aggressor side; a listed instrument, its volume only; a currency pair has no flow.
+         */
+        get: operations["flow_api_v1_market_flow_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/market/holding-rates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Holding rates of an instrument
+         * @description What holding the instrument paid or earned per period, e.g. a perpetual's funding.
+         */
+        get: operations["holding_rates_api_v1_market_holding_rates_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/market/compare": {
         parameters: {
             query?: never;
@@ -595,6 +638,112 @@ export interface components {
             p99: number;
         };
         /**
+         * FlowBarOut
+         * @description The flow of one bar; what the source does not report is ``null``.
+         */
+        FlowBarOut: {
+            /**
+             * Time
+             * @description Session date (daily and above) or UTC open.
+             */
+            time: string;
+            /**
+             * Volume
+             * @description Units of the instrument traded.
+             */
+            volume: number;
+            /**
+             * Quote Volume
+             * @description Value traded, quote currency.
+             */
+            quote_volume?: number | null;
+            /**
+             * Trades
+             * @description Number of trades.
+             */
+            trades?: number | null;
+            /**
+             * Buy Volume
+             * @description Units bought by the aggressor.
+             */
+            buy_volume?: number | null;
+            /**
+             * Sell Volume
+             * @description Units sold by the aggressor.
+             */
+            sell_volume?: number | null;
+            /**
+             * Delta
+             * @description Aggressive buying minus selling.
+             */
+            delta?: number | null;
+            /**
+             * Cvd
+             * @description Cumulative delta since the first bar.
+             */
+            cvd?: number | null;
+            /**
+             * Buy Ratio
+             * @description Share of the volume bought by the aggressor.
+             */
+            buy_ratio?: number | null;
+            /**
+             * Vwap
+             * @description Volume-weighted average price.
+             */
+            vwap?: number | null;
+        };
+        /**
+         * FlowField
+         * @description Columns of a :class:`FlowSeries`.
+         * @enum {string}
+         */
+        FlowField: "volume" | "quote_volume" | "trades" | "buy_volume" | "buy_quote_volume";
+        /**
+         * FlowOut
+         * @description Trade flow per bar of an instrument (ADR-0031).
+         */
+        FlowOut: {
+            instrument: components["schemas"]["InstrumentOut"];
+            frequency: components["schemas"]["Frequency"];
+            source: components["schemas"]["SourceOut"];
+            /**
+             * Has Aggressor Side
+             * @description Whether the source reports the aggressor (then delta and CVD exist).
+             */
+            has_aggressor_side: boolean;
+            /**
+             * Columns
+             * @description Columns the source reports.
+             */
+            columns: components["schemas"]["FlowField"][];
+            summary: components["schemas"]["FlowSummaryOut"];
+            /** Bars */
+            bars: components["schemas"]["FlowBarOut"][];
+        };
+        /**
+         * FlowSummaryOut
+         * @description Totals over the whole range.
+         */
+        FlowSummaryOut: {
+            /** Volume */
+            volume: number;
+            /** Quote Volume */
+            quote_volume: number | null;
+            /** Trades */
+            trades: number | null;
+            /**
+             * Delta
+             * @description Net aggressive buying (the last CVD).
+             */
+            delta: number | null;
+            /**
+             * Buy Ratio
+             * @description Share of all the volume bought by aggressors.
+             */
+            buy_ratio: number | null;
+        };
+        /**
          * Frequency
          * @description Sampling frequency of a series, from one minute to one year.
          * @enum {string}
@@ -675,7 +824,8 @@ export interface components {
              * @example SAN.MC
              * @example ^GSPC
              * @example EURUSD=X
-             * @example BTC-USD
+             * @example BTC/USDT
+             * @example BTC/USDT:USDT
              */
             symbol: string;
             /**
@@ -1240,6 +1390,11 @@ export interface components {
              * @description Pattern of the identifiers it serves.
              */
             identifiers: string | null;
+            /**
+             * Rate Kinds
+             * @description Holding rates it serves, if any.
+             */
+            rate_kinds: components["schemas"]["RateKind"][];
         };
         /**
          * QualityOut
@@ -1263,6 +1418,12 @@ export interface components {
             issues: components["schemas"]["IssueOut"][];
         };
         /**
+         * RateKind
+         * @description What a holding rate is, which fixes who pays whom when it is positive.
+         * @enum {string}
+         */
+        RateKind: "funding" | "borrow" | "financing";
+        /**
          * RateLimitOut
          * @description A quota the provider is called within.
          */
@@ -1271,6 +1432,92 @@ export interface components {
             max_calls: number;
             /** Period Seconds */
             period_seconds: number;
+        };
+        /**
+         * RatePointOut
+         * @description One settled holding rate.
+         */
+        RatePointOut: {
+            /**
+             * Time
+             * Format: date-time
+             * @description Settlement instant (UTC).
+             */
+            time: string;
+            /**
+             * Rate
+             * @description Rate of the period as a decimal (0.0001 = 0.01 %).
+             */
+            rate: number;
+            /**
+             * Annualized
+             * @description The rate times the periods in a year.
+             */
+            annualized: number;
+            /**
+             * Accumulated Long
+             * @description What a long unit position received so far (negative: paid).
+             */
+            accumulated_long: number;
+        };
+        /**
+         * RatesOut
+         * @description Funding, borrow fees or financing costs of an instrument on a venue (ADR-0031).
+         */
+        RatesOut: {
+            instrument: components["schemas"]["InstrumentOut"];
+            /** Venue */
+            venue: string;
+            kind: components["schemas"]["RateKind"];
+            /**
+             * Payer
+             * @description Side that pays when the rate is positive.
+             * @enum {string}
+             */
+            payer: "long" | "short";
+            /**
+             * Exchanged
+             * @description Whether the other side receives what the payer pays (funding).
+             */
+            exchanged: boolean;
+            source: components["schemas"]["SourceOut"];
+            /**
+             * Interval Hours
+             * @description Length of an accrual period.
+             */
+            interval_hours: number;
+            /** Periods Per Year */
+            periods_per_year: number;
+            summary: components["schemas"]["RatesSummaryOut"];
+            /** Rates */
+            rates: components["schemas"]["RatePointOut"][];
+        };
+        /**
+         * RatesSummaryOut
+         * @description The rates over the whole range.
+         */
+        RatesSummaryOut: {
+            /** Payments */
+            payments: number;
+            /** Mean Rate */
+            mean_rate: number | null;
+            /** Mean Annualized */
+            mean_annualized: number | null;
+            /**
+             * Positive Share
+             * @description Share of periods with a positive rate.
+             */
+            positive_share: number | null;
+            /**
+             * Accumulated Long
+             * @description Received by a long unit position (negative: paid).
+             */
+            accumulated_long: number;
+            /**
+             * Accumulated Short
+             * @description Received by a short unit position (negative: paid).
+             */
+            accumulated_short: number;
         };
         /**
          * RebalanceIn
@@ -1800,7 +2047,7 @@ export interface operations {
     bars_api_v1_market_bars_get: {
         parameters: {
             query: {
-                /** @description Instrument symbol (Yahoo style). */
+                /** @description Instrument symbol: Yahoo style (SAN.MC, ^GSPC), a venue's pair (BTC/USDT) or a perpetual swap (BTC/USDT:USDT). */
                 symbol: string;
                 /** @description Bar frequency. */
                 interval?: components["schemas"]["Frequency"];
@@ -1822,6 +2069,126 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SeriesOut"];
+                };
+            };
+            /** @description No provider has the requested data. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The request breaks the schema, a limit or a domain rule. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Every provider able to serve the data failed; retry later. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    flow_api_v1_market_flow_get: {
+        parameters: {
+            query: {
+                /** @description Instrument symbol: Yahoo style (SAN.MC, ^GSPC), a venue's pair (BTC/USDT) or a perpetual swap (BTC/USDT:USDT). */
+                symbol: string;
+                /** @description Bar frequency. */
+                interval?: components["schemas"]["Frequency"];
+                /** @description First session (inclusive). */
+                start?: string | null;
+                /** @description Last session (inclusive). */
+                end?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FlowOut"];
+                };
+            };
+            /** @description No provider has the requested data. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The request breaks the schema, a limit or a domain rule. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Every provider able to serve the data failed; retry later. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    holding_rates_api_v1_market_holding_rates_get: {
+        parameters: {
+            query: {
+                /** @description Instrument symbol: Yahoo style (SAN.MC, ^GSPC), a venue's pair (BTC/USDT) or a perpetual swap (BTC/USDT:USDT). */
+                symbol: string;
+                /** @description Funding, borrow fee or financing. */
+                kind?: components["schemas"]["RateKind"];
+                /** @description Venue (okx...); any. */
+                venue?: string | null;
+                /** @description First session (inclusive). */
+                start?: string | null;
+                /** @description Last session (inclusive). */
+                end?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RatesOut"];
                 };
             };
             /** @description No provider has the requested data. */
@@ -1913,7 +2280,7 @@ export interface operations {
     quality_api_v1_market_quality_get: {
         parameters: {
             query: {
-                /** @description Instrument symbol (Yahoo style). */
+                /** @description Instrument symbol: Yahoo style (SAN.MC, ^GSPC), a venue's pair (BTC/USDT) or a perpetual swap (BTC/USDT:USDT). */
                 symbol: string;
                 /** @description Bar frequency. */
                 interval?: components["schemas"]["Frequency"];
