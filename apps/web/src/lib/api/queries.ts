@@ -57,6 +57,44 @@ export function useBars(symbol: string, interval: Interval, start: string | null
   });
 }
 
+export function useFlow(symbol: string, interval: Interval, start: string | null) {
+  return useQuery({
+    queryKey: ["flow", symbol, interval, start],
+    queryFn: async () =>
+      unwrap(
+        await api.GET("/api/v1/market/flow", {
+          params: { query: { symbol, interval, start: start ?? undefined } },
+        }),
+      ),
+    enabled: symbol.length > 0,
+    placeholderData: keepPreviousData,
+    staleTime: 5 * MINUTE,
+    retry: (count, error) => !isNotFound(error) && count < 2,
+  });
+}
+
+/** Funding of the perpetual swap ``swap`` (``BTC/USDT:USDT``); disabled with ``null``. */
+export function useFunding(swap: string | null, start: string | null) {
+  return useQuery({
+    queryKey: ["funding", swap, start],
+    queryFn: async () =>
+      unwrap(
+        await api.GET("/api/v1/market/holding-rates", {
+          params: { query: { symbol: swap ?? "", kind: "funding", start: start ?? undefined } },
+        }),
+      ),
+    enabled: swap !== null,
+    placeholderData: keepPreviousData,
+    staleTime: 5 * MINUTE,
+    retry: (count, error) => !isNotFound(error) && count < 2,
+  });
+}
+
+/** Whether the API answered that the data does not exist (nothing to retry). */
+export function isNotFound(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 404;
+}
+
 export function useComparison(request: Schemas["CompareRequest"] | null) {
   return useQuery({
     queryKey: ["compare", request],

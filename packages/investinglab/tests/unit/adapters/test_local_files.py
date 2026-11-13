@@ -11,9 +11,11 @@ from investinglab.adapters.providers.files import CATALOGUE_FILE, LocalFilesProv
 from investinglab.domain import AssetClass, DomainError, Frequency
 from investinglab.ports import (
     BarsRequest,
+    Dataset,
     MarketDataProvider,
     ProviderDataError,
     SymbolNotFoundError,
+    TradeFlowProvider,
     UnsupportedRequestError,
 )
 from support.factories import business_days, gbm_prices
@@ -121,3 +123,42 @@ def test_the_folder_and_catalogue_must_exist(tmp_path: Path) -> None:
         LocalFilesProvider(tmp_path / "missing")
     with pytest.raises(DomainError, match=r"has no instruments\.toml"):
         LocalFilesProvider(tmp_path)
+
+
+async def test_a_file_with_volume_serves_it_as_flow(tmp_path: Path) -> None:
+    index = business_days(30)
+    volume = [float(1_000 + day) for day in range(30)]
+    volume[4] = float("nan")  # a session without a reported volume
+    pd.DataFrame(
+        {"Date": index.strftime("%Y-%m-%d"), "Close": gbm_prices(30), "Volume": volume}
+    ).to_csv(tmp_path / "SYN.MC.csv", index=False)
+    (tmp_path / CATALOGUE_FILE).write_text(CATALOGUE, encoding="utf-8")
+    provider = LocalFilesProvider(tmp_path)
+
+    flow = await provider.fetch_flow(BarsRequest("SYN.MC"))
+
+    assert isinstance(provider, TradeFlowProvider)
+    assert Dataset.FLOW in provider.capabilities.datasets
+    assert len(flow) == 29  # absent, never a zero
+    assert flow.volume.iloc[0] == 1_000.0
+    assert not flow.has_aggressor_side
+    assert flow.source.provider == "files"
+
+
+async def test_a_file_without_volume_has_no_flow(tmp_path: Path) -> None:
+    provider = LocalFilesProvider(_folder(tmp_path))
+
+    with pytest.raises(UnsupportedRequestError, match="has no volume"):
+        await provider.fetch_flow(BarsRequest("SYN.MC"))
+
+
+async def test_a_volume_that_breaks_the_rules_is_a_data_error(tmp_path: Path) -> None:
+    index = business_days(30)
+    volume = [float("nan")] * 28 + [1.0, 2.0]  # two sessions with volume: too few
+    pd.DataFrame(
+        {"Date": index.strftime("%Y-%m-%d"), "Close": gbm_prices(30), "Volume": volume}
+    ).to_csv(tmp_path / "SYN.MC.csv", index=False)
+    (tmp_path / CATALOGUE_FILE).write_text(CATALOGUE, encoding="utf-8")
+
+    with pytest.raises(ProviderDataError, match="at least 3 observations"):
+        await LocalFilesProvider(tmp_path).fetch_flow(BarsRequest("SYN.MC"))

@@ -1,4 +1,4 @@
-"""Market data: bars, comparisons, data quality and risk-free rates."""
+"""Market data: bars, trade flow, holding rates, comparisons, data quality and risk-free rates."""
 
 from __future__ import annotations
 
@@ -8,15 +8,25 @@ from typing import Annotated
 
 from fastapi import APIRouter, Query
 
+from investinglab.domain.rate_series import RateKind
 from investinglab.domain.time import Frequency
 from investinglab_api import use_cases
 from investinglab_api.dependencies import SettingsDep, ToolkitDep, at_most
-from investinglab_api.mappers import comparison_out, quality_out, risk_free_out, series_out
+from investinglab_api.mappers import (
+    comparison_out,
+    flow_out,
+    quality_out,
+    rates_out,
+    risk_free_out,
+    series_out,
+)
 from investinglab_api.routers import problems
 from investinglab_api.schemas.market import (
     CompareRequest,
     ComparisonOut,
+    FlowOut,
     QualityOut,
+    RatesOut,
     SeriesOut,
     Symbol,
 )
@@ -26,7 +36,15 @@ __all__ = ["router"]
 
 router = APIRouter(prefix="/api/v1", tags=["market"])
 
-SymbolQuery = Annotated[Symbol, Query(description="Instrument symbol (Yahoo style).")]
+SymbolQuery = Annotated[
+    Symbol,
+    Query(
+        description=(
+            "Instrument symbol: Yahoo style (SAN.MC, ^GSPC), a venue's pair (BTC/USDT) or a "
+            "perpetual swap (BTC/USDT:USDT)."
+        )
+    ),
+]
 Interval = Annotated[Frequency, Query(description="Bar frequency.")]
 Start = Annotated[date | None, Query(description="First session (inclusive).")]
 End = Annotated[date | None, Query(description="Last session (inclusive).")]
@@ -48,6 +66,53 @@ async def bars(
     """Validated bars of one instrument, with its metadata, provenance and statistics."""
     series = await toolkit.series(symbol, start=start, end=end, frequency=interval)
     return await asyncio.to_thread(series_out, series)
+
+
+@router.get(
+    "/market/flow",
+    summary="Trade flow of an instrument",
+    response_model=FlowOut,
+    responses=problems(404, 422, 503),
+)
+async def flow(
+    toolkit: ToolkitDep,
+    symbol: SymbolQuery,
+    interval: Interval = Frequency.DAY_1,
+    start: Start = None,
+    end: End = None,
+) -> FlowOut:
+    """Volume of each bar and, when the source reports the aggressor, delta and CVD.
+
+    The bars are the same as those of ``/market/bars``. A venue's pair (``BTC/USDT``) brings
+    the aggressor side; a listed instrument, its volume only; a currency pair has no flow.
+    """
+    series = await toolkit.flow(symbol, start=start, end=end, frequency=interval)
+    return await asyncio.to_thread(flow_out, series)
+
+
+@router.get(
+    "/market/holding-rates",
+    summary="Holding rates of an instrument",
+    response_model=RatesOut,
+    responses=problems(404, 422, 503),
+)
+async def holding_rates(
+    toolkit: ToolkitDep,
+    symbol: SymbolQuery,
+    *,
+    kind: Annotated[RateKind, Query(description="Funding, borrow fee or financing.")] = (
+        RateKind.FUNDING
+    ),
+    venue: Annotated[
+        str | None,
+        Query(pattern=r"^[a-z0-9][a-z0-9_.\-]{0,39}$", description="Venue (okx...); any."),
+    ] = None,
+    start: Start = None,
+    end: End = None,
+) -> RatesOut:
+    """What holding the instrument paid or earned per period, e.g. a perpetual's funding."""
+    rates = await toolkit.holding_rates(symbol, kind=kind, venue=venue, start=start, end=end)
+    return rates_out(rates)
 
 
 @router.post(

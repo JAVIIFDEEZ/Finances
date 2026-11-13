@@ -211,16 +211,17 @@
               "minLength": 1,
               "maxLength": 32,
               "pattern": "^[A-Za-z0-9.^=\\-_/:]+$",
-              "description": "Instrument symbol (Yahoo style).",
+              "description": "Instrument symbol: Yahoo style (SAN.MC, ^GSPC), a venue's pair (BTC/USDT) or a perpetual swap (BTC/USDT:USDT).",
               "examples": [
                 "SAN.MC",
                 "^GSPC",
                 "EURUSD=X",
-                "BTC-USD"
+                "BTC/USDT",
+                "BTC/USDT:USDT"
               ],
               "title": "Symbol"
             },
-            "description": "Instrument symbol (Yahoo style)."
+            "description": "Instrument symbol: Yahoo style (SAN.MC, ^GSPC), a venue's pair (BTC/USDT) or a perpetual swap (BTC/USDT:USDT)."
           },
           {
             "name": "interval",
@@ -279,6 +280,303 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SeriesOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No provider has the requested data.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request breaks the schema, a limit or a domain rule.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Every provider able to serve the data failed; retry later.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/market/flow": {
+      "get": {
+        "tags": [
+          "market"
+        ],
+        "summary": "Trade flow of an instrument",
+        "description": "Volume of each bar and, when the source reports the aggressor, delta and CVD.\n\nThe bars are the same as those of ``/market/bars``. A venue's pair (``BTC/USDT``) brings\nthe aggressor side; a listed instrument, its volume only; a currency pair has no flow.",
+        "operationId": "flow_api_v1_market_flow_get",
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 32,
+              "pattern": "^[A-Za-z0-9.^=\\-_/:]+$",
+              "description": "Instrument symbol: Yahoo style (SAN.MC, ^GSPC), a venue's pair (BTC/USDT) or a perpetual swap (BTC/USDT:USDT).",
+              "examples": [
+                "SAN.MC",
+                "^GSPC",
+                "EURUSD=X",
+                "BTC/USDT",
+                "BTC/USDT:USDT"
+              ],
+              "title": "Symbol"
+            },
+            "description": "Instrument symbol: Yahoo style (SAN.MC, ^GSPC), a venue's pair (BTC/USDT) or a perpetual swap (BTC/USDT:USDT)."
+          },
+          {
+            "name": "interval",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/Frequency",
+              "description": "Bar frequency.",
+              "default": "1d"
+            },
+            "description": "Bar frequency."
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First session (inclusive).",
+              "title": "Start"
+            },
+            "description": "First session (inclusive)."
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last session (inclusive).",
+              "title": "End"
+            },
+            "description": "Last session (inclusive)."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FlowOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No provider has the requested data.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request breaks the schema, a limit or a domain rule.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Every provider able to serve the data failed; retry later.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/market/holding-rates": {
+      "get": {
+        "tags": [
+          "market"
+        ],
+        "summary": "Holding rates of an instrument",
+        "description": "What holding the instrument paid or earned per period, e.g. a perpetual's funding.",
+        "operationId": "holding_rates_api_v1_market_holding_rates_get",
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 32,
+              "pattern": "^[A-Za-z0-9.^=\\-_/:]+$",
+              "description": "Instrument symbol: Yahoo style (SAN.MC, ^GSPC), a venue's pair (BTC/USDT) or a perpetual swap (BTC/USDT:USDT).",
+              "examples": [
+                "SAN.MC",
+                "^GSPC",
+                "EURUSD=X",
+                "BTC/USDT",
+                "BTC/USDT:USDT"
+              ],
+              "title": "Symbol"
+            },
+            "description": "Instrument symbol: Yahoo style (SAN.MC, ^GSPC), a venue's pair (BTC/USDT) or a perpetual swap (BTC/USDT:USDT)."
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/RateKind",
+              "description": "Funding, borrow fee or financing.",
+              "default": "funding"
+            },
+            "description": "Funding, borrow fee or financing."
+          },
+          {
+            "name": "venue",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9_.\\-]{0,39}$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Venue (okx...); any.",
+              "title": "Venue"
+            },
+            "description": "Venue (okx...); any."
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First session (inclusive).",
+              "title": "Start"
+            },
+            "description": "First session (inclusive)."
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last session (inclusive).",
+              "title": "End"
+            },
+            "description": "Last session (inclusive)."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RatesOut"
                 }
               }
             }
@@ -426,16 +724,17 @@
               "minLength": 1,
               "maxLength": 32,
               "pattern": "^[A-Za-z0-9.^=\\-_/:]+$",
-              "description": "Instrument symbol (Yahoo style).",
+              "description": "Instrument symbol: Yahoo style (SAN.MC, ^GSPC), a venue's pair (BTC/USDT) or a perpetual swap (BTC/USDT:USDT).",
               "examples": [
                 "SAN.MC",
                 "^GSPC",
                 "EURUSD=X",
-                "BTC-USD"
+                "BTC/USDT",
+                "BTC/USDT:USDT"
               ],
               "title": "Symbol"
             },
-            "description": "Instrument symbol (Yahoo style)."
+            "description": "Instrument symbol: Yahoo style (SAN.MC, ^GSPC), a venue's pair (BTC/USDT) or a perpetual swap (BTC/USDT:USDT)."
           },
           {
             "name": "interval",
@@ -1879,7 +2178,8 @@
                 "SAN.MC",
                 "^GSPC",
                 "EURUSD=X",
-                "BTC-USD"
+                "BTC/USDT",
+                "BTC/USDT:USDT"
               ]
             },
             "type": "array",
@@ -2230,6 +2530,256 @@
         "title": "FanPointOut",
         "description": "Value percentiles at one period of the simulation."
       },
+      "FlowBarOut": {
+        "properties": {
+          "time": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ],
+            "title": "Time",
+            "description": "Session date (daily and above) or UTC open."
+          },
+          "volume": {
+            "type": "number",
+            "title": "Volume",
+            "description": "Units of the instrument traded."
+          },
+          "quote_volume": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quote Volume",
+            "description": "Value traded, quote currency."
+          },
+          "trades": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trades",
+            "description": "Number of trades."
+          },
+          "buy_volume": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Buy Volume",
+            "description": "Units bought by the aggressor."
+          },
+          "sell_volume": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sell Volume",
+            "description": "Units sold by the aggressor."
+          },
+          "delta": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delta",
+            "description": "Aggressive buying minus selling."
+          },
+          "cvd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cvd",
+            "description": "Cumulative delta since the first bar."
+          },
+          "buy_ratio": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Buy Ratio",
+            "description": "Share of the volume bought by the aggressor."
+          },
+          "vwap": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vwap",
+            "description": "Volume-weighted average price."
+          }
+        },
+        "type": "object",
+        "required": [
+          "time",
+          "volume"
+        ],
+        "title": "FlowBarOut",
+        "description": "The flow of one bar; what the source does not report is ``null``."
+      },
+      "FlowField": {
+        "type": "string",
+        "enum": [
+          "volume",
+          "quote_volume",
+          "trades",
+          "buy_volume",
+          "buy_quote_volume"
+        ],
+        "title": "FlowField",
+        "description": "Columns of a :class:`FlowSeries`."
+      },
+      "FlowOut": {
+        "properties": {
+          "instrument": {
+            "$ref": "#/components/schemas/InstrumentOut"
+          },
+          "frequency": {
+            "$ref": "#/components/schemas/Frequency"
+          },
+          "source": {
+            "$ref": "#/components/schemas/SourceOut"
+          },
+          "has_aggressor_side": {
+            "type": "boolean",
+            "title": "Has Aggressor Side",
+            "description": "Whether the source reports the aggressor (then delta and CVD exist)."
+          },
+          "columns": {
+            "items": {
+              "$ref": "#/components/schemas/FlowField"
+            },
+            "type": "array",
+            "title": "Columns",
+            "description": "Columns the source reports."
+          },
+          "summary": {
+            "$ref": "#/components/schemas/FlowSummaryOut"
+          },
+          "bars": {
+            "items": {
+              "$ref": "#/components/schemas/FlowBarOut"
+            },
+            "type": "array",
+            "title": "Bars"
+          }
+        },
+        "type": "object",
+        "required": [
+          "instrument",
+          "frequency",
+          "source",
+          "has_aggressor_side",
+          "columns",
+          "summary",
+          "bars"
+        ],
+        "title": "FlowOut",
+        "description": "Trade flow per bar of an instrument (ADR-0031)."
+      },
+      "FlowSummaryOut": {
+        "properties": {
+          "volume": {
+            "type": "number",
+            "title": "Volume"
+          },
+          "quote_volume": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quote Volume"
+          },
+          "trades": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trades"
+          },
+          "delta": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delta",
+            "description": "Net aggressive buying (the last CVD)."
+          },
+          "buy_ratio": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Buy Ratio",
+            "description": "Share of all the volume bought by aggressors."
+          }
+        },
+        "type": "object",
+        "required": [
+          "volume",
+          "quote_volume",
+          "trades",
+          "delta",
+          "buy_ratio"
+        ],
+        "title": "FlowSummaryOut",
+        "description": "Totals over the whole range."
+      },
       "Frequency": {
         "type": "string",
         "enum": [
@@ -2388,7 +2938,8 @@
               "SAN.MC",
               "^GSPC",
               "EURUSD=X",
-              "BTC-USD"
+              "BTC/USDT",
+              "BTC/USDT:USDT"
             ]
           },
           "weight": {
@@ -3787,6 +4338,14 @@
             ],
             "title": "Identifiers",
             "description": "Pattern of the identifiers it serves."
+          },
+          "rate_kinds": {
+            "items": {
+              "$ref": "#/components/schemas/RateKind"
+            },
+            "type": "array",
+            "title": "Rate Kinds",
+            "description": "Holding rates it serves, if any."
           }
         },
         "type": "object",
@@ -3798,7 +4357,8 @@
           "requires_api_key",
           "max_history_days",
           "rate_limits",
-          "identifiers"
+          "identifiers",
+          "rate_kinds"
         ],
         "title": "ProviderOut",
         "description": "What a registered provider can serve."
@@ -3886,6 +4446,16 @@
         "title": "QualityOut",
         "description": "Data-quality diagnosis against the market's official calendar."
       },
+      "RateKind": {
+        "type": "string",
+        "enum": [
+          "funding",
+          "borrow",
+          "financing"
+        ],
+        "title": "RateKind",
+        "description": "What a holding rate is, which fixes who pays whom when it is positive."
+      },
       "RateLimitOut": {
         "properties": {
           "max_calls": {
@@ -3904,6 +4474,168 @@
         ],
         "title": "RateLimitOut",
         "description": "A quota the provider is called within."
+      },
+      "RatePointOut": {
+        "properties": {
+          "time": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Time",
+            "description": "Settlement instant (UTC)."
+          },
+          "rate": {
+            "type": "number",
+            "title": "Rate",
+            "description": "Rate of the period as a decimal (0.0001 = 0.01 %)."
+          },
+          "annualized": {
+            "type": "number",
+            "title": "Annualized",
+            "description": "The rate times the periods in a year."
+          },
+          "accumulated_long": {
+            "type": "number",
+            "title": "Accumulated Long",
+            "description": "What a long unit position received so far (negative: paid)."
+          }
+        },
+        "type": "object",
+        "required": [
+          "time",
+          "rate",
+          "annualized",
+          "accumulated_long"
+        ],
+        "title": "RatePointOut",
+        "description": "One settled holding rate."
+      },
+      "RatesOut": {
+        "properties": {
+          "instrument": {
+            "$ref": "#/components/schemas/InstrumentOut"
+          },
+          "venue": {
+            "type": "string",
+            "title": "Venue"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/RateKind"
+          },
+          "payer": {
+            "type": "string",
+            "enum": [
+              "long",
+              "short"
+            ],
+            "title": "Payer",
+            "description": "Side that pays when the rate is positive."
+          },
+          "exchanged": {
+            "type": "boolean",
+            "title": "Exchanged",
+            "description": "Whether the other side receives what the payer pays (funding)."
+          },
+          "source": {
+            "$ref": "#/components/schemas/SourceOut"
+          },
+          "interval_hours": {
+            "type": "number",
+            "title": "Interval Hours",
+            "description": "Length of an accrual period."
+          },
+          "periods_per_year": {
+            "type": "number",
+            "title": "Periods Per Year"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/RatesSummaryOut"
+          },
+          "rates": {
+            "items": {
+              "$ref": "#/components/schemas/RatePointOut"
+            },
+            "type": "array",
+            "title": "Rates"
+          }
+        },
+        "type": "object",
+        "required": [
+          "instrument",
+          "venue",
+          "kind",
+          "payer",
+          "exchanged",
+          "source",
+          "interval_hours",
+          "periods_per_year",
+          "summary",
+          "rates"
+        ],
+        "title": "RatesOut",
+        "description": "Funding, borrow fees or financing costs of an instrument on a venue (ADR-0031)."
+      },
+      "RatesSummaryOut": {
+        "properties": {
+          "payments": {
+            "type": "integer",
+            "title": "Payments"
+          },
+          "mean_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean Rate"
+          },
+          "mean_annualized": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean Annualized"
+          },
+          "positive_share": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Positive Share",
+            "description": "Share of periods with a positive rate."
+          },
+          "accumulated_long": {
+            "type": "number",
+            "title": "Accumulated Long",
+            "description": "Received by a long unit position (negative: paid)."
+          },
+          "accumulated_short": {
+            "type": "number",
+            "title": "Accumulated Short",
+            "description": "Received by a short unit position (negative: paid)."
+          }
+        },
+        "type": "object",
+        "required": [
+          "payments",
+          "mean_rate",
+          "mean_annualized",
+          "positive_share",
+          "accumulated_long",
+          "accumulated_short"
+        ],
+        "title": "RatesSummaryOut",
+        "description": "The rates over the whole range."
       },
       "RebalanceIn": {
         "properties": {

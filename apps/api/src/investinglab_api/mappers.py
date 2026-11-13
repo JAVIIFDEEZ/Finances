@@ -13,6 +13,7 @@ import numpy as np
 import pandas as pd
 
 from investinglab import __version__ as core_version
+from investinglab.domain.flow import FlowField
 from investinglab.domain.series import PriceField
 from investinglab.ports import PortfolioSpec
 from investinglab_api import __version__
@@ -37,10 +38,16 @@ from investinglab_api.schemas.market import (
     ComparisonOut,
     ExchangeOut,
     FailureOut,
+    FlowBarOut,
+    FlowOut,
+    FlowSummaryOut,
     InstrumentOut,
     IssueOut,
     MetricsOut,
     QualityOut,
+    RatePointOut,
+    RatesOut,
+    RatesSummaryOut,
     SeriesOut,
     SourceOut,
     StatsOut,
@@ -70,12 +77,14 @@ if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
     from datetime import date, datetime
 
+    from investinglab.domain.flow import FlowSeries
     from investinglab.domain.instruments import Instrument
     from investinglab.domain.metrics import RiskMetrics
     from investinglab.domain.optimization import EfficientFrontier, OptimizationResult
     from investinglab.domain.planning import PlanResult
     from investinglab.domain.portfolio import Portfolio
     from investinglab.domain.quality import DataQualityReport
+    from investinglab.domain.rate_series import RateSeries
     from investinglab.domain.series import DataSource, PriceSeries, SeriesStats
     from investinglab.domain.simulation import SimulationResult
     from investinglab.modules import ModuleInfo
@@ -84,6 +93,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "comparison_out",
+    "flow_out",
     "health_out",
     "metrics_out",
     "module_out",
@@ -93,6 +103,7 @@ __all__ = [
     "portfolio_spec",
     "provider_out",
     "quality_out",
+    "rates_out",
     "risk_free_out",
     "saved_portfolio_out",
     "saved_portfolio_page",
@@ -189,6 +200,95 @@ def _bars(series: PriceSeries) -> list[BarOut]:
         values = {str(field): finite(float(column[position])) for field, column in columns.items()}
         bars.append(BarOut(time=_time(stamp), **values))  # type: ignore[arg-type]
     return bars
+
+
+def flow_out(flow: FlowSeries) -> FlowOut:
+    """The flow of each bar, with what follows from it and the totals."""
+    table = flow.flow
+    derived: dict[str, pd.Series] = {}
+    if flow.has_aggressor_side:
+        derived |= {
+            "sell_volume": flow.sell_volume,
+            "delta": flow.delta,
+            "cvd": flow.cvd,
+            "buy_ratio": flow.buy_ratio,
+        }
+    if FlowField.QUOTE_VOLUME in table.columns:
+        derived["vwap"] = flow.vwap
+    columns = {
+        **{str(name): table[name].to_numpy() for name in table.columns},
+        **{name: values.to_numpy() for name, values in derived.items()},
+    }
+    bars = [
+        FlowBarOut(
+            time=_time(stamp),
+            **{name: finite(float(values[position])) for name, values in columns.items()},  # type: ignore[arg-type]
+        )
+        for position, stamp in enumerate(pd.DatetimeIndex(table.index))
+    ]
+    totals = table.sum()
+
+    def total(field: FlowField) -> float | None:
+        return finite(float(totals[field])) if field in totals.index else None
+
+    volume = float(totals[FlowField.VOLUME])
+    bought = total(FlowField.BUY_VOLUME)
+    return FlowOut(
+        instrument=instrument_out(flow.instrument),
+        frequency=flow.frequency,
+        source=_source_out(flow.source),
+        has_aggressor_side=flow.has_aggressor_side,
+        columns=[FlowField(name) for name in table.columns],
+        summary=FlowSummaryOut(
+            volume=volume,
+            quote_volume=total(FlowField.QUOTE_VOLUME),
+            trades=total(FlowField.TRADES),
+            delta=None if bought is None else 2.0 * bought - volume,
+            buy_ratio=None if bought is None or volume <= 0 else bought / volume,
+        ),
+        bars=bars,
+    )
+
+
+def rates_out(rates: RateSeries) -> RatesOut:
+    """Settled rates with their annualised value and what a long position accumulated."""
+    values = rates.rates
+    annualized = rates.annualized()
+    accumulated = rates.cashflow("long").cumsum()
+    assert rates.interval is not None  # noqa: S101 - set when the series is built
+    return RatesOut(
+        instrument=instrument_out(rates.instrument),
+        venue=rates.venue,
+        kind=rates.kind,
+        payer=rates.kind.payer,
+        exchanged=rates.kind.is_exchanged,
+        source=_source_out(rates.source),
+        interval_hours=rates.interval / pd.Timedelta(hours=1),
+        periods_per_year=rates.periods_per_year,
+        summary=RatesSummaryOut(
+            payments=len(values),
+            mean_rate=finite(float(values.mean())),
+            mean_annualized=finite(float(annualized.mean())),
+            positive_share=finite(float((values > 0).mean())),
+            accumulated_long=rates.accumulated("long"),
+            accumulated_short=rates.accumulated("short"),
+        ),
+        rates=[
+            RatePointOut(
+                time=pd.Timestamp(stamp).to_pydatetime(),
+                rate=float(rate),
+                annualized=float(annual),
+                accumulated_long=float(running),
+            )
+            for stamp, rate, annual, running in zip(
+                pd.DatetimeIndex(values.index),
+                values.to_numpy(),
+                annualized.to_numpy(),
+                accumulated.to_numpy(),
+                strict=True,
+            )
+        ],
+    )
 
 
 def series_out(series: PriceSeries) -> SeriesOut:
@@ -589,6 +689,7 @@ def provider_out(name: str, capabilities: ProviderCapabilities) -> ProviderOut:
             for limit in capabilities.rate_limits
         ],
         identifiers=capabilities.identifiers,
+        rate_kinds=sorted(capabilities.rate_kinds),
     )
 
 

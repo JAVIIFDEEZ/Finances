@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import Field
 
+from investinglab.domain.flow import FlowField
 from investinglab.domain.instruments import AssetClass
 from investinglab.domain.quality import IssueKind, Severity
+from investinglab.domain.rate_series import RateKind
 from investinglab.domain.series import PriceAdjustment, PriceField
 from investinglab.domain.time import Frequency
 from investinglab_api.schemas.common import ApiModel, DateRange, Matrix, Point
@@ -20,10 +22,16 @@ __all__ = [
     "ComparisonOut",
     "ExchangeOut",
     "FailureOut",
+    "FlowBarOut",
+    "FlowOut",
+    "FlowSummaryOut",
     "InstrumentOut",
     "IssueOut",
     "MetricsOut",
     "QualityOut",
+    "RatePointOut",
+    "RatesOut",
+    "RatesSummaryOut",
     "SeriesOut",
     "SourceOut",
     "StatsOut",
@@ -37,7 +45,7 @@ Symbol = Annotated[
         min_length=1,
         max_length=32,
         pattern=r"^[A-Za-z0-9.^=\-_/:]+$",
-        examples=["SAN.MC", "^GSPC", "EURUSD=X", "BTC-USD"],
+        examples=["SAN.MC", "^GSPC", "EURUSD=X", "BTC/USDT", "BTC/USDT:USDT"],
     ),
 ]
 
@@ -201,3 +209,87 @@ class QualityOut(ApiModel):
     ok: bool
     worst_severity: Severity | None
     issues: list[IssueOut]
+
+
+class FlowBarOut(ApiModel):
+    """The flow of one bar; what the source does not report is ``null``."""
+
+    time: date | datetime = Field(description="Session date (daily and above) or UTC open.")
+    volume: float = Field(description="Units of the instrument traded.")
+    quote_volume: float | None = Field(default=None, description="Value traded, quote currency.")
+    trades: float | None = Field(default=None, description="Number of trades.")
+    buy_volume: float | None = Field(default=None, description="Units bought by the aggressor.")
+    sell_volume: float | None = Field(default=None, description="Units sold by the aggressor.")
+    delta: float | None = Field(default=None, description="Aggressive buying minus selling.")
+    cvd: float | None = Field(default=None, description="Cumulative delta since the first bar.")
+    buy_ratio: float | None = Field(
+        default=None, description="Share of the volume bought by the aggressor."
+    )
+    vwap: float | None = Field(default=None, description="Volume-weighted average price.")
+
+
+class FlowSummaryOut(ApiModel):
+    """Totals over the whole range."""
+
+    volume: float
+    quote_volume: float | None
+    trades: float | None
+    delta: float | None = Field(description="Net aggressive buying (the last CVD).")
+    buy_ratio: float | None = Field(description="Share of all the volume bought by aggressors.")
+
+
+class FlowOut(ApiModel):
+    """Trade flow per bar of an instrument (ADR-0031)."""
+
+    instrument: InstrumentOut
+    frequency: Frequency
+    source: SourceOut
+    has_aggressor_side: bool = Field(
+        description="Whether the source reports the aggressor (then delta and CVD exist)."
+    )
+    columns: list[FlowField] = Field(description="Columns the source reports.")
+    summary: FlowSummaryOut
+    bars: list[FlowBarOut]
+
+
+class RatePointOut(ApiModel):
+    """One settled holding rate."""
+
+    time: datetime = Field(description="Settlement instant (UTC).")
+    rate: float = Field(description="Rate of the period as a decimal (0.0001 = 0.01 %).")
+    annualized: float = Field(description="The rate times the periods in a year.")
+    accumulated_long: float = Field(
+        description="What a long unit position received so far (negative: paid)."
+    )
+
+
+class RatesSummaryOut(ApiModel):
+    """The rates over the whole range."""
+
+    payments: int
+    mean_rate: float | None
+    mean_annualized: float | None
+    positive_share: float | None = Field(description="Share of periods with a positive rate.")
+    accumulated_long: float = Field(
+        description="Received by a long unit position (negative: paid)."
+    )
+    accumulated_short: float = Field(
+        description="Received by a short unit position (negative: paid)."
+    )
+
+
+class RatesOut(ApiModel):
+    """Funding, borrow fees or financing costs of an instrument on a venue (ADR-0031)."""
+
+    instrument: InstrumentOut
+    venue: str
+    kind: RateKind
+    payer: Literal["long", "short"] = Field(description="Side that pays when the rate is positive.")
+    exchanged: bool = Field(
+        description="Whether the other side receives what the payer pays (funding)."
+    )
+    source: SourceOut
+    interval_hours: float = Field(description="Length of an accrual period.")
+    periods_per_year: float
+    summary: RatesSummaryOut
+    rates: list[RatePointOut]

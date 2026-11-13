@@ -18,6 +18,8 @@ currency or venue its numbers belong to, and the platform never guesses::
 Every key of :class:`~investinglab.adapters.files.ImportSpec` is accepted. The provider
 plugs into the registry like any remote provider, so the same code works with downloaded
 data or with local files (offline, reproducible, ideal for demos and exports from brokers).
+A file with a volume column also serves its flow: the volume of the same bars, without
+aggressor side (ADR-0031).
 """
 
 from __future__ import annotations
@@ -32,7 +34,9 @@ from pydantic import ValidationError
 
 from investinglab.adapters.files.importer import ImportSpec, SeriesImporter
 from investinglab.domain.errors import DomainError, InvalidSeriesError
+from investinglab.domain.flow import FlowField, FlowSeries
 from investinglab.domain.instruments import AssetClass
+from investinglab.domain.series import PriceField
 from investinglab.ports.errors import (
     ProviderDataError,
     SymbolNotFoundError,
@@ -84,9 +88,9 @@ class LocalFilesProvider:
 
     @property
     def capabilities(self) -> ProviderCapabilities:
-        """Bars of the catalogue's symbols, at the frequencies declared for them."""
+        """Bars of the catalogue's symbols, at the frequencies declared for them, and their flow."""
         return ProviderCapabilities(
-            datasets=frozenset({Dataset.BARS}),
+            datasets=frozenset({Dataset.BARS, Dataset.FLOW}),
             asset_classes=frozenset(AssetClass),
             frequencies=frozenset(spec.frequency for spec in self._catalogue.values()),
             identifiers="|".join(re.escape(symbol) for symbol in self.symbols) or "(?!)",
@@ -118,6 +122,29 @@ class LocalFilesProvider:
         except (DomainError, InvalidSeriesError, OSError, ValueError) as error:
             raise ProviderDataError(self._name, f"{path.name}: {error}") from error
         return series
+
+    async def fetch_flow(self, request: BarsRequest) -> FlowSeries:
+        """The volume of the bars :meth:`fetch_bars` returns, as flow without aggressor side.
+
+        A bar without volume is absent from the flow, never a zero.
+
+        Raises:
+            UnsupportedRequestError: If the file has no volume column.
+            ProviderError: As :meth:`fetch_bars`.
+        """
+        series = await self.fetch_bars(request)
+        if PriceField.VOLUME not in series.bars.columns:
+            raise UnsupportedRequestError(self._name, f"{request.symbol}: the file has no volume")
+        volume = series.bars[PriceField.VOLUME].dropna()
+        try:
+            return FlowSeries(
+                series.instrument,
+                series.frequency,
+                series.source,
+                volume.to_frame(FlowField.VOLUME.value),
+            )
+        except DomainError as error:
+            raise ProviderDataError(self._name, f"{request.symbol}: {error}") from error
 
     def _file_of(self, symbol: str) -> Path:
         for suffix in _SUFFIXES:

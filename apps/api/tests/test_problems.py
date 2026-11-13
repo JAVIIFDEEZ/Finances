@@ -6,7 +6,11 @@ from typing import TYPE_CHECKING
 
 from fastapi.testclient import TestClient
 
-from investinglab.ports import ProviderDataError, ProviderUnavailableError
+from investinglab.ports import (
+    ProviderDataError,
+    ProviderUnavailableError,
+    UnsupportedRequestError,
+)
 from investinglab.toolkit import AsyncToolkit
 from investinglab_api.app import create_app
 from investinglab_api.settings import ApiSettings
@@ -45,6 +49,19 @@ def test_a_malformed_answer_is_unavailable_but_not_retried(
 
     assert response.status_code == 503
     assert "Retry-After" not in response.headers
+
+
+def test_data_no_source_serves_for_the_request_is_not_found(
+    bars: FakeBarsProvider, core_settings: Settings
+) -> None:
+    bars.errors = {"AAA.MC": UnsupportedRequestError("synthetic", "no such history")}
+
+    with _client(bars, core_settings) as client:
+        response = client.get("/api/v1/market/bars", params={"symbol": "AAA.MC"})
+
+    assert response.status_code == 404
+    assert response.json()["type"].endswith("#data-not-found")
+    assert response.json()["attempts"][0]["error"] == "UnsupportedRequestError"
 
 
 def test_a_wrong_method_is_an_http_problem_with_its_headers(

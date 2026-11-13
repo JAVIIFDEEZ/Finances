@@ -21,7 +21,7 @@ def test_health_reports_the_providers_and_the_offline_mode(client: TestClient) -
         "status": "ok",
         "version": __version__,
         "core_version": core_version,
-        "providers": ["synthetic", "rates"],
+        "providers": ["synthetic", "rates", "synthetic-flow", "synthetic-venue"],
         "offline": True,
         "database": "not_configured",
     }
@@ -30,13 +30,22 @@ def test_health_reports_the_providers_and_the_offline_mode(client: TestClient) -
 def test_providers_describe_their_capabilities(client: TestClient) -> None:
     providers = client.get("/api/v1/providers").json()
 
-    assert [p["name"] for p in providers] == ["synthetic", "rates"]
+    assert [p["name"] for p in providers] == [
+        "synthetic",
+        "rates",
+        "synthetic-flow",
+        "synthetic-venue",
+    ]
     bars = providers[0]
     assert bars["datasets"] == ["bars"]
     assert "1d" in bars["frequencies"]
     assert bars["frequencies"][0] == "1m"  # ordered from the finest
     assert bars["requires_api_key"] is False
+    assert bars["rate_kinds"] == []
     assert providers[1]["datasets"] == ["economic"]
+    assert providers[2]["datasets"] == ["flow"]
+    assert providers[3]["datasets"] == ["holding_rates"]
+    assert providers[3]["rate_kinds"] == ["borrow", "financing", "funding"]
 
 
 def test_modules_carry_their_traceability_in_both_languages(client: TestClient) -> None:
@@ -100,6 +109,8 @@ def test_the_openapi_document_describes_every_endpoint(client: TestClient) -> No
         "/api/v1/modules/{slug}",
         "/api/v1/market/bars",
         "/api/v1/market/compare",
+        "/api/v1/market/flow",
+        "/api/v1/market/holding-rates",
         "/api/v1/market/quality",
         "/api/v1/rates/risk-free",
         "/api/v1/portfolios",

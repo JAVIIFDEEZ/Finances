@@ -34,7 +34,7 @@ La documentación interactiva de la API está en <http://127.0.0.1:8000/docs>.
 | Pantalla | Qué puedes hacer |
 |----------|------------------|
 | **Visión general** | IBEX 35, DAX, S&P 500, EUR/USD y Bitcoin del último año; tu cartera; el €STR conocido cada día; fuentes de datos y progreso del máster |
-| **Mercados** | Buscar cualquier símbolo (⌘K o Ctrl+K: `SAN.MC`, `AAPL`, `^GSPC`, `EURUSD=X`, `BTC-USD`), ver velas y volumen, estadísticos, Sharpe con su error estándar, VaR, caídas y calidad de datos. En «Comparar», varios activos en base 100 con su correlación |
+| **Mercados** | Buscar cualquier símbolo (⌘K o Ctrl+K: `SAN.MC`, `AAPL`, `^GSPC`, `EURUSD=X`, `BTC/USDT`), ver velas y volumen, estadísticos, Sharpe con su error estándar, VaR, caídas, calidad de datos y el flujo por vela (CVD si la fuente dice quién agredió; si no, el volumen; o por qué no hay). Para un par cripto, también el funding de su perpetuo. En «Comparar», varios activos en base 100 con su correlación |
 | **Cartera** | Componer la cartera (pesos con validación en vivo, divisa base, rebalanceo, fecha de inicio) y analizarla: KPIs, valor, caídas, contribución al riesgo, correlación, peores caídas e informe Markdown en español o inglés |
 | **Simulación** | Monte Carlo de la cartera (browniano, t de Student o *bootstrap*): abanico de percentiles, distribución final con VaR y CVaR marcados y tabla de riesgo con intervalos de confianza |
 | **Optimización** | Máximo Sharpe, mínima varianza, paridad de riesgo, HRP o inversa de la volatilidad con un peso máximo: frontera eficiente, pesos actuales frente a óptimos y un botón para aplicarlos a la cartera |

@@ -10,6 +10,7 @@ import os
 import secrets
 from typing import TYPE_CHECKING
 
+import numpy as np
 import pandas as pd
 import psycopg
 import pytest
@@ -17,7 +18,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.engine import make_url
 
 from investinglab.config import Settings, get_settings
-from investinglab.domain import USD, Frequency
+from investinglab.domain import USD, AssetClass, FlowSeries, Frequency, RateKind, RateSeries
 from investinglab.toolkit import AsyncToolkit
 from investinglab_api.app import create_app
 from investinglab_api.persistence import Database
@@ -25,13 +26,20 @@ from investinglab_api.persistence.ddl import APP_ROLE
 from investinglab_api.persistence.migrate import upgrade
 from investinglab_api.settings import ApiSettings, get_api_settings
 from support.factories import (
+    SYNTHETIC_SOURCE,
     business_days,
     gbm_prices,
     make_economic_series,
     make_fx_series,
+    make_instrument,
     make_series,
 )
-from support.fakes import FakeBarsProvider, FakeEconomicProvider
+from support.fakes import (
+    FakeBarsProvider,
+    FakeEconomicProvider,
+    FakeFlowProvider,
+    FakeRatesProvider,
+)
 from support.repositories import InMemoryPortfolioRepository
 
 if TYPE_CHECKING:
@@ -78,6 +86,44 @@ def synthetic_series() -> list[PriceSeries]:
     return series
 
 
+def synthetic_flow() -> list[FlowSeries]:
+    """SYNTHETIC flow: a pair with its aggressor side and a listed share with volume only."""
+    rng = np.random.default_rng(21)
+    days = DAYS[:60]
+    volume = rng.uniform(100.0, 200.0, len(days))
+    pair = make_instrument("SYN/USDT", currency=USD, asset_class=AssetClass.CRYPTO, exchange=None)
+    traded = pd.DataFrame(
+        {
+            "volume": volume,
+            "quote_volume": volume * 50.0,
+            "trades": rng.integers(10, 50, len(days)).astype(float),
+            "buy_volume": volume * rng.uniform(0.3, 0.7, len(days)),
+        },
+        index=days,
+    )
+    listed = pd.DataFrame({"volume": volume * 1_000}, index=days)
+    return [
+        FlowSeries(pair, Frequency.DAY_1, SYNTHETIC_SOURCE, traded),
+        FlowSeries(make_instrument("AAA.MC"), Frequency.DAY_1, SYNTHETIC_SOURCE, listed),
+    ]
+
+
+def synthetic_funding() -> RateSeries:
+    """SYNTHETIC funding of a perpetual swap, settled every 8 hours."""
+    instants = pd.date_range("2024-03-01", periods=30, freq="8h", tz="UTC")
+    rates = np.random.default_rng(22).normal(0.0001, 0.0001, len(instants))
+    swap = make_instrument(
+        "SYN/USDT:USDT", currency=USD, asset_class=AssetClass.CRYPTO, exchange=None
+    )
+    return RateSeries(
+        swap,
+        "synthetic-venue",
+        RateKind.FUNDING,
+        SYNTHETIC_SOURCE,
+        pd.Series(rates, index=instants),
+    )
+
+
 def synthetic_estr() -> object:
     """A synthetic €STR at 3 %, each month published at the start of the next."""
     months = pd.date_range("2022-12-01", "2025-06-01", freq="MS")
@@ -120,7 +166,11 @@ def core_settings(tmp_path: Path) -> Settings:
 def toolkit(bars: FakeBarsProvider, core_settings: Settings) -> AsyncToolkit:
     """A toolkit over the synthetic providers."""
     rates = FakeEconomicProvider("rates", {"ECBESTRVOLWGTTRMDMNRT": synthetic_estr()})  # type: ignore[dict-item]
-    return AsyncToolkit.from_settings(core_settings, providers=[bars, rates], cache=False)
+    flow = FakeFlowProvider("synthetic-flow", {f.symbol: f for f in synthetic_flow()})
+    funding = FakeRatesProvider("synthetic-venue", {"SYN/USDT:USDT": synthetic_funding()})
+    return AsyncToolkit.from_settings(
+        core_settings, providers=[bars, rates, flow, funding], cache=False
+    )
 
 
 @pytest.fixture

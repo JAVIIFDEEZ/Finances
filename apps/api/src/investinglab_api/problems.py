@@ -36,6 +36,8 @@ log = get_logger(__name__)
 
 PROBLEM_JSON: Final = "application/problem+json"
 DOCS: Final = "https://github.com/JAVIIFDEEZ/Finances/blob/development/docs/guide/api.md"
+NOT_FOUND_ERRORS: Final = frozenset({"SymbolNotFoundError", "UnsupportedRequestError"})
+"""Provider failures that mean the data does not exist for the request."""
 
 
 class ProblemType(StrEnum):
@@ -114,8 +116,10 @@ async def _unavailable(request: Request, exc: Exception) -> JSONResponse:
         {"provider": a.provider, "error": a.error_type, "message": a.message}
         for a in error.attempts
     ]
+    # Nobody has it, or nobody serves it for this request (a currency pair has no volume,
+    # a range older than the source keeps): the data does not exist, nothing to retry.
     not_found = bool(error.attempts) and all(
-        a.error_type == "SymbolNotFoundError" for a in error.attempts
+        a.error_type in NOT_FOUND_ERRORS for a in error.attempts
     )
     if not_found or not error.attempts:
         return problem(

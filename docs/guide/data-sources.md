@@ -128,6 +128,7 @@ with Toolkit.from_settings() as tk:
 |--------|----------|---------------|
 | Binance | volumen, valor negociado, operaciones, compra agresora (unidades y valor) | Sí |
 | Yahoo (acciones, ETF, índices, futuros) | volumen | No: Yahoo no dice quién agredió |
+| Ficheros propios con columna de volumen | volumen | No |
 | Yahoo (divisas y cripto) | — | No hay flujo: las divisas no tienen volumen y el de cripto viene en divisa, no en unidades; pide el par a Binance |
 
 ```python

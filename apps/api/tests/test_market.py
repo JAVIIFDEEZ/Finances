@@ -1,4 +1,4 @@
-"""Market endpoints over SYNTHETIC series: bars, comparisons, quality and risk-free rates."""
+"""Market endpoints over SYNTHETIC data: bars, flow, holding rates, comparisons and quality."""
 
 from __future__ import annotations
 
@@ -166,3 +166,89 @@ def test_risk_free_rates_are_known_only_after_publication(client: TestClient) ->
     assert rates["2022-11-28"] is None  # nothing published yet
     # 3 % quoted ACT/360, compounded daily for a year.
     assert rates["2023-01-02"] == pytest.approx(OVERNIGHT_ACT_360.effective_annual(0.03))
+
+
+# ── Trade flow and holding rates (SYNTHETIC) ─────────────────────────
+
+
+def test_flow_with_aggressor_side_brings_delta_and_cvd(client: TestClient) -> None:
+    response = client.get(
+        "/api/v1/market/flow",
+        params={"symbol": "SYN/USDT", "start": "2023-01-02", "end": "2023-01-31"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["has_aggressor_side"] is True
+    assert body["columns"] == ["volume", "quote_volume", "trades", "buy_volume"]
+    first, last = body["bars"][0], body["bars"][-1]
+    assert first["time"] == "2023-01-02"
+    assert first["delta"] == pytest.approx(2 * first["buy_volume"] - first["volume"])
+    assert first["sell_volume"] == pytest.approx(first["volume"] - first["buy_volume"])
+    assert first["vwap"] == pytest.approx(50.0)
+    assert last["cvd"] == pytest.approx(sum(bar["delta"] for bar in body["bars"]))
+    summary = body["summary"]
+    assert summary["delta"] == pytest.approx(last["cvd"])
+    assert summary["volume"] == pytest.approx(sum(bar["volume"] for bar in body["bars"]))
+    assert 0.0 < summary["buy_ratio"] < 1.0
+    assert body["source"]["provider"] == "synthetic"
+
+
+def test_flow_of_a_listed_share_is_its_volume_only(client: TestClient) -> None:
+    body = client.get("/api/v1/market/flow", params={"symbol": "AAA.MC"}).json()
+
+    assert body["has_aggressor_side"] is False
+    assert body["columns"] == ["volume"]
+    bar = body["bars"][0]
+    assert bar["delta"] is bar["cvd"] is bar["buy_ratio"] is bar["vwap"] is None
+    assert body["summary"]["delta"] is None
+    assert body["summary"]["buy_ratio"] is None
+
+
+def test_flow_nobody_serves_is_not_found(client: TestClient) -> None:
+    response = client.get("/api/v1/market/flow", params={"symbol": "BBB.MC"})
+
+    assert response.status_code == 404
+    assert response.json()["type"].endswith("#data-not-found")
+
+
+def test_funding_comes_with_its_interval_and_accumulation(client: TestClient) -> None:
+    response = client.get(
+        "/api/v1/market/holding-rates",
+        params={"symbol": "SYN/USDT:USDT", "kind": "funding"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert (body["venue"], body["kind"], body["payer"], body["exchanged"]) == (
+        "synthetic-venue",
+        "funding",
+        "long",
+        True,
+    )
+    assert body["interval_hours"] == pytest.approx(8.0)
+    assert body["periods_per_year"] == pytest.approx(1095.0)
+    rates = body["rates"]
+    assert rates[0]["time"] == "2024-03-01T00:00:00Z"
+    assert rates[0]["annualized"] == pytest.approx(rates[0]["rate"] * 1095.0)
+    assert rates[-1]["accumulated_long"] == pytest.approx(-sum(r["rate"] for r in rates))
+    summary = body["summary"]
+    assert summary["payments"] == 30
+    assert summary["accumulated_short"] == pytest.approx(-summary["accumulated_long"])
+    assert 0.0 <= summary["positive_share"] <= 1.0
+
+
+@pytest.mark.parametrize(
+    ("params", "status"),
+    [
+        ({"symbol": "SYN/USDT:USDT", "venue": "other"}, 404),
+        ({"symbol": "SYN/USDT:USDT", "kind": "rebate"}, 422),
+        ({"symbol": "SYN/USDT:USDT", "venue": "Not A Venue"}, 422),
+        ({"symbol": "NOPE/USDT:USDT"}, 404),
+    ],
+    ids=["other-venue", "unknown-kind", "bad-venue", "unknown-swap"],
+)
+def test_rates_requests_are_checked(
+    client: TestClient, params: dict[str, str], status: int
+) -> None:
+    assert client.get("/api/v1/market/holding-rates", params=params).status_code == status
