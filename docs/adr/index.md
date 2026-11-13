@@ -38,6 +38,7 @@ actualiza el estado del antiguo.
 | [0029](0029-relational-persistence-and-owners.md) | Persistencia relacional con propietario en cada tabla y registro *append-only* | Aceptado |
 | [0031](0031-flow-holding-rates-and-universes.md) | Flujo por vela, tipos de mantenimiento y universos *point-in-time* como tipos hermanos | Aceptado |
 | [0032](0032-crypto-venues-on-the-shared-http-client.md) | *Venues* cripto con adaptadores propios sobre `HttpClient`, sin ccxt para leer datos | Aceptado |
+| [0034](0034-technical-indicators-in-numpy.md) | Indicadores técnicos propios en NumPy y pandas, con las definiciones de `ta` | Aceptado |
 
 ## Cómo añadir un ADR
 

@@ -765,6 +765,8 @@ Es decir: **unos 6-8 meses hasta la paridad en lo esencial (G0-G8)** y unos 10-1
 
 **Terminado cuando:** la misma ficha funciona con `SAN.MC`, `^GSPC`, `EURUSD=X` y `BTC/USDT`, y los tests de paridad pasan.
 
+**Avance (13-11-2026):** los 26 indicadores del catálogo de `strategy_spec` ya están en `analytics/technical/` con las definiciones de `ta` ([ADR-0034](../adr/0034-technical-indicators-in-numpy.md)). La paridad se graba ejecutando el código de CryptoWorld (`just record-parity`): 61 casos sobre 396 velas reales, que coinciden salvo en el calentamiento que `ta` inventa.
+
 ### G3 — Backtest, validación, mundos nulos y metodología
 
 **Contenido.**
@@ -965,4 +967,4 @@ Todos parten de `development`, en su rama `feat/*`, respetan `CLAUDE.md` (inglé
 3. **§4 (fuentes):** añadir Bybit y OKX (vía ccxt), Deribit, Blockscout, data.binance.vision.
 4. **§16 (dominios):** añadir los de esos proveedores (por ejemplo `api.bybit.com`, `www.okx.com`, `www.deribit.com`, `data.binance.vision` y las instancias de Blockscout que se usen).
 5. **`CLAUDE.md`:** tres reglas nuevas cuando lleguen sus fases: (a) ninguna cifra propia sin nota de metodología; (b) ningún cambio del Laboratorio sin volver a pasar los mundos nulos; (c) dinero real: solo `apps/trader`, *outbox* obligatorio, `Decimal`, bandera apagada por defecto.
-6. **ADR previstos:** 0029 persistencia y multiusuario; 0030 cola de trabajos; 0031 tipos `FlowSeries`/`RateSeries`; 0032 *venues* cripto sobre `HttpClient` (escrito); 0033 registro de capacidades de producto; 0034 indicadores en NumPy; 0035 gráfico de velas; 0036 motor de backtest y modelo de costes; 0037 mundos nulos como puerta; 0038 `apps/trader` y *outbox*; 0039 custodia de claves; 0040 tiempo real.
+6. **ADR previstos:** 0029 persistencia y multiusuario; 0030 cola de trabajos; 0031 tipos `FlowSeries`/`RateSeries`; 0032 *venues* cripto sobre `HttpClient` (escrito); 0033 registro de capacidades de producto; 0034 indicadores en NumPy (escrito); 0035 gráfico de velas; 0036 motor de backtest y modelo de costes; 0037 mundos nulos como puerta; 0038 `apps/trader` y *outbox*; 0039 custodia de claves; 0040 tiempo real.
