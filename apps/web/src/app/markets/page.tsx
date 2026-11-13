@@ -8,8 +8,9 @@ import { CorrelationHeatmap, PriceChart, TimeSeriesChart } from "@/components/ch
 import { useI18n, useTheme } from "@/components/providers";
 import { Badge, Button, Card, Input, PageHeader, ProblemAlert, Refreshing, Segmented, Skeleton, Stat } from "@/components/ui";
 import type { Schemas } from "@/lib/api/client";
-import { useBars, useComparison, useQuality, type Interval } from "@/lib/api/queries";
+import { isNotFound, useBars, useComparison, useFlow, useFunding, useQuality, type Interval } from "@/lib/api/queries";
 import { rangeStart, type RangeKey } from "@/lib/util/dates";
+import { perpetualOf } from "@/lib/util/instruments";
 import { seriesColor } from "@/lib/theme/tokens";
 
 const RANGES: readonly RangeKey[] = ["1m", "6m", "ytd", "1y", "5y", "max"];
@@ -53,6 +54,7 @@ function InstrumentView({ symbol }: { symbol: string }) {
   const percentFormat = useMemo(() => (v: number) => fmt.percent(v, 0), [fmt]);
   const rangeOptions = useRangeOptions();
   const intervalOptions = useIntervalOptions();
+  const swap = perpetualOf(symbol);
 
   if (bars.isError && !series) {
     return (
@@ -160,7 +162,98 @@ function InstrumentView({ symbol }: { symbol: string }) {
         </Card>
         <QualityCard quality={quality.data} loading={quality.isLoading} error={quality.isError ? quality.error : null} />
       </div>
+
+      <div className={swap ? "grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(300px,1fr)]" : "grid grid-cols-1 gap-6"}>
+        <FlowCard symbol={symbol} interval={interval} start={start} color={color} />
+        {swap ? <FundingCard swap={swap} start={start} color={color} /> : null}
+      </div>
     </div>
+  );
+}
+
+function signed(text: string, value: number | null | undefined): string {
+  return value != null && value > 0 ? `+${text}` : text;
+}
+
+function FlowCard({ symbol, interval, start, color }: { symbol: string; interval: Interval; start: string | null; color: string }) {
+  const { t, fmt } = useI18n();
+  const flow = useFlow(symbol, interval, start);
+  const compact = useMemo(() => (v: number) => fmt.compact(v), [fmt]);
+  const data = flow.data;
+  const aggressor = data?.has_aggressor_side ?? false;
+  return (
+    <Card title={t("markets.flow")} subtitle={data ? `${t("common.source")}: ${data.source.provider}` : undefined}>
+      {flow.isLoading ? (
+        <Skeleton className="h-[240px]" />
+      ) : flow.isError && isNotFound(flow.error) ? (
+        <p className="text-[13px] text-text-2">{t("markets.flowNone")}</p>
+      ) : flow.isError ? (
+        <ProblemAlert error={flow.error} onRetry={() => void flow.refetch()} />
+      ) : data ? (
+        <div className="flex flex-col gap-4">
+          <Refreshing active={flow.isFetching}>
+            <TimeSeriesChart
+              height={220}
+              label={aggressor ? t("markets.flowCvd") : t("markets.flowVolume")}
+              format={compact}
+              reference={aggressor ? 0 : undefined}
+              lines={[
+                {
+                  name: aggressor ? "CVD" : t("markets.volume"),
+                  color,
+                  area: !aggressor,
+                  points: data.bars.map((bar) => ({ time: String(bar.time), value: aggressor ? (bar.cvd ?? null) : bar.volume })),
+                },
+              ]}
+            />
+          </Refreshing>
+          <p className="text-xs text-muted">{aggressor ? t("markets.flowCvd") : t("markets.flowNoAggressor")}</p>
+          <dl className="grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-4">
+            <Stat label={t("metric.totalVolume")} value={fmt.compact(data.summary.volume)} />
+            <Stat label={t("metric.trades")} value={fmt.compact(data.summary.trades)} />
+            <Stat label={t("metric.netDelta")} value={signed(fmt.compact(data.summary.delta), data.summary.delta)} />
+            <Stat label={t("metric.buyRatio")} value={fmt.percent(data.summary.buy_ratio, 1)} />
+          </dl>
+        </div>
+      ) : null}
+    </Card>
+  );
+}
+
+function FundingCard({ swap, start, color }: { swap: string; start: string | null; color: string }) {
+  const { t, fmt } = useI18n();
+  const funding = useFunding(swap, start);
+  const percent = useMemo(() => (v: number) => fmt.percent(v, 1), [fmt]);
+  const data = funding.data;
+  return (
+    <Card title={t("markets.funding")} subtitle={data ? `${swap} · ${data.venue}` : swap}>
+      {funding.isLoading ? (
+        <Skeleton className="h-[240px]" />
+      ) : funding.isError && isNotFound(funding.error) ? (
+        <p className="text-[13px] text-text-2">{t("markets.fundingNone")}</p>
+      ) : funding.isError ? (
+        <ProblemAlert error={funding.error} onRetry={() => void funding.refetch()} />
+      ) : data ? (
+        <div className="flex flex-col gap-4">
+          <Refreshing active={funding.isFetching}>
+            <TimeSeriesChart
+              height={180}
+              label={t("markets.fundingRate")}
+              format={percent}
+              reference={0}
+              lines={[{ name: t("markets.fundingRate"), color, points: data.rates.map((r) => ({ time: String(r.time), value: r.annualized })) }]}
+            />
+          </Refreshing>
+          <p className="text-xs text-muted">{t("metric.fundingPayer")}</p>
+          <dl className="grid grid-cols-2 gap-x-6 gap-y-5">
+            <Stat label={t("metric.fundingMean")} value={fmt.percent(data.summary.mean_annualized, 1)} />
+            <Stat label={t("metric.fundingLong")} value={fmt.signedPercent(data.summary.accumulated_long, 2)} />
+            <Stat label={t("metric.fundingPositive")} value={fmt.percent(data.summary.positive_share, 0)} />
+            <Stat label={t("metric.fundingInterval")} value={`${fmt.number(data.interval_hours, 0)} h`} detail={`${fmt.number(data.summary.payments, 0)} ${t("metric.observations").toLowerCase()}`} />
+          </dl>
+        </div>
+      ) : null}
+    </Card>
   );
 }
 

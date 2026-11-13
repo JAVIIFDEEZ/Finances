@@ -58,6 +58,21 @@ test("an instrument is found with the search and explored", async ({ page }) => 
   expect(errors).toEqual([]);
 });
 
+test("every instrument shows its flow, or why it has none", async ({ page }) => {
+  const errors = trackErrors(page);
+  await page.goto("/markets?symbol=ITX.MC");
+
+  await expect(page.getByRole("heading", { name: "Flujo por vela" })).toBeVisible();
+  await expect(page.getByRole("img", { name: "Volumen por vela" })).toBeVisible();
+  await expect(page.getByText("La fuente no dice quién agredió", { exact: false })).toBeVisible();
+  await expect(page.getByText("Volumen total")).toBeVisible();
+
+  await page.goto("/markets?symbol=EURUSD%3DX");
+  await expect(page.getByText("Ninguna fuente publica el flujo", { exact: false })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Funding del perpetuo" })).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
 test("instruments are compared", async ({ page }) => {
   await page.goto("/markets?view=compare");
 

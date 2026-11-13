@@ -1,8 +1,8 @@
 """Write SYNTHETIC price files for the end-to-end tests (never market data).
 
 Usage: ``uv run python e2e/synthetic_data.py <folder>``. Each series is a seeded geometric
-Brownian motion; the catalogue names every instrument "Synthetic …" so nobody can take the
-numbers for real prices.
+Brownian motion with a seeded log-normal volume (none for currency pairs); the catalogue names
+every instrument "Synthetic …" so nobody can take the numbers for real prices.
 """
 
 from __future__ import annotations
@@ -39,9 +39,10 @@ def main(folder: Path) -> None:
         shocks = rng.normal((mu - sigma**2 / 2) / 252, sigma / np.sqrt(252), len(days))
         start = 1.1 if asset_class == "fx" else 100.0
         prices = start * np.exp(np.cumsum(shocks))
-        pd.DataFrame({"Date": days.strftime("%Y-%m-%d"), "Close": prices}).to_csv(
-            folder / f"{symbol}.csv", index=False
-        )
+        columns = {"Date": days.strftime("%Y-%m-%d"), "Close": prices}
+        if asset_class != "fx":  # currency pairs have no volume
+            columns["Volume"] = np.round(rng.lognormal(13.0, 0.4, len(days)))
+        pd.DataFrame(columns).to_csv(folder / f"{symbol}.csv", index=False)
         catalogue.append(
             f'["{symbol}"]\nname = "{name}"\ncurrency = "{currency}"\n'
             f'exchange = "{exchange}"\nasset_class = "{asset_class}"\n'
