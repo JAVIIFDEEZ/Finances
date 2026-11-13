@@ -30,6 +30,7 @@ import pandas as pd
 from investinglab.adapters.calendars import ExchangeCalendarsAdapter
 from investinglab.adapters.files import ImportSpec, SeriesImporter
 from investinglab.adapters.http import RetryPolicy
+from investinglab.adapters.providers.alternative_me import AlternativeMeProvider
 from investinglab.adapters.providers.binance import BinanceProvider
 from investinglab.adapters.providers.ecb import EcbProvider
 from investinglab.adapters.providers.files import LocalFilesProvider
@@ -44,7 +45,7 @@ from investinglab.domain.money import Currency
 from investinglab.domain.portfolio import Portfolio
 from investinglab.domain.rate_series import RateKind
 from investinglab.domain.time import Frequency
-from investinglab.ports.market_data import BarsRequest, RatesRequest
+from investinglab.ports.market_data import BarsRequest, EconomicRequest, RatesRequest, VintageMode
 from investinglab.reporting.options import ReportOptions
 from investinglab.services.fx import CurrencyService
 from investinglab.services.market_data import DataUnavailableError, MarketDataService
@@ -59,6 +60,7 @@ if TYPE_CHECKING:
     from pathlib import Path
     from types import TracebackType
 
+    from investinglab.domain.economic import EconomicSeries
     from investinglab.domain.flow import FlowSeries
     from investinglab.domain.metrics import RiskMetrics
     from investinglab.domain.portfolio import RebalancePolicy
@@ -76,7 +78,9 @@ __all__ = ["AsyncToolkit", "Toolkit"]
 log = get_logger(__name__)
 
 type DateLike = date | datetime | pd.Timestamp | str | None
-type RemoteProvider = EcbProvider | YahooFinanceProvider | BinanceProvider | OkxProvider
+type RemoteProvider = (
+    EcbProvider | YahooFinanceProvider | BinanceProvider | OkxProvider | AlternativeMeProvider
+)
 
 
 def _as_date(value: DateLike) -> date | None:
@@ -90,7 +94,8 @@ def _remote_providers(config: Settings, registry: ProviderRegistry) -> list[Remo
     and it only serves currency pairs and euro rates. Yahoo serves every other symbol of
     its own notation (``SAN.MC``, ``^GSPC``, ``BTC-USD``...). The venues serve theirs:
     Binance the spot pairs written ``BASE/QUOTE`` with their trade flow, and OKX the
-    funding of perpetual swaps written ``BASE/QUOTE:SETTLE`` (ADR-0032).
+    funding of perpetual swaps written ``BASE/QUOTE:SETTLE`` (ADR-0032). alternative.me
+    publishes the crypto Fear & Greed Index (``FNG``).
     """
     retry = RetryPolicy(max_attempts=config.http_max_attempts)
     timeout = config.http_timeout_seconds
@@ -99,6 +104,7 @@ def _remote_providers(config: Settings, registry: ProviderRegistry) -> list[Remo
         "yahoo": lambda: YahooFinanceProvider(timeout=timeout, retry=retry),
         "binance": lambda: BinanceProvider(timeout=timeout, retry=retry),
         "okx": lambda: OkxProvider(timeout=timeout, retry=retry),
+        "alternative_me": lambda: AlternativeMeProvider(timeout=timeout, retry=retry),
     }
     return [build() for name, build in factories.items() if name not in registry]
 
@@ -140,8 +146,8 @@ class AsyncToolkit:
 
         Providers are tried in this order: the ``providers`` given here, the user's own
         files (``local_data_dir``) and then, unless ``offline`` is set, the ECB (euro
-        reference rates, €STR), Yahoo Finance, Binance (spot pairs and their flow) and OKX
-        (funding of perpetual swaps).
+        reference rates, €STR), Yahoo Finance, Binance (spot pairs and their flow), OKX
+        (funding of perpetual swaps) and alternative.me (crypto Fear & Greed).
 
         Args:
             settings: Configuration; the process-wide settings by default.
@@ -213,6 +219,25 @@ class AsyncToolkit:
             for symbol in symbols
         ]
         return await self._market_data.get_many_bars(requests, refresh=refresh)
+
+    async def economic(
+        self,
+        series_id: str,
+        *,
+        start: DateLike = None,
+        end: DateLike = None,
+        mode: VintageMode | str = VintageMode.FIRST_RELEASE,
+        refresh: bool = False,
+    ) -> EconomicSeries:
+        """An economic series with its publication dates (point-in-time by default).
+
+        Example: ``tk.economic("FNG", start="2026-01-01")`` is the crypto Fear & Greed Index.
+
+        Raises:
+            DataUnavailableError: If no provider could deliver it.
+        """
+        request = EconomicRequest(series_id, _as_date(start), _as_date(end), VintageMode(mode))
+        return await self._market_data.get_economic_series(request, refresh=refresh)
 
     async def flow(
         self,
@@ -522,6 +547,20 @@ class Toolkit:
         """Several series downloaded concurrently (see :meth:`AsyncToolkit.many`)."""
         return self._run(
             self._inner.many(symbols, start=start, end=end, frequency=frequency, refresh=refresh)
+        )
+
+    def economic(
+        self,
+        series_id: str,
+        *,
+        start: DateLike = None,
+        end: DateLike = None,
+        mode: VintageMode | str = VintageMode.FIRST_RELEASE,
+        refresh: bool = False,
+    ) -> EconomicSeries:
+        """An economic series (see :meth:`AsyncToolkit.economic`)."""
+        return self._run(
+            self._inner.economic(series_id, start=start, end=end, mode=mode, refresh=refresh)
         )
 
     def flow(
