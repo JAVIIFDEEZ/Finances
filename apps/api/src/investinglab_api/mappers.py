@@ -32,6 +32,7 @@ from investinglab_api.schemas.analysis import (
     WeightOut,
 )
 from investinglab_api.schemas.common import Matrix, Point, finite
+from investinglab_api.schemas.economic import EconomicObservationOut, EconomicSeriesOut
 from investinglab_api.schemas.market import (
     BarOut,
     CompareSeriesOut,
@@ -77,6 +78,7 @@ if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
     from datetime import date, datetime
 
+    from investinglab.domain.economic import EconomicSeries
     from investinglab.domain.flow import FlowSeries
     from investinglab.domain.instruments import Instrument
     from investinglab.domain.metrics import RiskMetrics
@@ -93,6 +95,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "comparison_out",
+    "economic_series_out",
     "flow_out",
     "health_out",
     "metrics_out",
@@ -200,6 +203,29 @@ def _bars(series: PriceSeries) -> list[BarOut]:
         values = {str(field): finite(float(column[position])) for field, column in columns.items()}
         bars.append(BarOut(time=_time(stamp), **values))  # type: ignore[arg-type]
     return bars
+
+
+def economic_series_out(series: EconomicSeries) -> EconomicSeriesOut:
+    """An economic series with each value's publication date."""
+    frame = series.observations
+    return EconomicSeriesOut(
+        series_id=series.series_id,
+        title=series.title,
+        units=series.units,
+        frequency=series.frequency,
+        source=_source_out(series.source),
+        has_revisions=series.has_revisions,
+        observations=[
+            EconomicObservationOut(
+                time=pd.Timestamp(observed).date(),
+                published_at=pd.Timestamp(published).date(),
+                value=float(value),
+            )
+            for observed, published, value in zip(
+                frame["observation_date"], frame["published_at"], frame["value"], strict=True
+            )
+        ],
+    )
 
 
 def flow_out(flow: FlowSeries) -> FlowOut:
