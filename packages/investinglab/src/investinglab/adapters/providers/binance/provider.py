@@ -24,26 +24,18 @@ What the adapter guarantees, beyond the domain's validation:
 
 from __future__ import annotations
 
-import re
-from dataclasses import dataclass
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Final, Self
 
 import numpy as np
 import pandas as pd
 
 from investinglab.adapters.http import HttpClient, retry_after
+from investinglab.adapters.providers import venues
 from investinglab.domain.errors import DomainError
-from investinglab.domain.flow import FlowField, FlowSeries
-from investinglab.domain.instruments import EXCHANGES, AssetClass, Instrument
-from investinglab.domain.money import Currency
-from investinglab.domain.series import (
-    MIN_OBSERVATIONS,
-    DataSource,
-    PriceAdjustment,
-    PriceField,
-    PriceSeries,
-)
+from investinglab.domain.flow import FlowField
+from investinglab.domain.instruments import AssetClass
+from investinglab.domain.series import DataSource, PriceField
 from investinglab.domain.time import Frequency
 from investinglab.ports.errors import (
     BannedError,
@@ -60,6 +52,8 @@ if TYPE_CHECKING:
     import httpx
 
     from investinglab.adapters.http import RetryPolicy
+    from investinglab.domain.flow import FlowSeries
+    from investinglab.domain.series import PriceSeries
     from investinglab.ports.errors import ProviderError
     from investinglab.ports.market_data import BarsRequest
 
@@ -80,7 +74,7 @@ NAME: Final = "binance"
 BASE_URL: Final = "https://data-api.binance.vision"
 DATASET: Final = "api/v3/klines"
 
-PAIR: Final = r"[A-Z0-9]{2,15}/[A-Z0-9]{2,10}"
+PAIR: Final = venues.PAIR
 """A spot pair: base and quote assets separated by a slash (``BTC/USDT``)."""
 
 PAGE_SIZE: Final = 1_000
@@ -106,9 +100,7 @@ INTERVALS: Final[dict[Frequency, str]] = {
 }
 """Frequencies downloaded natively; coarser ones are aggregated from daily bars."""
 
-_PAIR = re.compile(PAIR)
 _EPOCH: Final = datetime(1970, 1, 1, tzinfo=UTC)
-_DAY: Final = timedelta(days=1)
 
 # Positions in a kline row: open time, OHLC, volume, close time, value traded, trades and
 # taker buying (units and value). Later positions are ignored.
@@ -124,14 +116,6 @@ _COLUMNS: Final[dict[str, int]] = {
     FlowField.BUY_VOLUME: 9,
     FlowField.BUY_QUOTE_VOLUME: 10,
 }
-_PRICES: Final = (
-    PriceField.OPEN,
-    PriceField.HIGH,
-    PriceField.LOW,
-    PriceField.CLOSE,
-    PriceField.VOLUME,
-)
-_FLOW: Final = tuple(FlowField)
 
 
 def _utc_now() -> datetime:
@@ -144,12 +128,7 @@ def split_pair(symbol: str) -> tuple[str, str]:
     Raises:
         UnsupportedRequestError: If the symbol is not written as a pair.
     """
-    if not _PAIR.fullmatch(symbol):
-        raise UnsupportedRequestError(
-            NAME, f"{symbol!r} is not a pair written BASE/QUOTE in capitals (e.g. BTC/USDT)"
-        )
-    base, quote = symbol.split("/")
-    return base, quote
+    return venues.split_pair(NAME, symbol)
 
 
 def explain_error(response: httpx.Response, path: str) -> ProviderError | None:
@@ -196,16 +175,6 @@ def http_client(
         transport=transport,
         explain=explain_error,
     )
-
-
-@dataclass(frozen=True, slots=True)
-class _Klines:
-    """Finished bars of one request with their flow, before they become domain series."""
-
-    instrument: Instrument
-    frequency: Frequency
-    frame: pd.DataFrame
-    source: DataSource
 
 
 class BinanceProvider:
@@ -267,22 +236,7 @@ class BinanceProvider:
                 bars remain.
             ProviderError: Any other failure, translated by the HTTP client.
         """
-        klines = await self._download(request)
-        try:
-            series = PriceSeries(
-                instrument=klines.instrument,
-                frequency=klines.frequency,
-                source=klines.source,
-                data=klines.frame[list(_PRICES)],
-                adjustment=PriceAdjustment.RAW,
-            )
-            return (
-                series
-                if series.frequency is request.frequency
-                else series.resample(request.frequency)
-            )
-        except DomainError as error:
-            raise ProviderDataError(NAME, f"{request.symbol}: {error}") from error
+        return venues.price_series(NAME, request, await self._download(request))
 
     async def fetch_flow(self, request: BarsRequest) -> FlowSeries:
         """Download the flow of the same bars :meth:`fetch_bars` returns.
@@ -293,14 +247,7 @@ class BinanceProvider:
         Raises:
             ProviderError: As :meth:`fetch_bars`.
         """
-        klines = await self._download(request)
-        try:
-            flow = FlowSeries(
-                klines.instrument, klines.frequency, klines.source, klines.frame[list(_FLOW)]
-            )
-            return flow if flow.frequency is request.frequency else flow.resample(request.frequency)
-        except DomainError as error:
-            raise ProviderDataError(NAME, f"{request.symbol}: {error}") from error
+        return venues.flow_series(NAME, request, await self._download(request))
 
     async def aclose(self) -> None:
         """Close the HTTP connection pool."""
@@ -319,21 +266,15 @@ class BinanceProvider:
 
     # ── Internals ────────────────────────────────────────────────────
 
-    async def _download(self, request: BarsRequest) -> _Klines:
+    async def _download(self, request: BarsRequest) -> venues.VenueBars:
+        instrument = venues.pair_instrument(NAME, request.symbol, "Binance")
         base, quote = split_pair(request.symbol)
-        instrument = _instrument(request.symbol, base, quote)
-        native = request.frequency if request.frequency in INTERVALS else Frequency.DAY_1
+        native = venues.native_frequency(NAME, request.frequency, INTERVALS)
         now = self._clock()
-        first, last = _bounds(request, now)
-        rows = await self._klines(base + quote, native, first, last)
-        frame = _finished(_frame(rows, request.symbol), native, now)
-        if len(frame) < MIN_OBSERVATIONS:
-            raise ProviderDataError(
-                NAME,
-                f"{request.symbol}: only {len(frame)} finished {INTERVALS[native]} bars between "
-                f"{request.start or 'the listing'} and {request.end or 'now'}",
-            )
-        return _Klines(instrument, native, frame, DataSource(NAME, now, DATASET))
+        first, last = venues.utc_bounds(NAME, request, now)
+        rows = await self._klines(base + quote, native, first or _EPOCH, last)
+        frame = venues.finished_bars(_frame(rows, request.symbol), native, now)
+        return venues.VenueBars(instrument, native, frame, DataSource(NAME, now, DATASET), now)
 
     async def _klines(
         self, pair: str, native: Frequency, first: datetime, last: datetime
@@ -365,55 +306,18 @@ class BinanceProvider:
         )
 
 
-# ──────────────────────────────────────────────────────────────────────
-# Request bounds
-# ──────────────────────────────────────────────────────────────────────
-
-
-def _bounds(request: BarsRequest, now: datetime) -> tuple[datetime, datetime]:
-    """UTC instants from the first requested day (inclusive) to after the last one."""
-    first = _midnight(request.start) if request.start else _EPOCH
-    last = min(_midnight(request.end) + _DAY, now) if request.end else now
-    if first >= last:
-        raise UnsupportedRequestError(
-            NAME, f"{request.symbol}: no bar can have finished between {first} and {last}"
-        )
-    return first, last
-
-
-def _midnight(day: date) -> datetime:
-    return datetime(day.year, day.month, day.day, tzinfo=UTC)
-
-
 def _milliseconds(moment: datetime) -> int:
     return int(moment.timestamp() * 1000)
 
 
 def _step(native: Frequency) -> int:
     """Length of a bar in milliseconds."""
-    minutes = native.minutes or 24 * 60
-    return minutes * 60_000
+    return int(venues.bar_length(native) / pd.Timedelta(milliseconds=1))
 
 
 # ──────────────────────────────────────────────────────────────────────
 # Payload → bars and flow
 # ──────────────────────────────────────────────────────────────────────
-
-
-def _instrument(symbol: str, base: str, quote: str) -> Instrument:
-    try:
-        currency = Currency(quote)
-    except DomainError as error:
-        raise UnsupportedRequestError(
-            NAME, f"{symbol}: prices quoted in {quote} cannot be represented ({error})"
-        ) from error
-    return Instrument(
-        symbol=symbol,
-        name=f"{base}/{quote} (Binance spot)",
-        asset_class=AssetClass.CRYPTO,
-        currency=currency,
-        exchange=EXCHANGES["CRYPTO"],
-    )
 
 
 def _rows(raw: Any, pair: str) -> np.ndarray:  # noqa: ANN401 - decoded JSON
@@ -442,16 +346,3 @@ def _frame(pages: list[np.ndarray], symbol: str) -> pd.DataFrame:
         raise ProviderDataError(NAME, f"{symbol}: Binance sent non-finite values")
     ordered = frame.sort_index(kind="stable")
     return ordered[~ordered.index.duplicated(keep="last")]
-
-
-def _finished(frame: pd.DataFrame, native: Frequency, now: datetime) -> pd.DataFrame:
-    """Bars already closed at ``now``, labelled as the domain expects.
-
-    Daily bars carry their UTC date (no timezone); intraday ones their open time in UTC.
-    """
-    opens = pd.DatetimeIndex(frame.index)
-    closed = opens + pd.Timedelta(milliseconds=_step(native)) <= pd.Timestamp(now)
-    frame = frame[closed]
-    if native.is_intraday:
-        return frame
-    return frame.set_axis(pd.DatetimeIndex(frame.index).tz_localize(None).normalize())

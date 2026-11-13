@@ -17,8 +17,10 @@ import pytest
 import respx
 
 from investinglab.adapters.providers.binance import BinanceProvider
+from investinglab.adapters.providers.coinbase import CoinbaseProvider
 from investinglab.adapters.providers.ecb import EcbProvider
 from investinglab.adapters.providers.files import LocalFilesProvider
+from investinglab.adapters.providers.kraken import KrakenProvider
 from investinglab.adapters.providers.yahoo import YahooFinanceProvider
 from investinglab.domain import PriceSeries
 from investinglab.ports import BarsRequest, Dataset, MarketDataProvider, SymbolNotFoundError
@@ -67,6 +69,22 @@ def _binance(folder: Path, router: respx.MockRouter) -> MarketDataProvider:
     return BinanceProvider(clock=known.clock)
 
 
+def _kraken(folder: Path, router: respx.MockRouter) -> MarketDataProvider:
+    del folder  # recorded responses only
+    known = load_cassette("kraken/btc_usd_1d")
+    load_cassette("kraken/not_found").play(router)
+    known.play(router)
+    return KrakenProvider(clock=known.clock)
+
+
+def _coinbase(folder: Path, router: respx.MockRouter) -> MarketDataProvider:
+    del folder  # recorded responses only
+    known = load_cassette("coinbase/btc_usd_1d")
+    load_cassette("coinbase/not_found").play(router)
+    known.play(router)
+    return CoinbaseProvider(clock=known.clock)
+
+
 @dataclass(frozen=True, slots=True)
 class Case:
     """A provider wired to its offline source, a request it serves and one it cannot."""
@@ -101,6 +119,18 @@ CASES = (
         _binance,
         load_cassette("binance/btc_usdt_1d").bars_request,
         load_cassette("binance/not_found").bars_request,
+    ),
+    Case(
+        "kraken",
+        _kraken,
+        load_cassette("kraken/btc_usd_1d").bars_request,
+        load_cassette("kraken/not_found").bars_request,
+    ),
+    Case(
+        "coinbase",
+        _coinbase,
+        load_cassette("coinbase/btc_usd_1d").bars_request,
+        load_cassette("coinbase/not_found").bars_request,
     ),
 )
 

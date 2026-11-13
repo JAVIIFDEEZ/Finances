@@ -18,6 +18,8 @@ import pytest
 import respx
 
 from investinglab.adapters.providers.binance import BinanceProvider
+from investinglab.adapters.providers.coinbase import CoinbaseProvider
+from investinglab.adapters.providers.kraken import KrakenProvider
 from investinglab.adapters.providers.okx import OkxProvider
 from investinglab.adapters.providers.yahoo import YahooFinanceProvider
 from investinglab.domain import FlowSeries, RateSeries
@@ -66,6 +68,20 @@ def _yahoo(router: respx.MockRouter) -> TradeFlowProvider:
     return YahooFinanceProvider(clock=known.clock)
 
 
+def _kraken(router: respx.MockRouter) -> TradeFlowProvider:
+    known = load_cassette("kraken/btc_usd_1d")
+    known.play(router)
+    load_cassette("kraken/not_found").play(router)
+    return KrakenProvider(clock=known.clock)
+
+
+def _coinbase(router: respx.MockRouter) -> TradeFlowProvider:
+    known = load_cassette("coinbase/btc_usd_1d")
+    known.play(router)
+    load_cassette("coinbase/not_found").play(router)
+    return CoinbaseProvider(clock=known.clock)
+
+
 FLOW_CASES = (
     FlowCase(
         "binance",
@@ -73,6 +89,20 @@ FLOW_CASES = (
         load_cassette("binance/btc_usdt_1d").bars_request,
         load_cassette("binance/not_found").bars_request,
         aggressor_side=True,
+    ),
+    FlowCase(
+        "kraken",
+        _kraken,
+        load_cassette("kraken/btc_usd_1d").bars_request,
+        load_cassette("kraken/not_found").bars_request,
+        aggressor_side=False,
+    ),
+    FlowCase(
+        "coinbase",
+        _coinbase,
+        load_cassette("coinbase/btc_usd_1d").bars_request,
+        load_cassette("coinbase/not_found").bars_request,
+        aggressor_side=False,
     ),
     FlowCase(
         "yahoo",

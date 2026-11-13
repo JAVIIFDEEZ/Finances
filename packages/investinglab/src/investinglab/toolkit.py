@@ -32,8 +32,10 @@ from investinglab.adapters.files import ImportSpec, SeriesImporter
 from investinglab.adapters.http import RetryPolicy
 from investinglab.adapters.providers.alternative_me import AlternativeMeProvider
 from investinglab.adapters.providers.binance import BinanceProvider
+from investinglab.adapters.providers.coinbase import CoinbaseProvider
 from investinglab.adapters.providers.ecb import EcbProvider
 from investinglab.adapters.providers.files import LocalFilesProvider
+from investinglab.adapters.providers.kraken import KrakenProvider
 from investinglab.adapters.providers.okx import OkxProvider
 from investinglab.adapters.providers.yahoo import YahooFinanceProvider
 from investinglab.adapters.storage import ParquetSeriesStore
@@ -79,7 +81,13 @@ log = get_logger(__name__)
 
 type DateLike = date | datetime | pd.Timestamp | str | None
 type RemoteProvider = (
-    EcbProvider | YahooFinanceProvider | BinanceProvider | OkxProvider | AlternativeMeProvider
+    EcbProvider
+    | YahooFinanceProvider
+    | BinanceProvider
+    | KrakenProvider
+    | CoinbaseProvider
+    | OkxProvider
+    | AlternativeMeProvider
 )
 
 
@@ -93,8 +101,10 @@ def _remote_providers(config: Settings, registry: ProviderRegistry) -> list[Remo
     The ECB comes first: its reference rates are the official daily fixings of the euro
     and it only serves currency pairs and euro rates. Yahoo serves every other symbol of
     its own notation (``SAN.MC``, ``^GSPC``, ``BTC-USD``...). The venues serve theirs:
-    Binance the spot pairs written ``BASE/QUOTE`` with their trade flow, and OKX the
-    funding of perpetual swaps written ``BASE/QUOTE:SETTLE`` (ADR-0032). alternative.me
+    the spot pairs written ``BASE/QUOTE`` come from Binance, with their trade flow, and fall
+    back on Kraken (its last 720 bars) and Coinbase, which also list the pairs in dollars and
+    euros; OKX serves the funding of perpetual swaps written ``BASE/QUOTE:SETTLE``
+    (ADR-0032). alternative.me
     publishes the crypto Fear & Greed Index (``FNG``).
     """
     retry = RetryPolicy(max_attempts=config.http_max_attempts)
@@ -103,6 +113,8 @@ def _remote_providers(config: Settings, registry: ProviderRegistry) -> list[Remo
         "ecb": lambda: EcbProvider(timeout=timeout, retry=retry),
         "yahoo": lambda: YahooFinanceProvider(timeout=timeout, retry=retry),
         "binance": lambda: BinanceProvider(timeout=timeout, retry=retry),
+        "kraken": lambda: KrakenProvider(timeout=timeout, retry=retry),
+        "coinbase": lambda: CoinbaseProvider(timeout=timeout, retry=retry),
         "okx": lambda: OkxProvider(timeout=timeout, retry=retry),
         "alternative_me": lambda: AlternativeMeProvider(timeout=timeout, retry=retry),
     }
@@ -146,8 +158,8 @@ class AsyncToolkit:
 
         Providers are tried in this order: the ``providers`` given here, the user's own
         files (``local_data_dir``) and then, unless ``offline`` is set, the ECB (euro
-        reference rates, €STR), Yahoo Finance, Binance (spot pairs and their flow), OKX
-        (funding of perpetual swaps) and alternative.me (crypto Fear & Greed).
+        reference rates, €STR), Yahoo Finance, Binance, Kraken and Coinbase (spot pairs and
+        their flow), OKX (funding of perpetual swaps) and alternative.me (crypto Fear & Greed).
 
         Args:
             settings: Configuration; the process-wide settings by default.
