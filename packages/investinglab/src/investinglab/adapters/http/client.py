@@ -3,7 +3,9 @@
 * **Retries** with exponential backoff and jitter for transient failures (timeouts,
   connection errors, 5xx, 429), honouring ``Retry-After`` when the provider sends it.
 * **Rate limiting** per provider: every configured quota is respected before each call.
-* **Error translation** to the port's :mod:`investinglab.ports.errors` types.
+* **Error translation** to the port's :mod:`investinglab.ports.errors` types. A provider
+  whose error bodies say more than the status (an unknown symbol answered with HTTP 400)
+  passes an ``explain`` function that reads them first.
 * **Secret hygiene**: credentials in query parameters are redacted from logs and errors,
   translated errors do not chain the httpx exception (it carries the full URL), and
   redirects are only followed within the provider's origin, so a key in the query string
@@ -45,7 +47,7 @@ if TYPE_CHECKING:
 
     from investinglab.ports.market_data import RateLimit
 
-__all__ = ["HttpClient", "RetryPolicy", "redact"]
+__all__ = ["ErrorExplainer", "HttpClient", "RetryPolicy", "redact", "retry_after"]
 
 log = get_logger(__name__)
 
@@ -57,6 +59,8 @@ MAX_REDIRECTS: Final = 5
 
 type QueryValue = str | int | float | bool | None
 type QueryParams = Mapping[str, QueryValue]
+type ErrorExplainer = Callable[[httpx.Response, str], ProviderError | None]
+"""Reads a provider's error response (and the path asked for): the error, or ``None``."""
 
 
 def redact(params: QueryParams | None) -> dict[str, QueryValue]:
@@ -94,6 +98,9 @@ class HttpClient:
         headers: Extra headers (the User-Agent identifies InvestingLab by default).
         transport: Optional httpx transport (tests, proxies).
         sleep: Coroutine used to wait between retries (injectable for tests).
+        explain: Provider-specific translation of an error response (status 400 or
+            above), tried before the generic one by status; ``None`` from it, or no
+            function, falls back to the generic translation.
     """
 
     def __init__(
@@ -107,8 +114,10 @@ class HttpClient:
         headers: Mapping[str, str] | None = None,
         transport: httpx.AsyncBaseTransport | None = None,
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+        explain: ErrorExplainer | None = None,
     ) -> None:
         self._provider = provider
+        self._explain = explain
         self._retry = retry or RetryPolicy()
         self._sleep = sleep
         self._limiters = [AsyncLimiter(r.max_calls, r.period_seconds) for r in rate_limits]
@@ -226,13 +235,15 @@ class HttpClient:
         status = response.status_code
         if status < 400:  # noqa: PLR2004
             return
+        if self._explain is not None and (error := self._explain(response, path)) is not None:
+            raise error
         where = f"HTTP {status} on {path}"
         if status in {401, 403}:
             raise AuthenticationError(self._provider, f"{where}: check the API credentials")
         if status == 404:  # noqa: PLR2004
             raise SymbolNotFoundError(self._provider, f"{where}: resource not found")
         if status == 429:  # noqa: PLR2004
-            raise RateLimitedError(self._provider, where, _retry_after(response))
+            raise RateLimitedError(self._provider, where, retry_after(response))
         if status == 408 or status >= 500:  # noqa: PLR2004
             raise ProviderUnavailableError(self._provider, where)
         raise UnsupportedRequestError(self._provider, where)
@@ -269,7 +280,8 @@ def _keeps_origin(source: httpx.URL, target: httpx.URL) -> bool:
     return upgrade and source.port is None and target.port is None
 
 
-def _retry_after(response: httpx.Response) -> float | None:
+def retry_after(response: httpx.Response) -> float | None:
+    """Seconds a response asks to wait (``Retry-After`` in seconds), when it says so."""
     value = response.headers.get("Retry-After")
     if value is None:
         return None

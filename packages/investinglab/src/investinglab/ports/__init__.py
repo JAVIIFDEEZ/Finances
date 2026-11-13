@@ -16,6 +16,7 @@ from investinglab.ports.audit_log import (
 from investinglab.ports.calendar import CalendarUnavailableError, TradingCalendar
 from investinglab.ports.errors import (
     AuthenticationError,
+    BannedError,
     ProviderDataError,
     ProviderError,
     ProviderUnavailableError,
@@ -55,6 +56,7 @@ __all__ = [
     "GENESIS_HASH",
     "AuditLog",
     "AuthenticationError",
+    "BannedError",
     "BarsRequest",
     "CachedBars",
     "CachedEconomicSeries",

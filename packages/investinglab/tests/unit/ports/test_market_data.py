@@ -4,7 +4,7 @@ from datetime import date, timedelta
 
 import pytest
 
-from investinglab.domain import AssetClass, DomainError, Frequency
+from investinglab.domain import AssetClass, DomainError, Frequency, RateKind
 from investinglab.ports import (
     BarsRequest,
     Dataset,
@@ -12,6 +12,7 @@ from investinglab.ports import (
     ProviderCapabilities,
     RateLimit,
     RateLimitedError,
+    RatesRequest,
     VintageMode,
 )
 
@@ -67,6 +68,16 @@ def test_economic_request_validation() -> None:
         EconomicRequest("")
     with pytest.raises(DomainError):
         EconomicRequest("X", start=date(2024, 2, 1), end=date(2024, 1, 1))
+
+
+def test_rates_request_validation() -> None:
+    request = RatesRequest("BTC/USDT:USDT", RateKind.FUNDING)
+
+    assert (request.venue, request.start, request.end) == (None, None, None)
+    with pytest.raises(DomainError, match="needs a symbol"):
+        RatesRequest(" ", RateKind.BORROW)
+    with pytest.raises(DomainError, match="is after end"):
+        RatesRequest("X", RateKind.FUNDING, start=date(2024, 2, 1), end=date(2024, 1, 1))
 
 
 def test_rate_limit_validation() -> None:

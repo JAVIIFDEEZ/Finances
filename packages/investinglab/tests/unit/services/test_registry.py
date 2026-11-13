@@ -5,10 +5,24 @@ from datetime import date
 
 import pytest
 
-from investinglab.domain import AssetClass, DomainError, Frequency
-from investinglab.ports import BarsRequest, Dataset, EconomicRequest, ProviderCapabilities
+from investinglab.domain import AssetClass, DomainError, Frequency, RateKind
+from investinglab.ports import (
+    BarsRequest,
+    Dataset,
+    EconomicRequest,
+    ProviderCapabilities,
+    RatesRequest,
+)
 from investinglab.services import ProviderRegistry
-from support.fakes import BARS_CAPABILITIES, FakeBarsProvider, FakeEconomicProvider
+from support.fakes import (
+    BARS_CAPABILITIES,
+    FLOW_CAPABILITIES,
+    RATES_CAPABILITIES,
+    FakeBarsProvider,
+    FakeEconomicProvider,
+    FakeFlowProvider,
+    FakeRatesProvider,
+)
 
 TODAY = date(2026, 10, 31)
 
@@ -111,8 +125,103 @@ class _NoMethods:
 
 @pytest.mark.parametrize(
     "capabilities",
-    [BARS_CAPABILITIES, ProviderCapabilities(datasets=frozenset({Dataset.ECONOMIC}))],
+    [
+        BARS_CAPABILITIES,
+        ProviderCapabilities(datasets=frozenset({Dataset.ECONOMIC})),
+        FLOW_CAPABILITIES,
+        RATES_CAPABILITIES,
+    ],
+    ids=["bars", "economic", "flow", "holding_rates"],
 )
 def test_declared_datasets_must_be_implemented(capabilities: ProviderCapabilities) -> None:
     with pytest.raises(DomainError, match="declares"):
         ProviderRegistry().register(_NoMethods("broken", capabilities))  # type: ignore[arg-type]
+
+
+@dataclass
+class _BarsAndFlow:
+    """A venue serving both datasets, like Binance."""
+
+    name: str
+    capabilities: ProviderCapabilities
+
+    async def fetch_bars(self, request: BarsRequest) -> None:
+        raise NotImplementedError
+
+    async def fetch_flow(self, request: BarsRequest) -> None:
+        raise NotImplementedError
+
+
+def test_flow_providers_follow_the_preferences_of_the_bars() -> None:
+    both = ProviderCapabilities(
+        datasets=frozenset({Dataset.BARS, Dataset.FLOW}),
+        asset_classes=frozenset(AssetClass),
+        frequencies=frozenset(Frequency),
+    )
+    registry = _registry("yahoo")
+    registry.register(FakeFlowProvider("tape"))
+    registry.register(_BarsAndFlow("venue", both))  # type: ignore[arg-type]
+    registry.prefer(["venue", "yahoo"], asset_class=AssetClass.CRYPTO)
+    registry.prefer(["tape"], frequency=Frequency.MINUTE_1)
+
+    crypto = BarsRequest("BTC/USDT", asset_class=AssetClass.CRYPTO)
+    minute = BarsRequest("SPY", Frequency.MINUTE_1)
+
+    assert [p.name for p in registry.flow_candidates(crypto, TODAY)] == ["venue", "tape"]
+    assert [p.name for p in registry.bars_candidates(crypto, TODAY)] == ["venue", "yahoo"]
+    assert [p.name for p in registry.flow_candidates(minute, TODAY)] == ["tape", "venue"]
+    assert [p.name for p in registry.bars_candidates(minute, TODAY)] == ["yahoo", "venue"]
+    assert registry.names == ("yahoo", "tape", "venue")
+    assert registry.capabilities()["venue"] is both
+
+
+def test_flow_candidates_are_filtered_by_capabilities() -> None:
+    registry = ProviderRegistry()
+    registry.register(
+        FakeFlowProvider(
+            "pairs",
+            capabilities=ProviderCapabilities(
+                datasets=frozenset({Dataset.FLOW}),
+                asset_classes=frozenset({AssetClass.CRYPTO}),
+                frequencies=frozenset({Frequency.DAY_1}),
+                identifiers=r"[A-Z]+/[A-Z]+",
+            ),
+        )
+    )
+
+    assert registry.flow_candidates(BarsRequest("BTC/USDT"), TODAY)
+    assert not registry.flow_candidates(BarsRequest("SPY"), TODAY)
+    assert not registry.flow_candidates(BarsRequest("BTC/USDT", Frequency.HOUR_1), TODAY)
+    assert not registry.bars_candidates(BarsRequest("BTC/USDT"), TODAY)
+
+
+def test_rates_go_to_the_providers_of_that_kind_and_venue() -> None:
+    funding_only = ProviderCapabilities(
+        datasets=frozenset({Dataset.HOLDING_RATES}),
+        rate_kinds=frozenset({RateKind.FUNDING}),
+        identifiers=r".+:.+",
+    )
+    registry = ProviderRegistry()
+    registry.register(FakeRatesProvider("okx", capabilities=funding_only))
+    registry.register(FakeRatesProvider("broker"))
+
+    funding = RatesRequest("BTC/USDT:USDT", RateKind.FUNDING)
+    borrow = RatesRequest("SAN.MC", RateKind.BORROW)
+
+    assert [p.name for p in registry.rates_candidates(funding)] == ["okx", "broker"]
+    assert [p.name for p in registry.rates_candidates(borrow)] == ["broker"]
+    on_okx = RatesRequest("BTC/USDT:USDT", RateKind.FUNDING, venue="okx")
+    assert [p.name for p in registry.rates_candidates(on_okx)] == ["okx"]
+    assert not registry.rates_candidates(RatesRequest("SAN.MC", RateKind.FUNDING, venue="okx"))
+    assert registry.names == ("okx", "broker")
+
+
+def test_preferences_may_name_flow_only_providers() -> None:
+    registry = ProviderRegistry()
+    registry.register(FakeFlowProvider("tape"))
+
+    registry.prefer(["tape"])
+
+    assert not registry.bars_candidates(BarsRequest("SPY"), TODAY)
+    with pytest.raises(DomainError, match="Unknown"):
+        registry.prefer(["nobody"])

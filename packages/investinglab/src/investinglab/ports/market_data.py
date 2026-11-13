@@ -190,9 +190,12 @@ class ProviderCapabilities:
         requires_api_key: Whether a credential must be configured.
         rate_limits: Quotas to respect (all of them apply).
         identifiers: Regular expression every symbol and series id served matches, for a
-            provider with a closed universe (the ECB's currency pairs, a local catalogue);
-            ``None`` when any identifier may be served. The router skips the provider for
-            other identifiers instead of asking it.
+            provider with a closed universe (the ECB's currency pairs, a local catalogue) or
+            its own notation (a venue's ``BASE/QUOTE`` pairs); ``None`` when any identifier
+            may be served. The router skips the provider for other identifiers instead of
+            asking it.
+        rate_kinds: Holding rates served (funding, borrow fees, financing costs), for a
+            provider of ``Dataset.HOLDING_RATES``.
 
     Raises:
         DomainError: If ``identifiers`` is not a valid regular expression.
@@ -205,6 +208,7 @@ class ProviderCapabilities:
     requires_api_key: bool = False
     rate_limits: tuple[RateLimit, ...] = ()
     identifiers: str | None = None
+    rate_kinds: frozenset[RateKind] = frozenset()
 
     def __post_init__(self) -> None:
         if self.identifiers is not None:
@@ -219,7 +223,26 @@ class ProviderCapabilities:
 
     def can_serve_bars(self, request: BarsRequest, today: date) -> bool:
         """Whether the provider can, in principle, answer ``request``."""
-        if Dataset.BARS not in self.datasets or request.frequency not in self.frequencies:
+        return self._can_serve(Dataset.BARS, request, today)
+
+    def can_serve_flow(self, request: BarsRequest, today: date) -> bool:
+        """Whether the provider can, in principle, answer the flow of ``request``'s bars.
+
+        Flow follows the same rules as the bars: frequency, identifiers, asset class and
+        look-back.
+        """
+        return self._can_serve(Dataset.FLOW, request, today)
+
+    def can_serve_rates(self, request: RatesRequest) -> bool:
+        """Whether the provider can, in principle, answer ``request``."""
+        return (
+            Dataset.HOLDING_RATES in self.datasets
+            and request.kind in self.rate_kinds
+            and self.serves(request.symbol)
+        )
+
+    def _can_serve(self, dataset: Dataset, request: BarsRequest, today: date) -> bool:
+        if dataset not in self.datasets or request.frequency not in self.frequencies:
             return False
         if not self.serves(request.symbol):
             return False

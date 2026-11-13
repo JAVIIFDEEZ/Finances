@@ -1,5 +1,8 @@
 """Market-data use cases: cached, multi-provider and concurrent ingestion (ADR-0010).
 
+Price bars and economic series are cached; trade flow and holding rates (ADR-0031) follow
+the same routing and fallback, without a cache yet.
+
 Every request follows the same path:
 
 1. **Cache**: if a fresh cached entry covers the request, it is returned sliced to the
@@ -23,7 +26,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Final, Protocol
 
 import numpy as np
 import pandas as pd
@@ -35,12 +38,21 @@ from investinglab.domain.time import Frequency
 from investinglab.ports.errors import ProviderDataError, ProviderError
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable, Iterable, Mapping
+    from collections.abc import Awaitable, Callable, Iterable, Mapping, Sequence
     from datetime import date
 
     from investinglab.domain.economic import EconomicSeries
+    from investinglab.domain.flow import FlowSeries
+    from investinglab.domain.rate_series import RateSeries
     from investinglab.domain.series import PriceSeries
-    from investinglab.ports.market_data import BarsRequest, EconomicRequest
+    from investinglab.ports.market_data import (
+        BarsRequest,
+        EconomicRequest,
+        HoldingRatesProvider,
+        MarketDataProvider,
+        RatesRequest,
+        TradeFlowProvider,
+    )
     from investinglab.ports.storage import CachedBars, SeriesStore
     from investinglab.services.registry import ProviderRegistry
 
@@ -66,6 +78,11 @@ PRICE_TOLERANCE: Final = 1e-6
 
 def _utc_now() -> datetime:
     return datetime.now(UTC)
+
+
+class _Named(Protocol):
+    @property
+    def name(self) -> str: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -231,35 +248,13 @@ class MarketDataService:
     async def _fetch_bars(self, request: BarsRequest) -> PriceSeries:
         """Try every capable provider in order (fallback) until one delivers the series."""
         candidates = self._registry.bars_candidates(request, self._clock().date())
-        if not candidates:
-            raise DataUnavailableError(
-                request.symbol, (), reason=f"no registered provider can serve {request}"
-            )
-        attempts: list[FetchAttempt] = []
-        for provider in candidates:
-            try:
-                series = await provider.fetch_bars(request)
-                if series.symbol != request.symbol or series.frequency != request.frequency:
-                    raise ProviderDataError(
-                        provider.name,
-                        f"returned {series.symbol}/{series.frequency.value} for "
-                        f"{request.symbol}/{request.frequency.value}",
-                    )
-            except ProviderError as error:
-                attempts.append(_attempt(provider.name, error))
-                log.warning(
-                    "bars_provider_failed",
-                    provider=provider.name,
-                    symbol=request.symbol,
-                    error=type(error).__name__,
-                    detail=str(error),
-                )
-                continue
-            log.info(
-                "bars_fetched", provider=provider.name, symbol=request.symbol, rows=len(series)
-            )
+
+        async def fetch(provider: MarketDataProvider) -> PriceSeries:
+            series = await provider.fetch_bars(request)
+            _check_bars(provider.name, request, series.symbol, series.frequency)
             return series
-        raise DataUnavailableError(request.symbol, tuple(attempts))
+
+        return await _first_answer("bars", request.symbol, str(request), candidates, fetch)
 
     async def get_many_bars(
         self, requests: Iterable[BarsRequest], *, refresh: bool = False
@@ -287,29 +282,15 @@ class MarketDataService:
             log.debug("economic_cache_hit", series_id=request.series_id)
             return cached.between(request.start, request.end)
 
-        candidates = self._registry.economic_candidates(request)
-        if not candidates:
-            raise DataUnavailableError(
-                request.series_id, (), reason=f"no registered provider serves {request.series_id}"
-            )
-        attempts: list[FetchAttempt] = []
-        for provider in candidates:
-            try:
-                series = await provider.fetch_economic_series(request)
-            except ProviderError as error:
-                attempts.append(_attempt(provider.name, error))
-                log.warning(
-                    "economic_provider_failed",
-                    provider=provider.name,
-                    series_id=request.series_id,
-                    error=type(error).__name__,
-                    detail=str(error),
-                )
-                continue
-            log.info("economic_fetched", provider=provider.name, series_id=request.series_id)
-            await self._save_economic(series, request)
-            return series.between(request.start, request.end)
-        raise DataUnavailableError(request.series_id, tuple(attempts))
+        series = await _first_answer(
+            "economic",
+            request.series_id,
+            request.series_id,
+            self._registry.economic_candidates(request),
+            lambda provider: provider.fetch_economic_series(request),
+        )
+        await self._save_economic(series, request)
+        return series.between(request.start, request.end)
 
     async def get_many_economic_series(
         self, requests: Iterable[EconomicRequest], *, refresh: bool = False
@@ -320,6 +301,44 @@ class MarketDataService:
         return await self._gather(
             {r.series_id: self.get_economic_series(r, refresh=refresh) for r in items}
         )
+
+    # ── Trade flow and holding rates ─────────────────────────────────
+
+    async def get_flow(self, request: BarsRequest) -> FlowSeries:
+        """Trade flow of the bars ``request`` describes, from the first provider able to serve it.
+
+        Raises:
+            DataUnavailableError: If no provider could deliver the flow.
+        """
+        candidates = self._registry.flow_candidates(request, self._clock().date())
+
+        async def fetch(provider: TradeFlowProvider) -> FlowSeries:
+            flow = await provider.fetch_flow(request)
+            _check_bars(provider.name, request, flow.symbol, flow.frequency)
+            return flow
+
+        return await _first_answer("flow", request.symbol, str(request), candidates, fetch)
+
+    async def get_rates(self, request: RatesRequest) -> RateSeries:
+        """Holding rates of ``request``, from the first provider able to serve them.
+
+        Raises:
+            DataUnavailableError: If no provider could deliver the rates.
+        """
+        candidates = self._registry.rates_candidates(request)
+
+        async def fetch(provider: HoldingRatesProvider) -> RateSeries:
+            rates = await provider.fetch_rates(request)
+            wanted = (request.symbol, request.kind, request.venue or rates.venue)
+            if (rates.symbol, rates.kind, rates.venue) != wanted:
+                raise ProviderDataError(
+                    provider.name,
+                    f"returned {rates.kind.value} of {rates.symbol}@{rates.venue} for "
+                    f"{request.kind.value} of {request.symbol}@{request.venue or 'any venue'}",
+                )
+            return rates
+
+        return await _first_answer("rates", request.symbol, str(request), candidates, fetch)
 
     # ── Internals ────────────────────────────────────────────────────
 
@@ -390,6 +409,57 @@ class MarketDataService:
             await asyncio.to_thread(self._store.save_economic, series, request)
         except (OSError, InvestingLabError) as error:
             log.warning("cache_write_failed", series_id=request.series_id, error=str(error))
+
+
+async def _first_answer[P: _Named, T](
+    what: str,
+    key: str,
+    request: str,
+    candidates: Sequence[P],
+    fetch: Callable[[P], Awaitable[T]],
+) -> T:
+    """The first answer of the candidates, tried in order (fallback).
+
+    Args:
+        what: Kind of data, for the logs (``bars``, ``economic``, ``flow``, ``rates``).
+        key: Symbol or series id the data is for.
+        request: Description of the request, for the error when no provider serves it.
+        candidates: Providers able to serve it, in preference order.
+        fetch: Asks one provider; a :class:`ProviderError` moves on to the next one.
+
+    Raises:
+        DataUnavailableError: With every failed attempt, or no attempt when no registered
+            provider can serve the request.
+    """
+    if not candidates:
+        raise DataUnavailableError(key, (), reason=f"no registered provider can serve {request}")
+    attempts: list[FetchAttempt] = []
+    for provider in candidates:
+        try:
+            answer = await fetch(provider)
+        except ProviderError as error:
+            attempts.append(_attempt(provider.name, error))
+            log.warning(
+                "provider_failed",
+                data=what,
+                provider=provider.name,
+                key=key,
+                error=type(error).__name__,
+                detail=str(error),
+            )
+            continue
+        log.info("data_fetched", data=what, provider=provider.name, key=key)
+        return answer
+    raise DataUnavailableError(key, tuple(attempts))
+
+
+def _check_bars(provider: str, request: BarsRequest, symbol: str, frequency: Frequency) -> None:
+    """Refuse bars or flow of another instrument or frequency than the request's."""
+    if (symbol, frequency) != (request.symbol, request.frequency):
+        raise ProviderDataError(
+            provider,
+            f"returned {symbol}/{frequency.value} for {request.symbol}/{request.frequency.value}",
+        )
 
 
 def _attempt(provider: str, error: ProviderError) -> FetchAttempt:

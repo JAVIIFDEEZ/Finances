@@ -9,11 +9,16 @@ import pytest
 from investinglab.domain import (
     EXCHANGES,
     USD,
+    AssetClass,
     DataSource,
     DomainError,
+    FlowSeries,
     Frequency,
+    Instrument,
     InvalidSeriesError,
     PriceSeries,
+    RateKind,
+    RateSeries,
 )
 from investinglab.ports import (
     AuthenticationError,
@@ -21,6 +26,8 @@ from investinglab.ports import (
     CachedBars,
     EconomicRequest,
     ProviderUnavailableError,
+    RatesRequest,
+    UnsupportedRequestError,
     VintageMode,
 )
 from investinglab.services import (
@@ -32,8 +39,21 @@ from investinglab.services import (
     ProviderRegistry,
 )
 from investinglab.services.market_data import _overlap_start
-from support.factories import business_days, gbm_prices, make_economic_series, make_series
-from support.fakes import FakeBarsProvider, FakeEconomicProvider, InMemoryStore
+from support.factories import (
+    SYNTHETIC_SOURCE,
+    business_days,
+    gbm_prices,
+    make_economic_series,
+    make_instrument,
+    make_series,
+)
+from support.fakes import (
+    FakeBarsProvider,
+    FakeEconomicProvider,
+    FakeFlowProvider,
+    FakeRatesProvider,
+    InMemoryStore,
+)
 
 NOW = datetime(2026, 10, 31, 12, 0, tzinfo=UTC)
 SPY = make_series([100.0, 101.0, 102.0, 103.0, 104.0], symbol="SPY")
@@ -41,7 +61,7 @@ QQQ = make_series([50.0, 51.0, 52.0, 53.0, 54.0], symbol="QQQ")
 
 
 def _service(
-    *providers: FakeBarsProvider | FakeEconomicProvider,
+    *providers: FakeBarsProvider | FakeEconomicProvider | FakeFlowProvider | FakeRatesProvider,
     store: InMemoryStore | None = None,
     max_concurrency: int = 8,
 ) -> MarketDataService:
@@ -441,7 +461,7 @@ async def test_economic_failures_and_batches() -> None:
 
 
 async def test_no_economic_provider() -> None:
-    with pytest.raises(DataUnavailableError, match="no registered provider serves UNRATE"):
+    with pytest.raises(DataUnavailableError, match="no registered provider can serve UNRATE"):
         await _service().get_economic_series(EconomicRequest("UNRATE"))
 
 
@@ -457,3 +477,92 @@ async def test_stale_economic_cache_is_refreshed() -> None:
 
 def test_invalid_series_is_a_domain_error() -> None:
     assert issubclass(InvalidSeriesError, DomainError)
+
+
+# ── Trade flow and holding rates (SYNTHETIC) ─────────────────────────
+
+PAIR = make_instrument("BTC/USDT", currency=USD, asset_class=AssetClass.CRYPTO, exchange=None)
+SWAP = make_instrument("BTC/USDT:USDT", currency=USD, asset_class=AssetClass.CRYPTO, exchange=None)
+
+
+def _flow(instrument: Instrument = PAIR, frequency: Frequency = Frequency.DAY_1) -> FlowSeries:
+    bars = (
+        pd.date_range("2026-10-01", periods=4, freq="1h", tz="UTC")
+        if frequency.is_intraday
+        else business_days(4)
+    )
+    data = pd.DataFrame({"volume": [4.0, 5.0, 6.0, 7.0], "buy_volume": [1.0, 3.0, 3.0, 7.0]}, bars)
+    return FlowSeries(instrument, frequency, SYNTHETIC_SOURCE, data)
+
+
+def _rates(
+    instrument: Instrument = SWAP, kind: RateKind = RateKind.FUNDING, venue: str = "okx"
+) -> RateSeries:
+    instants = pd.date_range("2026-10-01", periods=3, freq="8h", tz="UTC")
+    data = pd.Series([0.0001, -0.0002, 0.0001], index=instants)
+    return RateSeries(instrument, venue, kind, SYNTHETIC_SOURCE, data)
+
+
+async def test_flow_falls_back_to_the_next_provider() -> None:
+    down = FakeFlowProvider("down", errors={"BTC/USDT": ProviderUnavailableError("down", "x")})
+    venue = FakeFlowProvider("venue", {"BTC/USDT": _flow()})
+
+    flow = await _service(down, venue).get_flow(BarsRequest("BTC/USDT"))
+
+    assert flow == _flow()
+    assert flow.delta.tolist() == [-2.0, 1.0, 0.0, 7.0]
+    assert len(down.calls) == len(venue.calls) == 1
+
+
+async def test_flow_of_another_instrument_or_frequency_is_rejected() -> None:
+    other = make_instrument("ETH/USDT", currency=USD, asset_class=AssetClass.CRYPTO, exchange=None)
+    liar = FakeFlowProvider("liar", {"BTC/USDT": _flow(other)})
+    hourly = FakeFlowProvider("hourly", {"BTC/USDT": _flow(frequency=Frequency.HOUR_1)})
+
+    with pytest.raises(DataUnavailableError) as error:
+        await _service(liar, hourly).get_flow(BarsRequest("BTC/USDT"))
+
+    assert [a.error_type for a in error.value.attempts] == ["ProviderDataError"] * 2
+    assert "returned ETH/USDT/1d for BTC/USDT/1d" in str(error.value)
+    assert "returned BTC/USDT/1h" in str(error.value)
+
+
+async def test_flow_without_a_capable_provider() -> None:
+    with pytest.raises(DataUnavailableError, match="no registered provider can serve"):
+        await _service(FakeBarsProvider("bars", {"SPY": SPY})).get_flow(BarsRequest("SPY"))
+
+
+async def test_rates_come_from_the_first_provider_that_serves_them() -> None:
+    refuses = FakeRatesProvider(
+        "refuses", errors={"BTC/USDT:USDT": UnsupportedRequestError("refuses", "no")}
+    )
+    okx = FakeRatesProvider("okx", {"BTC/USDT:USDT": _rates()})
+
+    rates = await _service(refuses, okx).get_rates(RatesRequest("BTC/USDT:USDT", RateKind.FUNDING))
+
+    assert rates == _rates()
+    assert rates.accumulated("short") == pytest.approx(0.0)
+
+
+@pytest.mark.parametrize(
+    ("served", "message"),
+    [
+        (_rates(kind=RateKind.BORROW), "returned borrow of BTC/USDT:USDT@okx"),
+        (_rates(instrument=PAIR), "returned funding of BTC/USDT@okx"),
+        (_rates(venue="binance"), "for funding of BTC/USDT:USDT@okx"),
+    ],
+    ids=["kind", "symbol", "venue"],
+)
+async def test_rates_must_answer_the_request(served: RateSeries, message: str) -> None:
+    provider = FakeRatesProvider("okx", {"BTC/USDT:USDT": served})
+    request = RatesRequest("BTC/USDT:USDT", RateKind.FUNDING, venue="okx")
+
+    with pytest.raises(DataUnavailableError, match=message):
+        await _service(provider).get_rates(request)
+
+
+async def test_rates_without_a_capable_provider() -> None:
+    request = RatesRequest("BTC/USDT:USDT", RateKind.FUNDING, venue="bybit")
+
+    with pytest.raises(DataUnavailableError, match="no registered provider can serve"):
+        await _service(FakeRatesProvider("okx")).get_rates(request)

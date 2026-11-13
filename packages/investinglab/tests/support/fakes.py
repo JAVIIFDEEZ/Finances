@@ -7,7 +7,7 @@ import threading
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from investinglab.domain import AssetClass, Frequency
+from investinglab.domain import AssetClass, Frequency, RateKind
 from investinglab.ports import (
     BarsRequest,
     CachedBars,
@@ -15,6 +15,7 @@ from investinglab.ports import (
     Dataset,
     EconomicRequest,
     ProviderCapabilities,
+    RatesRequest,
     SymbolNotFoundError,
 )
 
@@ -22,7 +23,7 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
     from datetime import datetime
 
-    from investinglab.domain import EconomicSeries, PriceSeries
+    from investinglab.domain import EconomicSeries, FlowSeries, PriceSeries, RateSeries
     from investinglab.ports import ProviderError
 
 BARS_CAPABILITIES = ProviderCapabilities(
@@ -31,6 +32,14 @@ BARS_CAPABILITIES = ProviderCapabilities(
     frequencies=frozenset(Frequency),
 )
 ECONOMIC_CAPABILITIES = ProviderCapabilities(datasets=frozenset({Dataset.ECONOMIC}))
+FLOW_CAPABILITIES = ProviderCapabilities(
+    datasets=frozenset({Dataset.FLOW}),
+    asset_classes=frozenset(AssetClass),
+    frequencies=frozenset(Frequency),
+)
+RATES_CAPABILITIES = ProviderCapabilities(
+    datasets=frozenset({Dataset.HOLDING_RATES}), rate_kinds=frozenset(RateKind)
+)
 
 
 @dataclass
@@ -86,6 +95,44 @@ class FakeEconomicProvider:
         if request.series_id not in self.series:
             raise SymbolNotFoundError(self.name, f"unknown series {request.series_id}")
         return self.series[request.series_id]
+
+
+@dataclass
+class FakeFlowProvider:
+    """Serves pre-built flow by symbol; raises configured errors; records calls."""
+
+    name: str
+    flow: Mapping[str, FlowSeries] = field(default_factory=dict)
+    errors: Mapping[str, ProviderError] = field(default_factory=dict)
+    capabilities: ProviderCapabilities = FLOW_CAPABILITIES
+    calls: list[BarsRequest] = field(default_factory=list)
+
+    async def fetch_flow(self, request: BarsRequest) -> FlowSeries:
+        self.calls.append(request)
+        if request.symbol in self.errors:
+            raise self.errors[request.symbol]
+        if request.symbol not in self.flow:
+            raise SymbolNotFoundError(self.name, f"unknown symbol {request.symbol}")
+        return self.flow[request.symbol]
+
+
+@dataclass
+class FakeRatesProvider:
+    """Serves pre-built holding rates by symbol; raises configured errors; records calls."""
+
+    name: str
+    rates: Mapping[str, RateSeries] = field(default_factory=dict)
+    errors: Mapping[str, ProviderError] = field(default_factory=dict)
+    capabilities: ProviderCapabilities = RATES_CAPABILITIES
+    calls: list[RatesRequest] = field(default_factory=list)
+
+    async def fetch_rates(self, request: RatesRequest) -> RateSeries:
+        self.calls.append(request)
+        if request.symbol in self.errors:
+            raise self.errors[request.symbol]
+        if request.symbol not in self.rates:
+            raise SymbolNotFoundError(self.name, f"unknown symbol {request.symbol}")
+        return self.rates[request.symbol]
 
 
 @dataclass
