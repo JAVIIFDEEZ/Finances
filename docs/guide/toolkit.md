@@ -4,6 +4,7 @@
 sirve para:
 
 * descargar varias series a la vez de todas las fuentes configuradas;
+* leer el flujo de cada vela (`tk.flow`) y el funding de los perpetuos (`tk.holding_rates`);
 * construir carteras en una divisa base;
 * revisar la calidad de los datos con el calendario oficial de cada mercado;
 * escribir informes que ya usan el tipo libre de riesgo *point-in-time*.
@@ -27,9 +28,10 @@ registra las fuentes disponibles en este orden de prioridad:
 
 1. Los proveedores que le pases en `providers=[...]`.
 2. Los **ficheros locales** de `INVESTINGLAB_LOCAL_DATA_DIR`, si está definida.
-3. El **BCE** (divisas oficiales y €STR) y **Yahoo Finance**, sin clave, salvo con
-   `INVESTINGLAB_OFFLINE=true` (ver [Fuentes de datos](data-sources.md)). Alpha Vantage y
-   FRED/ALFRED completan la fase F2b cuando haya claves.
+3. El **BCE** (divisas oficiales y €STR), **Yahoo Finance**, **Binance** (pares cripto y su
+   flujo) y **OKX** (funding de perpetuos), sin clave, salvo con `INVESTINGLAB_OFFLINE=true`
+   (ver [Fuentes de datos](data-sources.md)). Alpha Vantage y FRED/ALFRED completan la fase
+   F2b cuando haya claves.
 
 Lo descargado se guarda en la caché Parquet (`INVESTINGLAB_DATA_DIR/cache`). Cuando una
 entrada caduca, solo se descarga el tramo nuevo y se comprueba que las últimas barras

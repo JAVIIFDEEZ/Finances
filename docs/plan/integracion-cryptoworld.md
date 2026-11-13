@@ -753,6 +753,8 @@ Es decir: **unos 6-8 meses hasta la paridad en lo esencial (G0-G8)** y unos 10-1
 
 **Terminado cuando:** `tk.series("BTC/USDT", venue="binance", frequency="1h")` devuelve una `PriceSeries` validada con su `FlowSeries`; el funding de BTC en tres *venues* sale alineado; los tests de contrato pasan para ccxt sin red.
 
+**Decisión al implementarla (13-11-2026):** en lugar de ccxt, un adaptador por *venue* sobre `HttpClient`, con casetes ([ADR-0032](../adr/0032-crypto-venues-on-the-shared-http-client.md)): ccxt salta la capa de red común y sus peticiones no se pueden reproducir con `respx`. La notación de símbolos es la de ccxt (`BTC/USDT`, `BTC/USDT:USDT`) y el enrutado la reconoce sola, así que `tk.series("BTC/USDT", frequency="1h")` va a Binance sin indicar el *venue*. Hechos: Binance *spot* (velas y flujo), funding de OKX, volumen de Yahoo como flujo. Pendientes: el resto de la lista.
+
 ### G2 — Análisis técnico multiactivo y ficha de activo
 
 **Contenido.**
@@ -963,4 +965,4 @@ Todos parten de `development`, en su rama `feat/*`, respetan `CLAUDE.md` (inglé
 3. **§4 (fuentes):** añadir Bybit y OKX (vía ccxt), Deribit, Blockscout, data.binance.vision.
 4. **§16 (dominios):** añadir los de esos proveedores (por ejemplo `api.bybit.com`, `www.okx.com`, `www.deribit.com`, `data.binance.vision` y las instancias de Blockscout que se usen).
 5. **`CLAUDE.md`:** tres reglas nuevas cuando lleguen sus fases: (a) ninguna cifra propia sin nota de metodología; (b) ningún cambio del Laboratorio sin volver a pasar los mundos nulos; (c) dinero real: solo `apps/trader`, *outbox* obligatorio, `Decimal`, bandera apagada por defecto.
-6. **ADR previstos:** 0029 persistencia y multiusuario; 0030 cola de trabajos; 0031 tipos `FlowSeries`/`RateSeries`; 0032 registro de capacidades de producto; 0033 indicadores en NumPy; 0034 gráfico de velas; 0035 motor de backtest y modelo de costes; 0036 mundos nulos como puerta; 0037 `apps/trader` y *outbox*; 0038 custodia de claves; 0039 tiempo real.
+6. **ADR previstos:** 0029 persistencia y multiusuario; 0030 cola de trabajos; 0031 tipos `FlowSeries`/`RateSeries`; 0032 *venues* cripto sobre `HttpClient` (escrito); 0033 registro de capacidades de producto; 0034 indicadores en NumPy; 0035 gráfico de velas; 0036 motor de backtest y modelo de costes; 0037 mundos nulos como puerta; 0038 `apps/trader` y *outbox*; 0039 custodia de claves; 0040 tiempo real.

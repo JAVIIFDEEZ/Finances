@@ -358,7 +358,7 @@ Investigué el estado actual de cada proveedor. Los límites de los planes gratu
 | **Global-q (Hou-Xue-Zhang)** y **Goyal-Welch** | Factores q5; predictores macro clásicos (dp, ep, tms, dfy, infl…) | M, A | Sin clave | Vistos en los notebooks del máster (con `tidyfinance` como referencia) | F11 |
 | **SIX Market Signal** (SIX 1BBO) | Cotizaciones (bid/ask) y operaciones de más de 4.000 acciones europeas, BME incluida, por ISIN | Tiempo real (solo el día en curso) | Token (`pk_…`) | Prueba de 1 mes con 1 petición/s y sin redistribución. Base de analítica de liquidez (spread en pb) | F11 |
 | **Cboe** | Histórico del VIX y otros índices de volatilidad | D | Sin clave | | F11 |
-| **ccxt** (Binance, Bybit, OKX, Kraken, Coinbase) | Velas cripto con histórico completo y flujo por vela; funding, interés abierto, foto del libro y ratio de largos y cortos donde hay perpetuos | 1m…1mo | Endpoints públicos | Sustituye a los clientes propios de CryptoWorld; varios *venues* con la misma interfaz | G1 |
+| ***Venues* cripto** (Binance ✅, OKX ✅, Bybit, Kraken, Coinbase) | Velas cripto con histórico completo y flujo por vela; funding, interés abierto, foto del libro y ratio de largos y cortos donde hay perpetuos | 1m…1mo | Endpoints públicos | Un adaptador por *venue* sobre `HttpClient`, con casetes ([ADR-0032](../adr/0032-crypto-venues-on-the-shared-http-client.md)); sustituye a los clientes propios de CryptoWorld | G1 |
 | **data.binance.vision** | Volcados históricos de velas y de operaciones agregadas | 1m… | Sin clave | Histórico largo sin gastar cuota de la API | G1, G11 |
 | **CoinGecko** | Capitalización, dominancia, metadatos | D | Clave demo gratuita | La clave demo no es de uso comercial | G1 |
 | **alternative.me** | Fear & Greed cripto | D | Sin clave | Portada de CryptoWorld | G1 |
@@ -533,7 +533,7 @@ La conversión a tipo por periodo usa la convención del mercado monetario (ACT/
 
 | Pieza de CryptoWorld | Destino en la nueva plataforma |
 |----------------------|--------------------------------|
-| Clientes de exchange | **ccxt**: un solo adaptador para varios *venues* con la misma interfaz (G1). |
+| Clientes de exchange | Un adaptador por *venue* sobre `HttpClient`, con la notación unificada de símbolos (`BTC/USDT`, `BTC/USDT:USDT`) y casetes ([ADR-0032](../adr/0032-crypto-venues-on-the-shared-http-client.md)); ccxt queda para la ejecución (G7). |
 | CoinGecko, on-chain, noticias, Fear & Greed | Adaptadores que implementan puertos del núcleo y devuelven objetos de dominio (G1, G9, G10). |
 | Análisis técnico, patrones y estructura | `investinglab.analytics.technical` y `analytics.patterns`, **generalizados a cualquier `PriceSeries`**, en NumPy y con tests de paridad y de propiedades (G2). |
 | Backtest y validación | `analytics.backtest` y `analytics.validation`, con costes por mercado, calendario y mundos nulos como puerta (G3). |
@@ -693,7 +693,7 @@ Sustituye a F12. G0 reúne las fases F6, F7, F13 y F10 de la tabla anterior y se
 | Fase | Contenido | Hito |
 |------|-----------|------|
 | **G0a** | Persistencia (F6) ([ADR-0029](../adr/0029-relational-persistence-and-owners.md)) ✅: PostgreSQL, SQLAlchemy asíncrono y Alembic; propietario en todas las tablas, con seguridad a nivel de fila; registro *append-only* con *hash* encadenado; carteras guardadas con versión en la API y en la web | Plataforma con estado |
-| **G1** | Datos cripto y derivados: ccxt (varios *venues*), flujo por vela (delta y CVD), funding e interés abierto, universo *point-in-time*, CoinGecko, Fear & Greed | Cripto como clase de activo |
+| **G1** | Datos cripto y derivados: *venues* sobre `HttpClient` ([ADR-0032](../adr/0032-crypto-venues-on-the-shared-http-client.md)), flujo por vela (delta y CVD), funding e interés abierto, universo *point-in-time*, CoinGecko, Fear & Greed. **En curso:** tipos `FlowSeries`, `RateSeries` y `Universe` ([ADR-0031](../adr/0031-flow-holding-rates-and-universes.md)) ✅; Binance *spot* (velas y flujo), funding de OKX, volumen de Yahoo como flujo y `tk.flow()`/`tk.holding_rates()` ✅. Pendiente: API y web, *venues* de respaldo (Kraken, Coinbase), funding de Binance y Bybit, interés abierto, CoinGecko, Fear & Greed, volcados de `data.binance.vision` | Cripto como clase de activo |
 | **G2** | Análisis técnico multiactivo (indicadores, patrones, estructura, confluencia multimarco) y ficha de activo | Misma ficha para `SAN.MC`, `^GSPC`, `EURUSD=X` y `BTC/USDT` |
 | **G0b** | Trabajos en segundo plano (F13) y observabilidad mínima | Trabajos largos con `202` y seguimiento |
 | **G3** | Backtest con costes por mercado, validación anti-sobreajuste, mundos nulos como test nocturno y metodología | Backtest con veredicto e incertidumbre |
@@ -721,10 +721,10 @@ pública (sin polars), divisa base y tipo libre de riesgo, modelos de Monte Carl
 desde CryptoWorld.
 
 Previstos para el programa de integración de CryptoWorld: 0029 persistencia y multiusuario;
-0030 cola de trabajos; 0031 tipos `FlowSeries` y `RateSeries`; 0032 registro de capacidades de
-producto; 0033 indicadores en NumPy; 0034 gráfico de velas; 0035 motor de backtest y modelo de
-costes; 0036 mundos nulos como puerta; 0037 `apps/trader` y *outbox*; 0038 custodia de claves;
-0039 tiempo real.
+0030 cola de trabajos; 0031 tipos `FlowSeries` y `RateSeries`; 0032 *venues* cripto sobre
+`HttpClient` (escrito); 0033 registro de capacidades de producto; 0034 indicadores en NumPy;
+0035 gráfico de velas; 0036 motor de backtest y modelo de costes; 0037 mundos nulos como puerta;
+0038 `apps/trader` y *outbox*; 0039 custodia de claves; 0040 tiempo real.
 
 ---
 
@@ -743,6 +743,7 @@ costes; 0036 mundos nulos como puerta; 0037 `apps/trader` y *outbox*; 0038 custo
 - **F2 (FRED sin clave):** `fred.stlouisfed.org`
 - **F11:** `api.marketsignal.six-group.com`, `global-q.org`, `api.tiingo.com`, `data.alpaca.markets`, `www.sec.gov`, `data.sec.gov`, `api.openfigi.com`, `api.db.nomics.world`, `ec.europa.eu`, `www.bde.es`, `servicios.ine.es`, `api.fiscaldata.treasury.gov`, `home.treasury.gov`, `mba.tuck.dartmouth.edu`, `cdn.cboe.com`
 - **G1 (datos cripto):** `api.binance.com`, `fapi.binance.com`, `data-api.binance.vision`, `data.binance.vision`, `api.bybit.com`, `www.okx.com`, `api.kraken.com`, `api.exchange.coinbase.com`, `api.coingecko.com`, `api.alternative.me`
+  (`api.binance.com`, `fapi.binance.com` y `api.bybit.com` responden HTTP 451 o 403 desde el contenedor en la nube aunque estén permitidos: sus casetes se graban desde un equipo propio; las velas *spot* salen de `data-api.binance.vision`, que sí responde)
 - **G5 (opciones):** `www.deribit.com`
 - **G9 (on-chain):** `api.blockchain.info`, `api.blockchair.com`, `api.llama.fi` y las instancias de Blockscout que se usen (por ejemplo `eth.blockscout.com`)
 - **G10 (noticias):** `min-api.cryptocompare.com`
