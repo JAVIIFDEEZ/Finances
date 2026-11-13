@@ -1,7 +1,8 @@
 """Market-data use cases: cached, multi-provider and concurrent ingestion (ADR-0010).
 
-Price bars and economic series are cached; trade flow and holding rates (ADR-0031) follow
-the same routing and fallback, without a cache yet.
+Price bars and economic series are cached on disk; trade flow and holding rates (ADR-0031)
+follow the same routing and fallback and are remembered in memory for a while, so the screens
+that ask for them again do not download them again.
 
 Every request follows the same path:
 
@@ -24,6 +25,7 @@ in flight (ADR-0019).
 from __future__ import annotations
 
 import asyncio
+from collections import OrderedDict
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Final, Protocol
@@ -33,17 +35,17 @@ import pandas as pd
 
 from investinglab.config.logging import get_logger
 from investinglab.domain.errors import DomainError, InvestingLabError
+from investinglab.domain.flow import FlowSeries
+from investinglab.domain.rate_series import RateSeries
 from investinglab.domain.series import MIN_OBSERVATIONS, PriceField
 from investinglab.domain.time import Frequency
 from investinglab.ports.errors import ProviderDataError, ProviderError
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable, Iterable, Mapping, Sequence
+    from collections.abc import Awaitable, Callable, Hashable, Iterable, Mapping, Sequence
     from datetime import date
 
     from investinglab.domain.economic import EconomicSeries
-    from investinglab.domain.flow import FlowSeries
-    from investinglab.domain.rate_series import RateSeries
     from investinglab.domain.series import PriceSeries
     from investinglab.ports.market_data import (
         BarsRequest,
@@ -94,12 +96,17 @@ class CachePolicy:
         daily_ttl: Daily bars change once per session.
         periodic_ttl: Weekly and lower frequencies.
         economic_ttl: Economic series are published at most daily.
+        rates_ttl: Holding rates settle every few hours.
+        memory_entries: Most flow and rates answers kept in memory (least recently used
+            go first).
     """
 
     intraday_ttl: timedelta = timedelta(minutes=15)
     daily_ttl: timedelta = timedelta(hours=12)
     periodic_ttl: timedelta = timedelta(hours=24)
     economic_ttl: timedelta = timedelta(hours=24)
+    rates_ttl: timedelta = timedelta(hours=1)
+    memory_entries: int = 256
 
     def ttl_for(self, frequency: Frequency) -> timedelta:
         """TTL for price bars of ``frequency``."""
@@ -108,6 +115,34 @@ class CachePolicy:
         if frequency is Frequency.DAY_1:
             return self.daily_ttl
         return self.periodic_ttl
+
+
+class _Memory:
+    """Answers kept in memory with the moment they were obtained, least recently used first out."""
+
+    def __init__(self, capacity: int) -> None:
+        self._capacity = capacity
+        self._entries: OrderedDict[Hashable, tuple[datetime, object]] = OrderedDict()
+
+    def get(self, key: Hashable, now: datetime, ttl: timedelta) -> object | None:
+        entry = self._entries.get(key)
+        if entry is None:
+            return None
+        stored_at, value = entry
+        if now - stored_at >= ttl:
+            del self._entries[key]
+            return None
+        self._entries.move_to_end(key)
+        return value
+
+    def put(self, key: Hashable, now: datetime, value: object) -> None:
+        self._entries[key] = (now, value)
+        self._entries.move_to_end(key)
+        while len(self._entries) > self._capacity:
+            self._entries.popitem(last=False)
+
+    def __len__(self) -> int:
+        return len(self._entries)
 
 
 @dataclass(frozen=True, slots=True)
@@ -194,6 +229,7 @@ class MarketDataService:
         self._cache_policy = cache_policy or CachePolicy()
         self._max_concurrency = max_concurrency
         self._clock = clock
+        self._memory = _Memory(max(self._cache_policy.memory_entries, 0))
 
     # ── Price bars ───────────────────────────────────────────────────
 
@@ -304,27 +340,54 @@ class MarketDataService:
 
     # ── Trade flow and holding rates ─────────────────────────────────
 
-    async def get_flow(self, request: BarsRequest) -> FlowSeries:
+    async def get_flow(self, request: BarsRequest, *, refresh: bool = False) -> FlowSeries:
         """Trade flow of the bars ``request`` describes, from the first provider able to serve it.
+
+        The answer is remembered in memory for the time-to-live of bars of that frequency.
+
+        Args:
+            request: The bars whose flow is wanted.
+            refresh: Download again even if a recent answer is remembered.
 
         Raises:
             DataUnavailableError: If no provider could deliver the flow.
         """
-        candidates = self._registry.flow_candidates(request, self._clock().date())
+        now = self._clock()
+        key = ("flow", request)
+        if not refresh and isinstance(
+            remembered := self._memory.get(key, now, self._cache_policy.ttl_for(request.frequency)),
+            FlowSeries,
+        ):
+            return remembered
+        candidates = self._registry.flow_candidates(request, now.date())
 
         async def fetch(provider: TradeFlowProvider) -> FlowSeries:
             flow = await provider.fetch_flow(request)
             _check_bars(provider.name, request, flow.symbol, flow.frequency)
             return flow
 
-        return await _first_answer("flow", request.symbol, str(request), candidates, fetch)
+        flow = await _first_answer("flow", request.symbol, str(request), candidates, fetch)
+        self._memory.put(key, now, flow)
+        return flow
 
-    async def get_rates(self, request: RatesRequest) -> RateSeries:
+    async def get_rates(self, request: RatesRequest, *, refresh: bool = False) -> RateSeries:
         """Holding rates of ``request``, from the first provider able to serve them.
+
+        The answer is remembered in memory for ``CachePolicy.rates_ttl``.
+
+        Args:
+            request: The rates wanted.
+            refresh: Download again even if a recent answer is remembered.
 
         Raises:
             DataUnavailableError: If no provider could deliver the rates.
         """
+        now = self._clock()
+        key = ("rates", request)
+        if not refresh and isinstance(
+            remembered := self._memory.get(key, now, self._cache_policy.rates_ttl), RateSeries
+        ):
+            return remembered
         candidates = self._registry.rates_candidates(request)
 
         async def fetch(provider: HoldingRatesProvider) -> RateSeries:
@@ -338,7 +401,9 @@ class MarketDataService:
                 )
             return rates
 
-        return await _first_answer("rates", request.symbol, str(request), candidates, fetch)
+        rates = await _first_answer("rates", request.symbol, str(request), candidates, fetch)
+        self._memory.put(key, now, rates)
+        return rates
 
     # ── Internals ────────────────────────────────────────────────────
 

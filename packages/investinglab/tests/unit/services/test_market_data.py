@@ -566,3 +566,97 @@ async def test_rates_without_a_capable_provider() -> None:
 
     with pytest.raises(DataUnavailableError, match="no registered provider can serve"):
         await _service(FakeRatesProvider("okx")).get_rates(request)
+
+
+# ── Flow and rates remembered in memory (SYNTHETIC) ──────────────────
+
+
+class _Clock:
+    def __init__(self) -> None:
+        self.now = NOW
+
+    def __call__(self) -> datetime:
+        return self.now
+
+
+def _remembering(
+    *providers: FakeFlowProvider | FakeRatesProvider, entries: int = 256
+) -> tuple[MarketDataService, _Clock]:
+    registry = ProviderRegistry()
+    for provider in providers:
+        registry.register(provider)
+    clock = _Clock()
+    policy = CachePolicy(memory_entries=entries)
+    return MarketDataService(registry, cache_policy=policy, clock=clock), clock
+
+
+async def test_flow_is_remembered_until_its_time_to_live() -> None:
+    venue = FakeFlowProvider("venue", {"BTC/USDT": _flow()})
+    service, clock = _remembering(venue)
+    request = BarsRequest("BTC/USDT")
+
+    first = await service.get_flow(request)
+    again = await service.get_flow(request)
+    clock.now += CachePolicy().daily_ttl
+    later = await service.get_flow(request)
+
+    assert first is again
+    assert later == first
+    assert len(venue.calls) == 2  # the first download and the one after it expired
+
+
+async def test_refresh_downloads_the_flow_again() -> None:
+    venue = FakeFlowProvider("venue", {"BTC/USDT": _flow()})
+    service, _ = _remembering(venue)
+
+    await service.get_flow(BarsRequest("BTC/USDT"))
+    await service.get_flow(BarsRequest("BTC/USDT"), refresh=True)
+
+    assert len(venue.calls) == 2
+
+
+async def test_rates_are_remembered_for_their_own_time_to_live() -> None:
+    okx = FakeRatesProvider("okx", {"BTC/USDT:USDT": _rates()})
+    service, clock = _remembering(okx)
+    request = RatesRequest("BTC/USDT:USDT", RateKind.FUNDING)
+
+    await service.get_rates(request)
+    clock.now += CachePolicy().rates_ttl - timedelta(seconds=1)
+    await service.get_rates(request)
+    clock.now += timedelta(seconds=1)
+    await service.get_rates(request)
+    await service.get_rates(request, refresh=True)
+
+    assert len(okx.calls) == 3
+
+
+async def test_failures_are_not_remembered() -> None:
+    down = FakeFlowProvider("down", errors={"BTC/USDT": ProviderUnavailableError("down", "x")})
+    service, _ = _remembering(down)
+
+    for _ in range(2):
+        with pytest.raises(DataUnavailableError):
+            await service.get_flow(BarsRequest("BTC/USDT"))
+
+    assert len(down.calls) == 2
+
+
+async def test_memory_keeps_the_most_recently_used_answers() -> None:
+    eth = make_instrument("ETH/USDT", currency=USD, asset_class=AssetClass.CRYPTO, exchange=None)
+    venue = FakeFlowProvider("venue", {"BTC/USDT": _flow(), "ETH/USDT": _flow(eth)})
+    service, _ = _remembering(venue, entries=1)
+
+    for symbol in ("BTC/USDT", "ETH/USDT", "BTC/USDT"):
+        await service.get_flow(BarsRequest(symbol))
+
+    assert [call.symbol for call in venue.calls] == ["BTC/USDT", "ETH/USDT", "BTC/USDT"]
+
+
+async def test_no_memory_with_no_entries() -> None:
+    venue = FakeFlowProvider("venue", {"BTC/USDT": _flow()})
+    service, _ = _remembering(venue, entries=0)
+
+    await service.get_flow(BarsRequest("BTC/USDT"))
+    await service.get_flow(BarsRequest("BTC/USDT"))
+
+    assert len(venue.calls) == 2
