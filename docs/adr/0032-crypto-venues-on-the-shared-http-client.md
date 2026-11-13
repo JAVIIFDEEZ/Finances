@@ -112,6 +112,12 @@ reintento durante el baneo lo alarga.
 
 ## Más información
 
+* *Venues* de respaldo (13-11-2026): **Kraken** y **Coinbase** sirven los mismos pares
+  `BASE/QUOTE` detrás de Binance, y también los que Binance no lista (`BTC/USD`, `ETH/EUR`).
+  Las reglas comunes de todos los *venues* (notación del par, instrumento, límites UTC, velas
+  cerradas, agregación) viven en `adapters/providers/venues.py`, así que cada adaptador solo
+  traduce su formato.
+
 * Lo que falta de G1 (otros *venues* de respaldo, funding de Binance y Bybit, interés abierto,
   CoinGecko, alternative.me, volcados de `data.binance.vision`, API y web) sigue este mismo
   patrón; ver el estado en el [plan maestro](../plan/plan-maestro.md).

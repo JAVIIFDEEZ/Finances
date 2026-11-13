@@ -29,16 +29,27 @@ import sys
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import httpx
 
 from investinglab.adapters.http import HttpClient, RetryPolicy
-from investinglab.adapters.providers import alternative_me, binance, ecb, okx, yahoo
+from investinglab.adapters.providers import (
+    alternative_me,
+    binance,
+    coinbase,
+    ecb,
+    kraken,
+    okx,
+    yahoo,
+)
 from investinglab.config import LogLevel, configure_logging
 from investinglab.domain.rate_series import RateKind
 from investinglab.domain.time import Frequency
 from investinglab.ports import BarsRequest, EconomicRequest, ProviderError, RatesRequest
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 type Request = BarsRequest | EconomicRequest | RatesRequest
 type Provider = (
@@ -47,6 +58,8 @@ type Provider = (
     | binance.BinanceProvider
     | okx.OkxProvider
     | alternative_me.AlternativeMeProvider
+    | kraken.KrakenProvider
+    | coinbase.CoinbaseProvider
 )
 
 CASSETTES = Path(__file__).resolve().parents[1] / "packages/investinglab/tests/fixtures/cassettes"
@@ -231,6 +244,42 @@ def _recordings(today: date) -> list[Recording]:
             page_size=6,
         ),
         Recording(
+            "kraken/btc_usd_1d",
+            BarsRequest("BTC/USD", start=date(2026, 10, 1), end=date(2026, 10, 20)),
+            "Pair in US dollars, which Binance does not list: daily bars with trades and VWAP.",
+        ),
+        Recording(
+            "kraken/eth_eur_4h_live",
+            BarsRequest("ETH/EUR", frequency=Frequency.HOUR_4, start=today - timedelta(days=2)),
+            "Native 4-hour bars of a pair in euros: the bar in progress is left out.",
+        ),
+        Recording(
+            "kraken/not_found",
+            BarsRequest("NOPE/USD", start=date(2026, 10, 1), end=date(2026, 10, 20)),
+            "Unknown pair: HTTP 200 with Kraken's error EQuery:Unknown asset pair.",
+        ),
+        Recording(
+            "coinbase/btc_usd_1d",
+            BarsRequest("BTC/USD", start=date(2026, 10, 1), end=date(2026, 10, 20)),
+            "Pair in US dollars: daily candles, newest first, low before high.",
+        ),
+        Recording(
+            "coinbase/btc_usd_1d_paged",
+            BarsRequest("BTC/USD", start=date(2026, 10, 1), end=date(2026, 10, 20)),
+            "Pagination: twenty daily candles asked for in windows of seven.",
+            page_size=7,
+        ),
+        Recording(
+            "coinbase/eth_eur_4h_live",
+            BarsRequest("ETH/EUR", frequency=Frequency.HOUR_4, start=today - timedelta(days=1)),
+            "4-hour bars built from hourly candles: only bins whose hours have all closed.",
+        ),
+        Recording(
+            "coinbase/not_found",
+            BarsRequest("NOPE/USD", start=date(2026, 10, 1), end=date(2026, 10, 20)),
+            "Unknown pair: HTTP 404.",
+        ),
+        Recording(
             "alternative_me/fng_october",
             EconomicRequest(
                 alternative_me.FEAR_GREED, start=date(2026, 10, 1), end=date(2026, 10, 20)
@@ -251,38 +300,50 @@ def _provider(
     recording: Recording, transport: RecordingTransport, recorded_at: datetime
 ) -> Provider:
     retry = RetryPolicy(max_attempts=4, initial_backoff=2.0)
-    match recording.provider:
-        case yahoo.NAME:
-            client = HttpClient(
+
+    def clock() -> datetime:
+        return recorded_at
+
+    factories: dict[str, Callable[[], Provider]] = {
+        yahoo.NAME: lambda: yahoo.YahooFinanceProvider(
+            client=HttpClient(
                 yahoo.NAME,
                 base_url=yahoo.BASE_URL,
                 retry=retry,
                 headers={"User-Agent": yahoo.USER_AGENT},
                 transport=transport,
-            )
-            return yahoo.YahooFinanceProvider(client=client, clock=lambda: recorded_at)
-        case binance.NAME:
-            client = binance.http_client(retry=retry, transport=transport)
-            return binance.BinanceProvider(
-                client=client,
-                clock=lambda: recorded_at,
-                page_size=recording.page_size or binance.PAGE_SIZE,
-            )
-        case alternative_me.NAME:
-            client = alternative_me.http_client(retry=retry, transport=transport)
-            return alternative_me.AlternativeMeProvider(client=client, clock=lambda: recorded_at)
-        case okx.NAME:
-            client = okx.http_client(retry=retry, transport=transport)
-            return okx.OkxProvider(
-                client=client,
-                clock=lambda: recorded_at,
-                page_size=recording.page_size or okx.PAGE_SIZE,
-            )
-        case _:
-            client = HttpClient(
+            ),
+            clock=clock,
+        ),
+        ecb.NAME: lambda: ecb.EcbProvider(
+            client=HttpClient(
                 ecb.NAME, base_url=ecb.BASE_URL, timeout=90.0, retry=retry, transport=transport
-            )
-            return ecb.EcbProvider(client=client, clock=lambda: recorded_at)
+            ),
+            clock=clock,
+        ),
+        binance.NAME: lambda: binance.BinanceProvider(
+            client=binance.http_client(retry=retry, transport=transport),
+            clock=clock,
+            page_size=recording.page_size or binance.PAGE_SIZE,
+        ),
+        kraken.NAME: lambda: kraken.KrakenProvider(
+            client=kraken.http_client(retry=retry, transport=transport), clock=clock
+        ),
+        coinbase.NAME: lambda: coinbase.CoinbaseProvider(
+            client=coinbase.http_client(retry=retry, transport=transport),
+            clock=clock,
+            page_size=recording.page_size or coinbase.PAGE_SIZE,
+        ),
+        okx.NAME: lambda: okx.OkxProvider(
+            client=okx.http_client(retry=retry, transport=transport),
+            clock=clock,
+            page_size=recording.page_size or okx.PAGE_SIZE,
+        ),
+        alternative_me.NAME: lambda: alternative_me.AlternativeMeProvider(
+            client=alternative_me.http_client(retry=retry, transport=transport), clock=clock
+        ),
+    }
+    return factories[recording.provider]()
 
 
 def _describe(request: Request) -> dict[str, str | None]:
@@ -305,7 +366,12 @@ def _describe(request: Request) -> dict[str, str | None]:
 async def _outcome(provider: Provider, request: Request) -> str:
     """What the adapter made of the recorded responses, for the person recording."""
     if isinstance(request, BarsRequest) and isinstance(
-        provider, yahoo.YahooFinanceProvider | ecb.EcbProvider | binance.BinanceProvider
+        provider,
+        yahoo.YahooFinanceProvider
+        | ecb.EcbProvider
+        | binance.BinanceProvider
+        | kraken.KrakenProvider
+        | coinbase.CoinbaseProvider,
     ):
         return f"{len(await provider.fetch_bars(request))} bars"
     if isinstance(request, RatesRequest) and isinstance(provider, okx.OkxProvider):

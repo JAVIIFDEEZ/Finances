@@ -185,7 +185,7 @@ def test_local_files_are_served_as_a_provider(tmp_path: Path) -> None:
     assert again.prices.equals(series.prices)
 
 
-REMOTE = ("ecb", "yahoo", "binance", "okx", "alternative_me")
+REMOTE = ("ecb", "yahoo", "binance", "kraken", "coinbase", "okx", "alternative_me")
 
 
 def test_the_default_remote_providers(tmp_path: Path) -> None:
@@ -202,7 +202,7 @@ def test_the_default_remote_providers(tmp_path: Path) -> None:
         assert offline.providers == ("files",)
     own = FakeBarsProvider("yahoo")
     with Toolkit.from_settings(online, providers=[own], cache=False) as replaced:
-        assert replaced.providers == ("yahoo", "ecb", "binance", "okx", "alternative_me")
+        assert replaced.providers == ("yahoo", *(name for name in REMOTE if name != "yahoo"))
 
 
 def test_venue_pairs_bring_their_flow_and_listed_symbols_their_volume(tmp_path: Path) -> None:
@@ -414,3 +414,19 @@ def test_the_crypto_fear_and_greed_index_is_an_economic_series(tmp_path: Path) -
     assert index.series_id == "FNG"
     assert len(index.observations) == 20
     assert index.source.provider == "alternative_me"
+
+
+def test_a_pair_binance_does_not_list_falls_back_on_the_next_venue(tmp_path: Path) -> None:
+    online = _settings(tmp_path, offline=False)
+    kraken = load_cassette("kraken/btc_usd_1d")
+
+    with (
+        respx.mock(assert_all_called=False) as router,
+        Toolkit.from_settings(online, cache=False) as tk,
+    ):
+        load_cassette("binance/not_found").play(router, exact=False)  # Binance: unknown pair
+        kraken.play(router, exact=False)
+        bars = tk.series("BTC/USD", start="2026-10-01", end="2026-10-20")
+
+    assert bars.source.provider == "kraken"
+    assert len(bars) == 20
