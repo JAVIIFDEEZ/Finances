@@ -6,6 +6,8 @@ la petición, llama al núcleo y devuelve JSON ([ADR-0027](../adr/0027-stateless
 ```bash
 uv run just api                      # http://127.0.0.1:8000/docs (Swagger) y /redoc
 curl "http://127.0.0.1:8000/api/v1/market/bars?symbol=SAN.MC&start=2024-01-01"
+curl "http://127.0.0.1:8000/api/v1/market/flow?symbol=BTC/USDT&start=2026-10-01"
+curl "http://127.0.0.1:8000/api/v1/market/holding-rates?symbol=BTC/USDT:USDT&kind=funding"
 ```
 
 ## Endpoints
@@ -13,9 +15,11 @@ curl "http://127.0.0.1:8000/api/v1/market/bars?symbol=SAN.MC&start=2024-01-01"
 | Método | Ruta | Qué devuelve |
 |--------|------|--------------|
 | GET | `/health/live`, `/health/ready` | Estado, versión, proveedores registrados y estado de la base de datos |
-| GET | `/api/v1/providers` | Capacidades de cada proveedor (frecuencias, cuotas, historia) |
+| GET | `/api/v1/providers` | Capacidades de cada proveedor (datos, frecuencias, cuotas, historia, tipos de mantenimiento) |
 | GET | `/api/v1/modules`, `/api/v1/modules/{slug}` | Módulos del máster y su trazabilidad (`language=es\|en`) |
 | GET | `/api/v1/market/bars` | Barras de un instrumento con metadatos, procedencia y estadísticos |
+| GET | `/api/v1/market/flow` | Flujo de las mismas barras: volumen y, si la fuente dice quién agredió, *delta* y CVD |
+| GET | `/api/v1/market/holding-rates` | Funding, comisión de préstamo o coste de financiación (`kind`), con su intervalo y lo acumulado |
 | POST | `/api/v1/market/compare` | Rendimiento base 100, caídas, métricas y correlación de varios |
 | GET | `/api/v1/market/quality` | Diagnóstico de calidad frente al calendario oficial |
 | GET | `/api/v1/rates/risk-free` | Tipo libre de riesgo conocido cada día hábil |
@@ -105,8 +109,10 @@ sin `base_currency`, restricciones de optimización imposibles…
 
 ### data-not-found
 
-`404`. Ningún proveedor tiene el instrumento o la serie pedidos. `attempts` lista cada
-proveedor consultado y su respuesta.
+`404`. Ningún proveedor tiene el instrumento o la serie pedidos, o ninguno los sirve para esa
+petición: el flujo de un par de divisas (no tiene volumen), el funding fuera de la historia
+que guarda el *venue*… Reintentar no cambia nada. `attempts` lista cada proveedor consultado y
+su respuesta.
 
 ### data-unavailable
 
