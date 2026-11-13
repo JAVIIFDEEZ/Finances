@@ -9,12 +9,14 @@ import pytest
 from investinglab.domain import (
     USD,
     AssetClass,
+    DomainError,
     FlowField,
     FlowSeries,
     Frequency,
     IncompatibleSeriesError,
     InvalidSeriesError,
 )
+from investinglab.domain.series import calendar_periods
 from support.factories import SYNTHETIC_SOURCE, business_days, make_instrument, make_series
 
 DAYS = business_days(5)
@@ -190,3 +192,75 @@ def test_equal_flow_is_equal_and_hashable() -> None:
     assert hash(flow()) == hash(flow())
     assert flow() != flow(frame(volume=[10.0, 20.0, 1.0, 8.0, 12.0]))
     assert flow() != "flow"
+
+
+def _hourly(hours: int = 72) -> FlowSeries:
+    index = pd.date_range("2024-03-04 00:00", periods=hours, freq="1h", tz="UTC")
+    data = pd.DataFrame(
+        {"volume": 2.0, "buy_volume": 0.5, "trades": 3, "quote_volume": 200.0}, index=index
+    )
+    return FlowSeries(BTC, Frequency.HOUR_1, SYNTHETIC_SOURCE, data)
+
+
+def test_intraday_flow_is_summed_into_coarser_bins() -> None:
+    four_hours = _hourly().resample("4h")
+
+    assert four_hours.frequency is Frequency.HOUR_4
+    assert len(four_hours) == 18
+    assert four_hours.flow.iloc[0].to_dict() == {
+        "volume": 8.0,
+        "quote_volume": 800.0,
+        "trades": 12.0,
+        "buy_volume": 2.0,
+    }
+    assert four_hours.delta.sum() == pytest.approx(_hourly().delta.sum())
+
+
+def test_intraday_flow_becomes_daily_flow_on_the_market_session_dates() -> None:
+    days = _hourly().resample(Frequency.DAY_1)
+
+    assert days.flow.index.tolist() == list(pd.date_range("2024-03-04", periods=3))
+    assert days.volume.tolist() == [48.0, 48.0, 48.0]
+    assert pd.DatetimeIndex(days.flow.index).tz is None
+
+
+def test_intraday_bins_without_bars_are_left_out() -> None:
+    hourly = _hourly(48)
+    gap = hourly.flow.drop(hourly.flow.index[4:8])  # four hours without trading data
+
+    four_hours = FlowSeries(BTC, Frequency.HOUR_1, SYNTHETIC_SOURCE, gap).resample("4h")
+
+    assert len(four_hours) == 11  # the empty bin is absent, never a zero
+
+
+def test_daily_flow_aggregates_like_the_price_bars() -> None:
+    days = pd.bdate_range("2024-01-01", "2024-03-29")  # whole weeks and months
+    units = list(np.arange(1.0, len(days) + 1.0))
+    prices = make_series(units, symbol="BTC-USD", index=days, volume=units)
+    flow = FlowSeries(BTC, Frequency.DAY_1, SYNTHETIC_SOURCE, pd.DataFrame({"volume": units}, days))
+
+    for target in (Frequency.WEEK_1, Frequency.MONTH_1):
+        aggregated = flow.resample(target)
+        bars = prices.resample(target)
+        assert aggregated.flow.index.equals(bars.bars.index)
+        assert aggregated.volume.tolist() == bars.bars["volume"].tolist()
+
+
+def test_flow_only_resamples_to_coarser_frequencies() -> None:
+    with pytest.raises(DomainError, match="coarser frequency"):
+        flow().resample(Frequency.HOUR_1)
+    with pytest.raises(DomainError, match="coarser frequency"):
+        flow().resample(Frequency.DAY_1)
+
+
+def test_calendar_periods_are_weeks_months_quarters_and_years() -> None:
+    sessions = pd.DatetimeIndex(["2024-01-05", "2024-01-08", "2024-04-02"])
+
+    assert [str(p) for p in calendar_periods(sessions, Frequency.QUARTER_1)] == [
+        "2024Q1",
+        "2024Q1",
+        "2024Q2",
+    ]
+    assert calendar_periods(sessions, Frequency.WEEK_1)[1].start_time == pd.Timestamp("2024-01-08")
+    with pytest.raises(DomainError, match="not a calendar period"):
+        calendar_periods(sessions, Frequency.DAY_1)

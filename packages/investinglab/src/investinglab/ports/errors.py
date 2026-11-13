@@ -11,6 +11,7 @@ from investinglab.domain.errors import InvestingLabError
 
 __all__ = [
     "AuthenticationError",
+    "BannedError",
     "ProviderDataError",
     "ProviderError",
     "ProviderUnavailableError",
@@ -53,6 +54,16 @@ class RateLimitedError(ProviderError):
     def __init__(self, provider: str, message: str, retry_after: float | None = None) -> None:
         super().__init__(provider, message)
         self.retry_after = retry_after
+
+
+class BannedError(RateLimitedError):
+    """The provider refuses this client for a while after it exceeded the quotas.
+
+    Unlike a plain throttle it is not retried: every request during the ban can extend it
+    (Binance answers HTTP 418 and bans for minutes to days).
+    """
+
+    retryable = False
 
 
 class AuthenticationError(ProviderError):

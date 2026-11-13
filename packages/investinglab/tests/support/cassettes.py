@@ -21,8 +21,9 @@ from typing import TYPE_CHECKING, Any
 
 import httpx
 
+from investinglab.domain.rate_series import RateKind
 from investinglab.domain.time import Frequency
-from investinglab.ports import BarsRequest, EconomicRequest, VintageMode
+from investinglab.ports import BarsRequest, EconomicRequest, RatesRequest, VintageMode
 
 if TYPE_CHECKING:
     import respx
@@ -61,8 +62,10 @@ class Cassette:
 
     name: str
     recorded_at: datetime
-    request: BarsRequest | EconomicRequest
+    request: BarsRequest | EconomicRequest | RatesRequest
     exchanges: tuple[Exchange, ...]
+    page_size: int | None = None
+    """Page size the cassette was recorded with, when smaller than the provider's default."""
 
     @property
     def bars_request(self) -> BarsRequest:
@@ -73,7 +76,13 @@ class Cassette:
     @property
     def economic_request(self) -> EconomicRequest:
         """The recorded request, which must be one for an economic series."""
-        assert isinstance(self.request, EconomicRequest), f"{self.name} records a bars request"
+        assert isinstance(self.request, EconomicRequest), f"{self.name} records no economic series"
+        return self.request
+
+    @property
+    def rates_request(self) -> RatesRequest:
+        """The recorded request, which must be one for holding rates."""
+        assert isinstance(self.request, RatesRequest), f"{self.name} records no holding rates"
         return self.request
 
     def clock(self) -> datetime:
@@ -114,11 +123,15 @@ def _day(text: str | None) -> date | None:
     return None if text is None else date.fromisoformat(text)
 
 
-def _request(raw: dict[str, Any]) -> BarsRequest | EconomicRequest:
+def _request(raw: dict[str, Any]) -> BarsRequest | EconomicRequest | RatesRequest:
     start, end = _day(raw["start"]), _day(raw["end"])
     if "series_id" in raw:
         return EconomicRequest(
             raw["series_id"], start=start, end=end, mode=VintageMode(raw["mode"])
+        )
+    if "kind" in raw:
+        return RatesRequest(
+            raw["symbol"], RateKind(raw["kind"]), venue=raw["venue"], start=start, end=end
         )
     return BarsRequest(raw["symbol"], frequency=Frequency(raw["frequency"]), start=start, end=end)
 
@@ -141,4 +154,5 @@ def load_cassette(name: str) -> Cassette:
             )
             for exchange in raw["exchanges"]
         ),
+        page_size=raw.get("page_size"),
     )

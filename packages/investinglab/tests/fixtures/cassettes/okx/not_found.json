@@ -1,0 +1,31 @@
+{
+ "provider": "okx",
+ "purpose": "Unknown swap: HTTP 200 with OKX's error code 51001.",
+ "recorded_at": "2026-11-13T16:29:11+00:00",
+ "request": {
+  "symbol": "NOPE/USDT:USDT",
+  "kind": "funding",
+  "venue": null,
+  "start": "2026-10-01",
+  "end": "2026-10-02"
+ },
+ "outcome": "SymbolNotFoundError: [okx] /api/v5/public/funding-rate-history: Instrument ID, Instrument ID code, or Spread ID doesn't exist.",
+ "exchanges": [
+  {
+   "method": "GET",
+   "url": "https://www.okx.com/api/v5/public/funding-rate-history",
+   "params": {
+    "instId": "NOPE-USDT-SWAP",
+    "after": "1790985600000",
+    "limit": "100"
+   },
+   "status": 200,
+   "content_type": "application/json",
+   "json": {
+    "code": "51001",
+    "data": [],
+    "msg": "Instrument ID, Instrument ID code, or Spread ID doesn't exist."
+   }
+  }
+ ]
+}

@@ -179,4 +179,7 @@ bash). Lo que necesite más lógica va a un script de Python en `scripts/`, tipa
 - La red del contenedor bloquea por defecto las APIs de datos (Yahoo, FRED, Alpha Vantage…).
   Las listas de dominios a permitir están en el plan (sección 16). Sin red, se trabaja con
   fixtures grabadas; no se fabrican datos.
+- `api.binance.com`, `fapi.binance.com` y `api.bybit.com` rechazan el contenedor (HTTP 451 y
+  403) aunque estén permitidos: sus casetes se graban desde un equipo propio. Las velas *spot*
+  de Binance salen de `data-api.binance.vision`, que sí responde.
 - No hay daemon de Docker: las imágenes se validan en GitHub Actions.

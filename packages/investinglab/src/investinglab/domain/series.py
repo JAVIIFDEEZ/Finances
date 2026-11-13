@@ -67,6 +67,7 @@ __all__ = [
     "PriceSeries",
     "ReturnKind",
     "SeriesStats",
+    "calendar_periods",
     "validate_time_index",
 ]
 
@@ -700,11 +701,26 @@ def _aggregate_resampled(grouped: Any, columns: pd.Index) -> pd.DataFrame:  # no
 
 def _aggregate_by_period(bars: pd.DataFrame, target: Frequency) -> pd.DataFrame:
     """Aggregate session bars into calendar periods labelled by their last observed session."""
-    periods = bars.index.to_period(_PERIOD_ALIASES[target])  # type: ignore[attr-defined]
+    periods = calendar_periods(pd.DatetimeIndex(bars.index), target)
     aggregated = _aggregate(bars, periods)
     last_session = bars.index.to_series().groupby(periods).max()
     aggregated.index = pd.DatetimeIndex(last_session.loc[aggregated.index].to_numpy())
     return aggregated
+
+
+def calendar_periods(sessions: pd.DatetimeIndex, frequency: Frequency) -> pd.PeriodIndex:
+    """Calendar period of each session date: its week (Monday to Sunday), month, quarter or year.
+
+    Every series aggregated to these frequencies groups its bars this way and labels each
+    period with its last observed session, so series of the same instrument stay aligned.
+
+    Raises:
+        DomainError: If ``frequency`` is not weekly or coarser.
+    """
+    alias = _PERIOD_ALIASES.get(frequency)
+    if alias is None:
+        raise DomainError(f"{frequency.value!r} is not a calendar period")
+    return sessions.to_period(alias)
 
 
 _PERIOD_ALIASES: Final[dict[Frequency, str]] = {

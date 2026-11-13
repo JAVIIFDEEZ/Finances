@@ -30,8 +30,10 @@ import pandas as pd
 from investinglab.adapters.calendars import ExchangeCalendarsAdapter
 from investinglab.adapters.files import ImportSpec, SeriesImporter
 from investinglab.adapters.http import RetryPolicy
+from investinglab.adapters.providers.binance import BinanceProvider
 from investinglab.adapters.providers.ecb import EcbProvider
 from investinglab.adapters.providers.files import LocalFilesProvider
+from investinglab.adapters.providers.okx import OkxProvider
 from investinglab.adapters.providers.yahoo import YahooFinanceProvider
 from investinglab.adapters.storage import ParquetSeriesStore
 from investinglab.config.logging import get_logger
@@ -40,8 +42,9 @@ from investinglab.domain.errors import DomainError, InvestingLabError
 from investinglab.domain.metrics import DEFAULT_CONFIDENCE_LEVELS
 from investinglab.domain.money import Currency
 from investinglab.domain.portfolio import Portfolio
+from investinglab.domain.rate_series import RateKind
 from investinglab.domain.time import Frequency
-from investinglab.ports.market_data import BarsRequest
+from investinglab.ports.market_data import BarsRequest, RatesRequest
 from investinglab.reporting.options import ReportOptions
 from investinglab.services.fx import CurrencyService
 from investinglab.services.market_data import DataUnavailableError, MarketDataService
@@ -50,53 +53,54 @@ from investinglab.services.registry import ProviderRegistry
 from investinglab.services.risk_free import RiskFreeRateService
 
 if TYPE_CHECKING:
-    from collections.abc import Coroutine, Iterable, Mapping, Sequence
+    from collections.abc import Callable, Coroutine, Iterable, Mapping, Sequence
     from concurrent.futures import Future
     from datetime import datetime
     from pathlib import Path
     from types import TracebackType
 
+    from investinglab.domain.flow import FlowSeries
     from investinglab.domain.metrics import RiskMetrics
     from investinglab.domain.portfolio import RebalancePolicy
     from investinglab.domain.quality import DataQualityReport
+    from investinglab.domain.rate_series import RateSeries
     from investinglab.domain.series import PriceSeries
-    from investinglab.ports.market_data import (
-        EconomicDataProvider,
-        MarketDataProvider,
-        ProviderCapabilities,
-    )
+    from investinglab.ports.market_data import ProviderCapabilities
     from investinglab.reporting.markdown import MarkdownReport
     from investinglab.reporting.options import ReportSettings
     from investinglab.services.market_data import BatchResult
+    from investinglab.services.registry import AnyProvider
 
 __all__ = ["AsyncToolkit", "Toolkit"]
 
 log = get_logger(__name__)
 
 type DateLike = date | datetime | pd.Timestamp | str | None
-type Provider = MarketDataProvider | EconomicDataProvider
+type RemoteProvider = EcbProvider | YahooFinanceProvider | BinanceProvider | OkxProvider
 
 
 def _as_date(value: DateLike) -> date | None:
     return None if value is None else pd.Timestamp(value).date()
 
 
-def _remote_providers(
-    config: Settings, registry: ProviderRegistry
-) -> list[EcbProvider | YahooFinanceProvider]:
+def _remote_providers(config: Settings, registry: ProviderRegistry) -> list[RemoteProvider]:
     """Default remote providers, in order, except those a caller's provider replaces.
 
     The ECB comes first: its reference rates are the official daily fixings of the euro
-    and it only serves currency pairs and euro rates. Yahoo serves everything else.
+    and it only serves currency pairs and euro rates. Yahoo serves every other symbol of
+    its own notation (``SAN.MC``, ``^GSPC``, ``BTC-USD``...). The venues serve theirs:
+    Binance the spot pairs written ``BASE/QUOTE`` with their trade flow, and OKX the
+    funding of perpetual swaps written ``BASE/QUOTE:SETTLE`` (ADR-0032).
     """
     retry = RetryPolicy(max_attempts=config.http_max_attempts)
     timeout = config.http_timeout_seconds
-    defaults: list[EcbProvider | YahooFinanceProvider] = []
-    if "ecb" not in registry:
-        defaults.append(EcbProvider(timeout=timeout, retry=retry))
-    if "yahoo" not in registry:
-        defaults.append(YahooFinanceProvider(timeout=timeout, retry=retry))
-    return defaults
+    factories: dict[str, Callable[[], RemoteProvider]] = {
+        "ecb": lambda: EcbProvider(timeout=timeout, retry=retry),
+        "yahoo": lambda: YahooFinanceProvider(timeout=timeout, retry=retry),
+        "binance": lambda: BinanceProvider(timeout=timeout, retry=retry),
+        "okx": lambda: OkxProvider(timeout=timeout, retry=retry),
+    }
+    return [build() for name, build in factories.items() if name not in registry]
 
 
 class AsyncToolkit:
@@ -129,14 +133,15 @@ class AsyncToolkit:
         cls,
         settings: Settings | None = None,
         *,
-        providers: Iterable[Provider] = (),
+        providers: Iterable[AnyProvider] = (),
         cache: bool = True,
     ) -> AsyncToolkit:
         """Wire every adapter from the configuration (``INVESTINGLAB_*`` variables).
 
         Providers are tried in this order: the ``providers`` given here, the user's own
         files (``local_data_dir``) and then, unless ``offline`` is set, the ECB (euro
-        reference rates, €STR) and Yahoo Finance.
+        reference rates, €STR), Yahoo Finance, Binance (spot pairs and their flow) and OKX
+        (funding of perpetual swaps).
 
         Args:
             settings: Configuration; the process-wide settings by default.
@@ -208,6 +213,46 @@ class AsyncToolkit:
             for symbol in symbols
         ]
         return await self._market_data.get_many_bars(requests, refresh=refresh)
+
+    async def flow(
+        self,
+        symbol: str,
+        *,
+        start: DateLike = None,
+        end: DateLike = None,
+        frequency: Frequency | str = Frequency.DAY_1,
+    ) -> FlowSeries:
+        """Trade flow of the same bars :meth:`series` returns (ADR-0031).
+
+        A venue's pair (``BTC/USDT``) brings the aggressor side, hence delta and CVD; a
+        listed instrument (``SAN.MC``, ``^GSPC``) brings its volume only.
+
+        Raises:
+            DataUnavailableError: If no provider could deliver it (a currency pair has no
+                volume, for instance).
+        """
+        request = BarsRequest(symbol, Frequency(frequency), _as_date(start), _as_date(end))
+        return await self._market_data.get_flow(request)
+
+    async def holding_rates(
+        self,
+        symbol: str,
+        *,
+        kind: RateKind | str = RateKind.FUNDING,
+        venue: str | None = None,
+        start: DateLike = None,
+        end: DateLike = None,
+    ) -> RateSeries:
+        """What holding ``symbol`` paid or earned per period: funding, borrow or financing.
+
+        Example: ``tk.holding_rates("BTC/USDT:USDT", start="2026-10-01")`` is the funding of
+        the USDT-settled bitcoin perpetual swap.
+
+        Raises:
+            DataUnavailableError: If no provider could deliver them.
+        """
+        request = RatesRequest(symbol, RateKind(kind), venue, _as_date(start), _as_date(end))
+        return await self._market_data.get_rates(request)
 
     def load(self, path: str | Path, **spec: Any) -> PriceSeries:  # noqa: ANN401
         """Import a CSV or Parquet file (see :class:`~investinglab.adapters.files.ImportSpec`).
@@ -430,7 +475,7 @@ class Toolkit:
         cls,
         settings: Settings | None = None,
         *,
-        providers: Iterable[Provider] = (),
+        providers: Iterable[AnyProvider] = (),
         cache: bool = True,
     ) -> Toolkit:
         """Wire every adapter from the configuration (see :meth:`AsyncToolkit.from_settings`).
@@ -477,6 +522,31 @@ class Toolkit:
         """Several series downloaded concurrently (see :meth:`AsyncToolkit.many`)."""
         return self._run(
             self._inner.many(symbols, start=start, end=end, frequency=frequency, refresh=refresh)
+        )
+
+    def flow(
+        self,
+        symbol: str,
+        *,
+        start: DateLike = None,
+        end: DateLike = None,
+        frequency: Frequency | str = Frequency.DAY_1,
+    ) -> FlowSeries:
+        """Trade flow of the same bars :meth:`series` returns (see :meth:`AsyncToolkit.flow`)."""
+        return self._run(self._inner.flow(symbol, start=start, end=end, frequency=frequency))
+
+    def holding_rates(
+        self,
+        symbol: str,
+        *,
+        kind: RateKind | str = RateKind.FUNDING,
+        venue: str | None = None,
+        start: DateLike = None,
+        end: DateLike = None,
+    ) -> RateSeries:
+        """Funding, borrow or financing rates (see :meth:`AsyncToolkit.holding_rates`)."""
+        return self._run(
+            self._inner.holding_rates(symbol, kind=kind, venue=venue, start=start, end=end)
         )
 
     def portfolio(

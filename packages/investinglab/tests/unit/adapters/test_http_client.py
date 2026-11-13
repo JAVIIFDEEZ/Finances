@@ -9,11 +9,13 @@ import pytest
 import respx
 import structlog
 
-from investinglab.adapters.http import HttpClient, RetryPolicy, redact
+from investinglab.adapters.http import HttpClient, RetryPolicy, redact, retry_after
 from investinglab.config import LogFormat, LogLevel, configure_logging
 from investinglab.ports import (
     AuthenticationError,
+    BannedError,
     ProviderDataError,
+    ProviderError,
     ProviderUnavailableError,
     RateLimit,
     RateLimitedError,
@@ -262,3 +264,42 @@ async def test_credentials_never_reach_the_logs(capsys: pytest.CaptureFixture[st
     assert "super-secret" not in output
     record = next(json.loads(line) for line in output.splitlines() if "http_request" in line)
     assert record["params"] == {"series_id": "UNRATE", "api_key": "***"}
+
+
+def _explain(response: httpx.Response, path: str) -> ProviderError | None:
+    """A provider whose error documents name unknown symbols (code 7) and bans (418)."""
+    if response.status_code == 418:
+        return BannedError("example", f"banned on {path}", retry_after(response))
+    body = response.json() if response.headers.get("content-type") == "application/json" else {}
+    if body.get("code") == 7:
+        return SymbolNotFoundError("example", f"{path}: {body['msg']}")
+    return None
+
+
+@respx.mock
+async def test_a_provider_can_explain_its_error_documents_first() -> None:
+    respx.get(f"{BASE}/unknown").respond(400, json={"code": 7, "msg": "no such symbol"})
+    respx.get(f"{BASE}/other").respond(400, json={"code": 1, "msg": "other"})
+
+    async with _client(_Sleeps(), explain=_explain) as client:
+        with pytest.raises(SymbolNotFoundError, match="/unknown: no such symbol"):
+            await client.get_json("/unknown")
+        with pytest.raises(UnsupportedRequestError, match="HTTP 400 on /other"):
+            await client.get_json("/other")  # not explained: the generic translation
+
+
+@pytest.mark.parametrize(("headers", "wait"), [({"Retry-After": "60"}, 60.0), ({}, None)])
+@respx.mock
+async def test_a_ban_is_not_retried_even_though_it_is_a_throttle(
+    headers: dict[str, str], wait: float | None
+) -> None:
+    route = respx.get(f"{BASE}/series").respond(418, headers=headers)
+    sleeps = _Sleeps()
+
+    async with _client(sleeps, explain=_explain) as client:
+        with pytest.raises(BannedError) as error:
+            await client.get_json("/series")
+
+    assert isinstance(error.value, RateLimitedError)
+    assert error.value.retry_after == wait
+    assert (route.call_count, sleeps.waits) == (1, [])

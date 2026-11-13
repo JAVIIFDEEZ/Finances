@@ -3,7 +3,8 @@
 Providers are registered once (by the composition root) and the router returns, for each
 request, the ordered list of providers able to serve it: an explicit preference order when
 one is configured for that asset class and/or frequency, then every other capable provider
-as a last-resort fallback, in registration order.
+as a last-resort fallback, in registration order. Flow follows the same preferences as the
+price bars, since a venue's flow describes its own bars.
 """
 
 from __future__ import annotations
@@ -11,7 +12,13 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from investinglab.domain.errors import DomainError
-from investinglab.ports.market_data import Dataset, EconomicDataProvider, MarketDataProvider
+from investinglab.ports.market_data import (
+    Dataset,
+    EconomicDataProvider,
+    HoldingRatesProvider,
+    MarketDataProvider,
+    TradeFlowProvider,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -23,22 +30,38 @@ if TYPE_CHECKING:
         BarsRequest,
         EconomicRequest,
         ProviderCapabilities,
+        RatesRequest,
     )
 
-__all__ = ["ProviderRegistry"]
+__all__ = ["AnyProvider", "ProviderRegistry"]
+
+type AnyProvider = (
+    MarketDataProvider | EconomicDataProvider | TradeFlowProvider | HoldingRatesProvider
+)
+"""A provider of at least one dataset."""
 
 type _RouteKey = tuple[AssetClass | None, Frequency | None]
+
+_METHODS: dict[Dataset, tuple[type, str]] = {
+    Dataset.BARS: (MarketDataProvider, "fetch_bars"),
+    Dataset.ECONOMIC: (EconomicDataProvider, "fetch_economic_series"),
+    Dataset.FLOW: (TradeFlowProvider, "fetch_flow"),
+    Dataset.HOLDING_RATES: (HoldingRatesProvider, "fetch_rates"),
+}
 
 
 class ProviderRegistry:
     """Registered providers plus the preference order used to route requests."""
 
     def __init__(self) -> None:
+        self._providers: dict[str, AnyProvider] = {}
         self._bars: dict[str, MarketDataProvider] = {}
         self._economic: dict[str, EconomicDataProvider] = {}
+        self._flow: dict[str, TradeFlowProvider] = {}
+        self._rates: dict[str, HoldingRatesProvider] = {}
         self._routes: dict[_RouteKey, tuple[str, ...]] = {}
 
-    def register(self, provider: MarketDataProvider | EconomicDataProvider) -> None:
+    def register(self, provider: AnyProvider) -> None:
         """Register a provider under its name for every dataset it declares.
 
         Raises:
@@ -46,19 +69,24 @@ class ProviderRegistry:
                 provider declares a dataset it does not implement.
         """
         name = provider.name
-        if name in self._bars or name in self._economic:
+        if name in self._providers:
             raise DomainError(f"Provider {name!r} is already registered")
         datasets = provider.capabilities.datasets
-        if Dataset.BARS in datasets:
-            if not isinstance(provider, MarketDataProvider):
-                raise DomainError(f"Provider {name!r} declares bars but has no fetch_bars()")
-            self._bars[name] = provider
-        if Dataset.ECONOMIC in datasets:
-            if not isinstance(provider, EconomicDataProvider):
+        for dataset in sorted(datasets):
+            port, method = _METHODS[dataset]
+            if not isinstance(provider, port):
                 raise DomainError(
-                    f"Provider {name!r} declares economic data but has no fetch_economic_series()"
+                    f"Provider {name!r} declares {dataset.value} data but has no {method}()"
                 )
+        self._providers[name] = provider
+        if isinstance(provider, MarketDataProvider) and Dataset.BARS in datasets:
+            self._bars[name] = provider
+        if isinstance(provider, EconomicDataProvider) and Dataset.ECONOMIC in datasets:
             self._economic[name] = provider
+        if isinstance(provider, TradeFlowProvider) and Dataset.FLOW in datasets:
+            self._flow[name] = provider
+        if isinstance(provider, HoldingRatesProvider) and Dataset.HOLDING_RATES in datasets:
+            self._rates[name] = provider
 
     def prefer(
         self,
@@ -72,10 +100,12 @@ class ProviderRegistry:
         The most specific rule wins: (asset class, frequency), then asset class only, then
         frequency only, then the registration order.
 
+        The order applies to the price bars and to their flow.
+
         Raises:
-            DomainError: If a name is not a registered bars provider.
+            DomainError: If a name is not a registered provider of bars or flow.
         """
-        unknown = [name for name in providers if name not in self._bars]
+        unknown = [name for name in providers if name not in self._bars and name not in self._flow]
         if unknown:
             raise DomainError(f"Unknown bars providers {unknown}; register them first")
         self._routes[asset_class, frequency] = tuple(providers)
@@ -83,18 +113,14 @@ class ProviderRegistry:
     @property
     def names(self) -> tuple[str, ...]:
         """Names of every registered provider, in registration order."""
-        return tuple(dict.fromkeys([*self._bars, *self._economic]))
+        return tuple(self._providers)
 
     def capabilities(self) -> dict[str, ProviderCapabilities]:
         """What each registered provider declares it can serve, in registration order."""
-        providers: dict[str, MarketDataProvider | EconomicDataProvider] = {
-            **self._bars,
-            **self._economic,
-        }
-        return {name: providers[name].capabilities for name in self.names}
+        return {name: provider.capabilities for name, provider in self._providers.items()}
 
     def __contains__(self, name: object) -> bool:
-        return name in self._bars or name in self._economic
+        return name in self._providers
 
     def bars_candidates(self, request: BarsRequest, today: date) -> list[MarketDataProvider]:
         """Providers able to serve ``request``, in preference order."""
@@ -103,7 +129,28 @@ class ProviderRegistry:
         return [
             self._bars[name]
             for name in ordered
-            if self._bars[name].capabilities.can_serve_bars(request, today)
+            if name in self._bars and self._bars[name].capabilities.can_serve_bars(request, today)
+        ]
+
+    def flow_candidates(self, request: BarsRequest, today: date) -> list[TradeFlowProvider]:
+        """Providers able to serve the flow of ``request``'s bars, in preference order."""
+        preferred = self._preferred_order(request.asset_class, request.frequency)
+        ordered = [*preferred, *(name for name in self._flow if name not in preferred)]
+        return [
+            self._flow[name]
+            for name in ordered
+            if name in self._flow and self._flow[name].capabilities.can_serve_flow(request, today)
+        ]
+
+    def rates_candidates(self, request: RatesRequest) -> list[HoldingRatesProvider]:
+        """Providers able to serve ``request``, in registration order.
+
+        A request for a named venue only goes to the provider of that venue.
+        """
+        return [
+            provider
+            for name, provider in self._rates.items()
+            if request.venue in {None, name} and provider.capabilities.can_serve_rates(request)
         ]
 
     def economic_candidates(self, request: EconomicRequest) -> list[EconomicDataProvider]:

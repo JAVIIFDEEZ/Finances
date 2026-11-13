@@ -16,6 +16,7 @@ import pandas as pd
 import pytest
 import respx
 
+from investinglab.adapters.providers.binance import BinanceProvider
 from investinglab.adapters.providers.ecb import EcbProvider
 from investinglab.adapters.providers.files import LocalFilesProvider
 from investinglab.adapters.providers.yahoo import YahooFinanceProvider
@@ -58,6 +59,14 @@ def _ecb(folder: Path, router: respx.MockRouter) -> MarketDataProvider:
     return EcbProvider(clock=known.clock)
 
 
+def _binance(folder: Path, router: respx.MockRouter) -> MarketDataProvider:
+    del folder  # recorded responses only
+    known = load_cassette("binance/btc_usdt_1d")
+    load_cassette("binance/not_found").play(router)
+    known.play(router)
+    return BinanceProvider(clock=known.clock)
+
+
 @dataclass(frozen=True, slots=True)
 class Case:
     """A provider wired to its offline source, a request it serves and one it cannot."""
@@ -86,6 +95,12 @@ CASES = (
         _ecb,
         load_cassette("ecb/eurusd_1d").bars_request,
         BarsRequest("EURVES=X"),
+    ),
+    Case(
+        "binance",
+        _binance,
+        load_cassette("binance/btc_usdt_1d").bars_request,
+        load_cassette("binance/not_found").bars_request,
     ),
 )
 

@@ -1,5 +1,11 @@
 """Shared asynchronous HTTP infrastructure (retries, rate limiting, logging)."""
 
-from investinglab.adapters.http.client import HttpClient, RetryPolicy, redact
+from investinglab.adapters.http.client import (
+    ErrorExplainer,
+    HttpClient,
+    RetryPolicy,
+    redact,
+    retry_after,
+)
 
-__all__ = ["HttpClient", "RetryPolicy", "redact"]
+__all__ = ["ErrorExplainer", "HttpClient", "RetryPolicy", "redact", "retry_after"]
