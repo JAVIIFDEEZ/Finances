@@ -53,6 +53,7 @@ nav = [
     "adr/0027-stateless-analytics-api.md",
     "adr/0028-institutional-web-app.md",
     "adr/0029-relational-persistence-and-owners.md",
+    "adr/0031-flow-holding-rates-and-universes.md",
   ] },
   { "Referencia API" = [
     "reference/index.md",
