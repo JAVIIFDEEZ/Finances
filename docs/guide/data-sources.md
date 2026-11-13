@@ -10,8 +10,10 @@ en orden de prioridad y pasa a la siguiente si una falla (ver [Guía del Toolkit
 | 2 | **BCE** | No | Tipos de referencia del euro (divisas, diario) y €STR y tipos oficiales |
 | 3 | **Yahoo Finance** | No | Acciones, ETFs, fondos, índices, divisas, cripto y futuros, y su volumen |
 | 4 | **Binance** | No | Pares cripto *spot* (`BTC/USDT`) con el flujo de cada vela |
-| 5 | **OKX** | No | Funding de los perpetuos (`BTC/USDT:USDT`) |
-| 6 | **alternative.me** | No | Índice cripto de miedo y codicia (*Fear & Greed*, `FNG`) |
+| 5 | **Kraken** | No | Respaldo de los pares cripto, también en dólares y euros (`BTC/USD`, `ETH/EUR`); solo sus últimas 720 velas |
+| 6 | **Coinbase** | No | Segundo respaldo de los pares cripto, con toda su historia |
+| 7 | **OKX** | No | Funding de los perpetuos (`BTC/USDT:USDT`) |
+| 8 | **alternative.me** | No | Índice cripto de miedo y codicia (*Fear & Greed*, `FNG`) |
 
 Cada fuente declara qué símbolos sirve, así que una acción va directa a Yahoo, `EURUSD=X`
 diario al BCE, `BTC/USDT` a Binance y `BTC/USDT:USDT` a OKX:
@@ -19,7 +21,7 @@ diario al BCE, `BTC/USDT` a Binance y `BTC/USDT:USDT` a OKX:
 | Notación | Ejemplos | Fuente |
 |----------|----------|--------|
 | Símbolo de Yahoo | `SAN.MC`, `^GSPC`, `EURUSD=X`, `BTC-USD` | BCE o Yahoo |
-| Par de un *exchange*: `BASE/QUOTE` | `BTC/USDT`, `ETH/BTC`, `SOL/USDC` | Binance |
+| Par de un *exchange*: `BASE/QUOTE` | `BTC/USDT`, `ETH/BTC`, `BTC/USD`, `ETH/EUR` | Binance, después Kraken y Coinbase |
 | Perpetuo: `BASE/QUOTE:SETTLE` | `BTC/USDT:USDT` (lineal), `BTC/USD:BTC` (inverso) | OKX |
 
 ## Yahoo Finance
@@ -121,6 +123,26 @@ with Toolkit.from_settings() as tk:
 * **Descargas acotadas.** Hasta 50 000 velas por petición (50 páginas de 1 000): para más,
   pide tramos más cortos.
 
+## Kraken y Coinbase: respaldo de los pares cripto
+
+Si Binance falla o no tiene el par (no lista pares en dólares ni en euros), se pregunta a
+Kraken y después a Coinbase, con las mismas reglas: fechas UTC, solo velas cerradas y nada
+inventado.
+
+```python
+with Toolkit.from_settings() as tk:
+    dolares = tk.series("BTC/USD", start="2026-01-01")  # Kraken (o Coinbase)
+    euros = tk.series("ETH/EUR", start="2026-11-01", frequency="4h")
+```
+
+* **Kraken** solo da sus últimas 720 velas de cada intervalo (dos años de diarias, un mes de
+  horarias). Lo declara, así que el enrutado no le pide rangos más antiguos ni historias
+  completas. Su flujo trae volumen, número de operaciones y valor negociado (su VWAP por el
+  volumen), sin lado agresor.
+* **Coinbase** da toda la historia, de 300 en 300 velas. Sirve 1 minuto, 5, 15, 1 hora y
+  1 día; las de 30 minutos y 4 horas se construyen con las más finas y solo cuando todas
+  sus velas han cerrado. Su flujo es solo el volumen.
+
 ## Flujo por vela de cualquier activo
 
 `tk.flow()` devuelve el flujo de las mismas velas que `tk.series()` ([ADR-0031](../adr/0031-flow-holding-rates-and-universes.md)):
@@ -128,6 +150,8 @@ with Toolkit.from_settings() as tk:
 | Fuente | Columnas | *Delta* y CVD |
 |--------|----------|---------------|
 | Binance | volumen, valor negociado, operaciones, compra agresora (unidades y valor) | Sí |
+| Kraken | volumen, valor negociado, operaciones | No |
+| Coinbase | volumen | No |
 | Yahoo (acciones, ETF, índices, futuros) | volumen | No: Yahoo no dice quién agredió |
 | Ficheros propios con columna de volumen | volumen | No |
 | Yahoo (divisas y cripto) | — | No hay flujo: las divisas no tienen volumen y el de cripto viene en divisa, no en unidades; pide el par a Binance |
