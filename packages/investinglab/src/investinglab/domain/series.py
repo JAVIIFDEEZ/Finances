@@ -67,6 +67,7 @@ __all__ = [
     "PriceSeries",
     "ReturnKind",
     "SeriesStats",
+    "validate_time_index",
 ]
 
 MIN_OBSERVATIONS: Final = 3
@@ -208,7 +209,12 @@ class SeriesStats:
 # ──────────────────────────────────────────────────────────────────────
 
 
-def _validate_index(index: pd.Index, frequency: Frequency, problems: list[str]) -> pd.Index:
+def validate_time_index(index: pd.Index, frequency: Frequency, problems: list[str]) -> pd.Index:
+    """Check a time index against the rules every series follows; problems are appended.
+
+    Intraday data is timezone-aware (normalised to UTC); daily and coarser data uses naive
+    session dates. Timestamps are unique, increasing and no closer than the frequency allows.
+    """
     if not isinstance(index, pd.DatetimeIndex):
         problems.append(f"index must be a DatetimeIndex, got {type(index).__name__}")
         return index
@@ -281,7 +287,7 @@ def _validated_bars(data: object, frequency: Frequency, subject: str) -> pd.Data
     problems: list[str] = []
     if len(data) < MIN_OBSERVATIONS:
         problems.append(f"needs at least {MIN_OBSERVATIONS} observations, got {len(data)}")
-    index = _validate_index(data.index, frequency, problems)
+    index = validate_time_index(data.index, frequency, problems)
     bars = _validate_columns(data, problems)
     if problems:
         raise InvalidSeriesError(subject, problems)

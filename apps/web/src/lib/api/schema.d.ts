@@ -502,7 +502,7 @@ export interface components {
          * @description Kind of data a provider serves.
          * @enum {string}
          */
-        Dataset: "bars" | "economic";
+        Dataset: "bars" | "economic" | "flow" | "holding_rates";
         /**
          * DrawdownEpisodeOut
          * @description A peak-to-recovery episode.
