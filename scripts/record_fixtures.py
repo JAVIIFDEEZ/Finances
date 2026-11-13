@@ -34,7 +34,7 @@ from typing import Any
 import httpx
 
 from investinglab.adapters.http import HttpClient, RetryPolicy
-from investinglab.adapters.providers import binance, ecb, okx, yahoo
+from investinglab.adapters.providers import alternative_me, binance, ecb, okx, yahoo
 from investinglab.config import LogLevel, configure_logging
 from investinglab.domain.rate_series import RateKind
 from investinglab.domain.time import Frequency
@@ -42,7 +42,11 @@ from investinglab.ports import BarsRequest, EconomicRequest, ProviderError, Rate
 
 type Request = BarsRequest | EconomicRequest | RatesRequest
 type Provider = (
-    yahoo.YahooFinanceProvider | ecb.EcbProvider | binance.BinanceProvider | okx.OkxProvider
+    yahoo.YahooFinanceProvider
+    | ecb.EcbProvider
+    | binance.BinanceProvider
+    | okx.OkxProvider
+    | alternative_me.AlternativeMeProvider
 )
 
 CASSETTES = Path(__file__).resolve().parents[1] / "packages/investinglab/tests/fixtures/cassettes"
@@ -227,6 +231,13 @@ def _recordings(today: date) -> list[Recording]:
             page_size=6,
         ),
         Recording(
+            "alternative_me/fng_october",
+            EconomicRequest(
+                alternative_me.FEAR_GREED, start=date(2026, 10, 1), end=date(2026, 10, 20)
+            ),
+            "Crypto Fear & Greed Index: one reading a day, asked for since the first day.",
+        ),
+        Recording(
             "okx/not_found",
             RatesRequest(
                 "NOPE/USDT:USDT", RateKind.FUNDING, start=date(2026, 10, 1), end=date(2026, 10, 2)
@@ -257,6 +268,9 @@ def _provider(
                 clock=lambda: recorded_at,
                 page_size=recording.page_size or binance.PAGE_SIZE,
             )
+        case alternative_me.NAME:
+            client = alternative_me.http_client(retry=retry, transport=transport)
+            return alternative_me.AlternativeMeProvider(client=client, clock=lambda: recorded_at)
         case okx.NAME:
             client = okx.http_client(retry=retry, transport=transport)
             return okx.OkxProvider(
@@ -290,11 +304,15 @@ def _describe(request: Request) -> dict[str, str | None]:
 
 async def _outcome(provider: Provider, request: Request) -> str:
     """What the adapter made of the recorded responses, for the person recording."""
-    if isinstance(request, BarsRequest) and not isinstance(provider, okx.OkxProvider):
+    if isinstance(request, BarsRequest) and isinstance(
+        provider, yahoo.YahooFinanceProvider | ecb.EcbProvider | binance.BinanceProvider
+    ):
         return f"{len(await provider.fetch_bars(request))} bars"
     if isinstance(request, RatesRequest) and isinstance(provider, okx.OkxProvider):
         return f"{len(await provider.fetch_rates(request))} payments"
-    if isinstance(request, EconomicRequest) and isinstance(provider, ecb.EcbProvider):
+    if isinstance(request, EconomicRequest) and isinstance(
+        provider, ecb.EcbProvider | alternative_me.AlternativeMeProvider
+    ):
         series = await provider.fetch_economic_series(request)
         return f"{len(series.observations)} observations"
     raise TypeError(f"{provider.name} does not serve {type(request).__name__}")

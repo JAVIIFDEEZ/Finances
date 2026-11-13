@@ -185,7 +185,7 @@ def test_local_files_are_served_as_a_provider(tmp_path: Path) -> None:
     assert again.prices.equals(series.prices)
 
 
-REMOTE = ("ecb", "yahoo", "binance", "okx")
+REMOTE = ("ecb", "yahoo", "binance", "okx", "alternative_me")
 
 
 def test_the_default_remote_providers(tmp_path: Path) -> None:
@@ -202,7 +202,7 @@ def test_the_default_remote_providers(tmp_path: Path) -> None:
         assert offline.providers == ("files",)
     own = FakeBarsProvider("yahoo")
     with Toolkit.from_settings(online, providers=[own], cache=False) as replaced:
-        assert replaced.providers == ("yahoo", "ecb", "binance", "okx")
+        assert replaced.providers == ("yahoo", "ecb", "binance", "okx", "alternative_me")
 
 
 def test_venue_pairs_bring_their_flow_and_listed_symbols_their_volume(tmp_path: Path) -> None:
@@ -401,3 +401,16 @@ def test_the_timeout_must_be_positive(tmp_path: Path) -> None:
 
     with pytest.raises(DomainError, match="timeout must be positive"):
         Toolkit(inner, timeout=0.0)
+
+
+def test_the_crypto_fear_and_greed_index_is_an_economic_series(tmp_path: Path) -> None:
+    online = _settings(tmp_path, offline=False)
+    cassette = load_cassette("alternative_me/fng_october")
+
+    with respx.mock() as router, Toolkit.from_settings(online, cache=False) as tk:
+        cassette.play(router, exact=False)
+        index = tk.economic("FNG", start="2026-10-01", end="2026-10-20")
+
+    assert index.series_id == "FNG"
+    assert len(index.observations) == 20
+    assert index.source.provider == "alternative_me"

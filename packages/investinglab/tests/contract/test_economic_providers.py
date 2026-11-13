@@ -14,6 +14,7 @@ import pandas as pd
 import pytest
 import respx
 
+from investinglab.adapters.providers.alternative_me import AlternativeMeProvider
 from investinglab.adapters.providers.ecb import EcbProvider
 from investinglab.domain import EconomicSeries
 from investinglab.ports import (
@@ -31,6 +32,12 @@ def _ecb(router: respx.MockRouter) -> EconomicDataProvider:
     for name in ("ecb/estr_easter", "ecb/deposit_facility_cut"):
         load_cassette(name).play(router)
     return EcbProvider(clock=load_cassette("ecb/estr_easter").clock)
+
+
+def _alternative_me(router: respx.MockRouter) -> EconomicDataProvider:
+    known = load_cassette("alternative_me/fng_october")
+    known.play(router)
+    return AlternativeMeProvider(clock=known.clock)
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,6 +58,12 @@ CASES = (
             load_cassette("ecb/estr_easter").economic_request,
             load_cassette("ecb/deposit_facility_cut").economic_request,
         ),
+        EconomicRequest("UNRATE"),
+    ),
+    Case(
+        "alternative_me",
+        _alternative_me,
+        (load_cassette("alternative_me/fng_october").economic_request,),
         EconomicRequest("UNRATE"),
     ),
 )
