@@ -11,6 +11,7 @@ en orden de prioridad y pasa a la siguiente si una falla (ver [Guía del Toolkit
 | 3 | **Yahoo Finance** | No | Acciones, ETFs, fondos, índices, divisas, cripto y futuros, y su volumen |
 | 4 | **Binance** | No | Pares cripto *spot* (`BTC/USDT`) con el flujo de cada vela |
 | 5 | **OKX** | No | Funding de los perpetuos (`BTC/USDT:USDT`) |
+| 6 | **alternative.me** | No | Índice cripto de miedo y codicia (*Fear & Greed*, `FNG`) |
 
 Cada fuente declara qué símbolos sirve, así que una acción va directa a Yahoo, `EURUSD=X`
 diario al BCE, `BTC/USDT` a Binance y `BTC/USDT:USDT` a OKX:
@@ -154,6 +155,20 @@ with Toolkit.from_settings() as tk:
   dice.
 * **Lineales e inversos.** `BTC/USDT:USDT` liquida en USDT; `BTC/USD:BTC`, en bitcoin. Una
   combinación que OKX no tiene (`BTC/USD:USD`) se rechaza en lugar de leer otro contrato.
+
+## alternative.me: miedo y codicia cripto
+
+```python
+with Toolkit.from_settings() as tk:
+    indice = tk.economic("FNG", start="2026-01-01")
+    indice.first_release()  # una lectura al día, de 0 (miedo extremo) a 100 (codicia extrema)
+```
+
+* **Una serie económica más.** Se pide como cualquier otra con `tk.economic()`: un valor por
+  día UTC, público ese mismo día (se calcula a las 00:00 UTC), así que nunca se conoce antes.
+* **Sin revisiones.** Cada día tiene un único valor; cualquier modo de vintages da lo mismo.
+* **Solo lo pedido.** Con fecha de inicio se piden los días desde entonces, no toda la historia
+  (un valor al día desde febrero de 2018).
 
 ## Trabajar sin red
 
