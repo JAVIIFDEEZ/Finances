@@ -246,6 +246,7 @@ class AsyncToolkit:
         start: DateLike = None,
         end: DateLike = None,
         frequency: Frequency | str = Frequency.DAY_1,
+        refresh: bool = False,
     ) -> FlowSeries:
         """Trade flow of the same bars :meth:`series` returns (ADR-0031).
 
@@ -257,7 +258,7 @@ class AsyncToolkit:
                 volume, for instance).
         """
         request = BarsRequest(symbol, Frequency(frequency), _as_date(start), _as_date(end))
-        return await self._market_data.get_flow(request)
+        return await self._market_data.get_flow(request, refresh=refresh)
 
     async def holding_rates(
         self,
@@ -267,6 +268,7 @@ class AsyncToolkit:
         venue: str | None = None,
         start: DateLike = None,
         end: DateLike = None,
+        refresh: bool = False,
     ) -> RateSeries:
         """What holding ``symbol`` paid or earned per period: funding, borrow or financing.
 
@@ -277,7 +279,7 @@ class AsyncToolkit:
             DataUnavailableError: If no provider could deliver them.
         """
         request = RatesRequest(symbol, RateKind(kind), venue, _as_date(start), _as_date(end))
-        return await self._market_data.get_rates(request)
+        return await self._market_data.get_rates(request, refresh=refresh)
 
     def load(self, path: str | Path, **spec: Any) -> PriceSeries:  # noqa: ANN401
         """Import a CSV or Parquet file (see :class:`~investinglab.adapters.files.ImportSpec`).
@@ -570,9 +572,12 @@ class Toolkit:
         start: DateLike = None,
         end: DateLike = None,
         frequency: Frequency | str = Frequency.DAY_1,
+        refresh: bool = False,
     ) -> FlowSeries:
         """Trade flow of the same bars :meth:`series` returns (see :meth:`AsyncToolkit.flow`)."""
-        return self._run(self._inner.flow(symbol, start=start, end=end, frequency=frequency))
+        return self._run(
+            self._inner.flow(symbol, start=start, end=end, frequency=frequency, refresh=refresh)
+        )
 
     def holding_rates(
         self,
@@ -582,10 +587,13 @@ class Toolkit:
         venue: str | None = None,
         start: DateLike = None,
         end: DateLike = None,
+        refresh: bool = False,
     ) -> RateSeries:
         """Funding, borrow or financing rates (see :meth:`AsyncToolkit.holding_rates`)."""
         return self._run(
-            self._inner.holding_rates(symbol, kind=kind, venue=venue, start=start, end=end)
+            self._inner.holding_rates(
+                symbol, kind=kind, venue=venue, start=start, end=end, refresh=refresh
+            )
         )
 
     def portfolio(
