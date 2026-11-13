@@ -170,6 +170,14 @@ with Toolkit.from_settings() as tk:
 * **Solo lo pedido.** Con fecha de inicio se piden los días desde entonces, no toda la historia
   (un valor al día desde febrero de 2018).
 
+## Caché
+
+Las velas y las series económicas se guardan en la caché Parquet (`INVESTINGLAB_DATA_DIR`),
+y solo se descarga lo que falta. El flujo por vela y los tipos de mantenimiento se recuerdan en
+memoria mientras vive el proceso (la API, un notebook): el flujo, lo mismo que las velas de su
+frecuencia (15 minutos las intradía, 12 horas las diarias), y el funding, una hora. Con
+`refresh=True` se vuelven a descargar.
+
 ## Trabajar sin red
 
 Con `INVESTINGLAB_OFFLINE=true` no se registra ninguna fuente remota: solo se usan tus
