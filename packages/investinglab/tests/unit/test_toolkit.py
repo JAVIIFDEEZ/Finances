@@ -20,6 +20,7 @@ from investinglab.domain import (
     Frequency,
     Portfolio,
     PriceSeries,
+    RateKind,
 )
 from investinglab.ports import ProviderCapabilities
 from investinglab.services import DataUnavailableError
@@ -184,21 +185,54 @@ def test_local_files_are_served_as_a_provider(tmp_path: Path) -> None:
     assert again.prices.equals(series.prices)
 
 
-def test_ecb_and_yahoo_are_the_default_remote_providers(tmp_path: Path) -> None:
+REMOTE = ("ecb", "yahoo", "binance", "okx")
+
+
+def test_the_default_remote_providers(tmp_path: Path) -> None:
     folder = tmp_path / "files"
     folder.mkdir()
     (folder / "instruments.toml").write_text("")
     online = _settings(tmp_path, offline=False)
 
     with Toolkit.from_settings(online, cache=False) as alone:
-        assert alone.providers == ("ecb", "yahoo")
+        assert alone.providers == REMOTE
     with Toolkit.from_settings(_settings(tmp_path, offline=False, local_data_dir=folder)) as tk:
-        assert tk.providers == ("files", "ecb", "yahoo")  # the user's own files come first
+        assert tk.providers == ("files", *REMOTE)  # the user's own files come first
     with Toolkit.from_settings(_settings(tmp_path, local_data_dir=folder)) as offline:
         assert offline.providers == ("files",)
     own = FakeBarsProvider("yahoo")
     with Toolkit.from_settings(online, providers=[own], cache=False) as replaced:
-        assert replaced.providers == ("yahoo", "ecb")
+        assert replaced.providers == ("yahoo", "ecb", "binance", "okx")
+
+
+def test_venue_pairs_bring_their_flow_and_listed_symbols_their_volume(tmp_path: Path) -> None:
+    online = _settings(tmp_path, offline=False)
+    pair, listed = load_cassette("binance/btc_usdt_1d"), load_cassette("yahoo/san_mc_1d")
+
+    with respx.mock() as router, Toolkit.from_settings(online, cache=False) as tk:
+        pair.play(router)
+        listed.play(router)
+        bars = tk.series("BTC/USDT", start="2026-10-01", end="2026-10-20")
+        flow = tk.flow("BTC/USDT", start="2026-10-01", end="2026-10-20")
+        volume = tk.flow("SAN.MC", start="2024-05-02", end="2024-05-31")
+
+    assert (bars.source.provider, flow.source.provider) == ("binance", "binance")
+    assert flow.aligned_with(bars).cvd.iloc[-1] == pytest.approx(flow.delta.sum())
+    assert volume.source.provider == "yahoo"
+    assert not volume.has_aggressor_side
+
+
+def test_funding_of_a_perpetual_swap_comes_from_okx(tmp_path: Path) -> None:
+    online = _settings(tmp_path, offline=False)
+    cassette = load_cassette("okx/btc_usdt_swap_funding")
+
+    with respx.mock() as router, Toolkit.from_settings(online, cache=False) as tk:
+        cassette.play(router)
+        funding = tk.holding_rates("BTC/USDT:USDT", start="2026-10-01", end="2026-10-10")
+        with pytest.raises(DataUnavailableError, match="no registered provider can serve"):
+            tk.holding_rates("SAN.MC", kind="borrow")
+
+    assert (funding.venue, funding.kind, len(funding)) == ("okx", RateKind.FUNDING, 30)
 
 
 def test_series_are_downloaded_from_yahoo(tmp_path: Path) -> None:
