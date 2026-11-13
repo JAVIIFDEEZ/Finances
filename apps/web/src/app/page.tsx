@@ -8,9 +8,10 @@ import { Sparkline, TimeSeriesChart } from "@/components/charts/charts";
 import { useI18n, useTheme } from "@/components/providers";
 import { Badge, Button, Card, PageHeader, ProblemAlert, Skeleton, Stat } from "@/components/ui";
 import { failureOf } from "@/lib/api/client";
-import { useAnalytics, useBars, useHealth, useModules, useProviders, useRiskFree } from "@/lib/api/queries";
+import { isNotFound, useAnalytics, useBars, useEconomic, useHealth, useModules, useProviders, useRiskFree } from "@/lib/api/queries";
 import { toPortfolioIn, usePortfolio } from "@/lib/portfolio/store";
 import { rangeStart, thin } from "@/lib/util/dates";
+import { fearGreedBand, isExtreme } from "@/lib/util/sentiment";
 
 const WATCHLIST: readonly { symbol: string; name: string; digits: number }[] = [
   { symbol: "^IBEX", name: "IBEX 35", digits: 0 },
@@ -94,6 +95,48 @@ function RiskFreeCard() {
           />
         </div>
       )}
+    </Card>
+  );
+}
+
+function FearGreedCard() {
+  const { t, fmt } = useI18n();
+  const { tokens } = useTheme();
+  const start = useMemo(() => rangeStart("1y"), []);
+  const index = useEconomic("FNG", start);
+  const points = index.data?.observations ?? [];
+  const values = points.map((p) => p.value);
+  const latest = points[points.length - 1];
+  const band = fearGreedBand(latest?.value);
+  const recent = values.slice(-30);
+  const average = recent.length > 0 ? recent.reduce((sum, v) => sum + v, 0) / recent.length : null;
+  return (
+    <Card title={t("overview.fearGreed")} subtitle={t("overview.fearGreedNote")}>
+      {index.isLoading ? (
+        <Skeleton className="h-[220px]" />
+      ) : index.isError && isNotFound(index.error) ? (
+        <p className="text-[13px] text-text-2">{t("overview.fearGreedNone")}</p>
+      ) : index.isError ? (
+        <ProblemAlert error={index.error} onRetry={() => void index.refetch()} />
+      ) : latest ? (
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-wrap items-end gap-x-8 gap-y-3">
+            <Stat label={fmt.date(latest.time)} value={fmt.number(latest.value, 0)} />
+            {band ? <Badge tone={isExtreme(band) ? "warning" : "neutral"}>{t(`sentiment.${band}`)}</Badge> : null}
+          </div>
+          <TimeSeriesChart
+            height={150}
+            label={t("overview.fearGreed")}
+            format={(v) => fmt.number(v, 0)}
+            reference={50}
+            lines={[{ name: "Fear & Greed", color: tokens.series[1] ?? tokens.text, points: points.map((p) => ({ time: String(p.time), value: p.value })) }]}
+          />
+          <dl className="grid grid-cols-2 gap-x-6 gap-y-5">
+            <Stat label={t("metric.average30")} value={fmt.number(average, 0)} />
+            <Stat label={t("metric.yearRange")} value={values.length > 0 ? `${fmt.number(Math.min(...values), 0)} – ${fmt.number(Math.max(...values), 0)}` : "—"} />
+          </dl>
+        </div>
+      ) : null}
     </Card>
   );
 }
@@ -230,7 +273,7 @@ export default function OverviewPage() {
         subtitle={t("overview.subtitle")}
         actions={
           <Badge tone="accent">
-            <Database aria-hidden className="size-3" /> Yahoo Finance · BCE
+            <Database aria-hidden className="size-3" /> Yahoo Finance · BCE · Binance · OKX
           </Badge>
         }
       />
@@ -252,6 +295,7 @@ export default function OverviewPage() {
         <div className="xl:col-span-1">
           <RiskFreeCard />
         </div>
+        <FearGreedCard />
         <ProvidersCard />
         <ModulesCard />
       </div>

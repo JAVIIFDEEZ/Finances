@@ -90,6 +90,23 @@ export function useFunding(swap: string | null, start: string | null) {
   });
 }
 
+/** An economic series (``FNG``, the €STR...) from ``start``; disabled with an empty id. */
+export function useEconomic(seriesId: string, start: string | null) {
+  return useQuery({
+    queryKey: ["economic", seriesId, start],
+    queryFn: async () =>
+      unwrap(
+        await api.GET("/api/v1/economic/series", {
+          params: { query: { series_id: seriesId, start: start ?? undefined } },
+        }),
+      ),
+    enabled: seriesId.length > 0,
+    placeholderData: keepPreviousData,
+    staleTime: 30 * MINUTE,
+    retry: (count, error) => !isNotFound(error) && count < 2,
+  });
+}
+
 /** Whether the API answered that the data does not exist (nothing to retry). */
 export function isNotFound(error: unknown): boolean {
   return error instanceof ApiError && error.status === 404;

@@ -20,6 +20,9 @@ test("the overview shows the markets, the portfolio and the platform", async ({ 
   await expect(page.getByText("Rentabilidad anualizada").first()).toBeVisible();
   const header = page.getByRole("banner");
   await expect(header.getByText("API conectada").or(header.getByText("Modo sin red"))).toBeVisible();
+  // Offline there is no source of the crypto Fear & Greed Index: the card says so.
+  await expect(page.getByRole("heading", { name: "Miedo y codicia cripto" })).toBeVisible();
+  await expect(page.getByText("No disponible: el índice viene de alternative.me", { exact: false })).toBeVisible();
   expect(errors).toEqual([]);
 });
 
