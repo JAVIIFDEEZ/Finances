@@ -1,0 +1,30 @@
+{
+ "provider": "kraken",
+ "purpose": "Unknown pair: HTTP 200 with Kraken's error EQuery:Unknown asset pair.",
+ "recorded_at": "2026-11-13T20:34:40+00:00",
+ "request": {
+  "symbol": "NOPE/USD",
+  "frequency": "1d",
+  "start": "2026-10-01",
+  "end": "2026-10-20"
+ },
+ "outcome": "SymbolNotFoundError: [kraken] NOPE/USD: EQuery:Unknown asset pair",
+ "exchanges": [
+  {
+   "method": "GET",
+   "url": "https://api.kraken.com/0/public/OHLC",
+   "params": {
+    "pair": "NOPEUSD",
+    "interval": "1440",
+    "since": "1790812800"
+   },
+   "status": 200,
+   "content_type": "application/json",
+   "json": {
+    "error": [
+     "EQuery:Unknown asset pair"
+    ]
+   }
+  }
+ ]
+}
