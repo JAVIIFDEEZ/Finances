@@ -1991,7 +1991,9 @@
         "type": "string",
         "enum": [
           "bars",
-          "economic"
+          "economic",
+          "flow",
+          "holding_rates"
         ],
         "title": "Dataset",
         "description": "Kind of data a provider serves."

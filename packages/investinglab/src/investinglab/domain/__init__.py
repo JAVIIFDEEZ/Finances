@@ -15,6 +15,7 @@ from investinglab.domain.errors import (
     InvestingLabError,
     UnknownCurrencyError,
 )
+from investinglab.domain.flow import FlowField, FlowSeries
 from investinglab.domain.fx import DEFAULT_MAX_STALENESS, FxRates, currency_attribution
 from investinglab.domain.instruments import (
     EXCHANGES,
@@ -64,6 +65,7 @@ from investinglab.domain.quality import (
     Severity,
     assess_quality,
 )
+from investinglab.domain.rate_series import RateKind, RateSeries, Side
 from investinglab.domain.rates import OVERNIGHT_ACT_360, DayCount, RateConvention
 from investinglab.domain.series import (
     MIN_OBSERVATIONS,
@@ -93,6 +95,7 @@ from investinglab.domain.time import (
     Frequency,
     MarketSchedule,
 )
+from investinglab.domain.universe import Membership, Survivorship, Universe
 
 __all__ = [
     "CALENDAR_YEAR_DAYS",
@@ -128,6 +131,8 @@ __all__ = [
     "EfficientFrontier",
     "Estimates",
     "Exchange",
+    "FlowField",
+    "FlowSeries",
     "Frequency",
     "FxRates",
     "Holding",
@@ -140,6 +145,7 @@ __all__ = [
     "InvestingLabError",
     "IssueKind",
     "MarketSchedule",
+    "Membership",
     "Objective",
     "OptimizationConfig",
     "OptimizationResult",
@@ -153,6 +159,8 @@ __all__ = [
     "QualityThresholds",
     "QuoteUnit",
     "RateConvention",
+    "RateKind",
+    "RateSeries",
     "RebalanceKind",
     "RebalancePolicy",
     "ReturnKind",
@@ -162,10 +170,13 @@ __all__ = [
     "SavingsPlan",
     "SeriesStats",
     "Severity",
+    "Side",
     "SimulationConfig",
     "SimulationModel",
     "SimulationResult",
+    "Survivorship",
     "TailRisk",
+    "Universe",
     "UnknownCurrencyError",
     "View",
     "VolatilityAssumption",

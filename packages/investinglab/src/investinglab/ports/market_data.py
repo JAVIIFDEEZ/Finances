@@ -21,7 +21,9 @@ if TYPE_CHECKING:
     from datetime import date, timedelta
 
     from investinglab.domain.economic import EconomicSeries
+    from investinglab.domain.flow import FlowSeries
     from investinglab.domain.instruments import AssetClass
+    from investinglab.domain.rate_series import RateKind, RateSeries
     from investinglab.domain.series import PriceSeries
 
 __all__ = [
@@ -29,9 +31,12 @@ __all__ = [
     "Dataset",
     "EconomicDataProvider",
     "EconomicRequest",
+    "HoldingRatesProvider",
     "MarketDataProvider",
     "ProviderCapabilities",
     "RateLimit",
+    "RatesRequest",
+    "TradeFlowProvider",
     "VintageMode",
 ]
 
@@ -43,6 +48,10 @@ class Dataset(StrEnum):
     """Price bars (OHLCV / adjusted close) of tradable instruments."""
     ECONOMIC = "economic"
     """Macroeconomic and rate series."""
+    FLOW = "flow"
+    """Trade flow per bar: value traded, number of trades and aggressor side."""
+    HOLDING_RATES = "holding_rates"
+    """What a position pays or earns per period: funding, borrow fees, financing."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -93,6 +102,31 @@ class BarsRequest:
         starts_ok = self.start is None or (other.start is not None and other.start >= self.start)
         ends_ok = self.end is None or (other.end is not None and other.end <= self.end)
         return starts_ok and ends_ok
+
+
+@dataclass(frozen=True, slots=True)
+class RatesRequest:
+    """A request for the holding rates of one instrument on one venue.
+
+    Attributes:
+        symbol: Canonical InvestingLab symbol of the instrument held.
+        kind: Which rate (funding, borrow fee, financing cost).
+        venue: Venue the rates apply on; ``None`` lets the provider use its own.
+        start: First day (inclusive); ``None`` for the full available history.
+        end: Last day (inclusive); ``None`` for "up to the latest".
+    """
+
+    symbol: str
+    kind: RateKind
+    venue: str | None = None
+    start: date | None = None
+    end: date | None = None
+
+    def __post_init__(self) -> None:
+        if not self.symbol.strip():
+            raise DomainError("A rates request needs a symbol")
+        if self.start and self.end and self.start > self.end:
+            raise DomainError(f"start {self.start} is after end {self.end}")
 
 
 class VintageMode(StrEnum):
@@ -244,5 +278,55 @@ class EconomicDataProvider(Protocol):
 
         Raises:
             ProviderError: Any failure, translated to the port's error types.
+        """
+        ...
+
+
+@runtime_checkable
+class TradeFlowProvider(Protocol):
+    """Source of trade flow per bar, for the same requests as the price bars.
+
+    A provider of any asset class can implement it: what it needs is a venue that reports
+    the value traded, the number of trades or the aggressor side of each bar.
+    """
+
+    @property
+    def name(self) -> str:
+        """Provider slug, also used in ``DataSource``."""
+        ...
+
+    @property
+    def capabilities(self) -> ProviderCapabilities:
+        """What the provider serves; flow needs ``Dataset.FLOW``."""
+        ...
+
+    async def fetch_flow(self, request: BarsRequest) -> FlowSeries:
+        """Download the flow of the bars a request describes.
+
+        Raises:
+            ProviderError: With the same meaning as for price bars.
+        """
+        ...
+
+
+@runtime_checkable
+class HoldingRatesProvider(Protocol):
+    """Source of holding rates: funding, borrow fees and financing costs."""
+
+    @property
+    def name(self) -> str:
+        """Provider slug, also used in ``DataSource``."""
+        ...
+
+    @property
+    def capabilities(self) -> ProviderCapabilities:
+        """What the provider serves; rates need ``Dataset.HOLDING_RATES``."""
+        ...
+
+    async def fetch_rates(self, request: RatesRequest) -> RateSeries:
+        """Download the rates a request describes.
+
+        Raises:
+            ProviderError: With the same meaning as for price bars.
         """
         ...
