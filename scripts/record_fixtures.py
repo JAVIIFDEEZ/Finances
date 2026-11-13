@@ -1,8 +1,11 @@
 """Record real provider responses as test cassettes (``just record-fixtures``).
 
 Each cassette stores the exact requests an adapter sends for one request of the platform
-(a :class:`~investinglab.ports.BarsRequest`) and the responses the provider gave, so the
-tests replay *real* payloads with ``respx`` and never touch the network.
+(a :class:`~investinglab.ports.BarsRequest`, an
+:class:`~investinglab.ports.EconomicRequest` or a :class:`~investinglab.ports.RatesRequest`)
+and the responses the provider gave, so the tests replay *real* payloads with ``respx`` and
+never touch the network. A cassette may record with smaller pages than the provider's
+default, to exercise its pagination on a short excerpt; it says so (``page_size``).
 
 The ranges are short excerpts, just long enough to exercise every parsing rule (session
 dates, minor currency units, splits, unfinished bars...): they are test fixtures, not a
@@ -31,10 +34,16 @@ from typing import Any
 import httpx
 
 from investinglab.adapters.http import HttpClient, RetryPolicy
-from investinglab.adapters.providers import ecb, yahoo
+from investinglab.adapters.providers import binance, ecb, okx, yahoo
 from investinglab.config import LogLevel, configure_logging
+from investinglab.domain.rate_series import RateKind
 from investinglab.domain.time import Frequency
-from investinglab.ports import BarsRequest, EconomicRequest, ProviderError
+from investinglab.ports import BarsRequest, EconomicRequest, ProviderError, RatesRequest
+
+type Request = BarsRequest | EconomicRequest | RatesRequest
+type Provider = (
+    yahoo.YahooFinanceProvider | ecb.EcbProvider | binance.BinanceProvider | okx.OkxProvider
+)
 
 CASSETTES = Path(__file__).resolve().parents[1] / "packages/investinglab/tests/fixtures/cassettes"
 
@@ -88,11 +97,15 @@ class RecordingTransport(httpx.AsyncBaseTransport):
 
 @dataclass(frozen=True)
 class Recording:
-    """One cassette: a name (``<provider>/<case>``), the request it answers and why it exists."""
+    """One cassette: a name (``<provider>/<case>``), the request it answers and why it exists.
+
+    ``page_size`` records with pages smaller than the provider's default (pagination tests).
+    """
 
     name: str
-    request: BarsRequest | EconomicRequest
+    request: Request
     purpose: str
+    page_size: int | None = None
 
     @property
     def provider(self) -> str:
@@ -177,60 +190,132 @@ def _recordings(today: date) -> list[Recording]:
             EconomicRequest(ecb.DEPOSIT_FACILITY, start=date(2025, 6, 6), end=date(2025, 6, 14)),
             "Deposit facility rate across the cut of 2025-06-11 (2.25 % to 2.00 %).",
         ),
+        Recording(
+            "binance/btc_usdt_1d",
+            BarsRequest("BTC/USDT", start=date(2026, 10, 1), end=date(2026, 10, 20)),
+            "Spot pair quoted in USDT: UTC dates, OHLCV and the flow of each bar.",
+        ),
+        Recording(
+            "binance/btc_usdt_1d_paged",
+            BarsRequest("BTC/USDT", start=date(2026, 10, 1), end=date(2026, 10, 10)),
+            "Pagination: ten daily bars asked for in pages of four.",
+            page_size=4,
+        ),
+        Recording(
+            "binance/eth_btc_1h_live",
+            BarsRequest("ETH/BTC", frequency=Frequency.HOUR_1, start=today - timedelta(days=1)),
+            "Hourly bars of a pair quoted in bitcoin: the bar in progress is left out.",
+        ),
+        Recording(
+            "binance/not_found",
+            BarsRequest("NOPE/USDT", start=date(2026, 10, 1), end=date(2026, 10, 20)),
+            "Unknown pair: HTTP 400 with Binance's error code -1121.",
+        ),
+        Recording(
+            "okx/btc_usdt_swap_funding",
+            RatesRequest(
+                "BTC/USDT:USDT", RateKind.FUNDING, start=date(2026, 10, 1), end=date(2026, 10, 10)
+            ),
+            "Linear perpetual swap: funding settled every 8 hours, sign as OKX reports it.",
+        ),
+        Recording(
+            "okx/btc_usdt_swap_paged",
+            RatesRequest(
+                "BTC/USDT:USDT", RateKind.FUNDING, start=date(2026, 10, 1), end=date(2026, 10, 5)
+            ),
+            "Pagination: fifteen payments asked for in pages of six, newest first.",
+            page_size=6,
+        ),
+        Recording(
+            "okx/not_found",
+            RatesRequest(
+                "NOPE/USDT:USDT", RateKind.FUNDING, start=date(2026, 10, 1), end=date(2026, 10, 2)
+            ),
+            "Unknown swap: HTTP 200 with OKX's error code 51001.",
+        ),
     ]
 
 
 def _provider(
     recording: Recording, transport: RecordingTransport, recorded_at: datetime
-) -> yahoo.YahooFinanceProvider | ecb.EcbProvider:
+) -> Provider:
     retry = RetryPolicy(max_attempts=4, initial_backoff=2.0)
-    if recording.provider == yahoo.NAME:
-        client = HttpClient(
-            yahoo.NAME,
-            base_url=yahoo.BASE_URL,
-            retry=retry,
-            headers={"User-Agent": yahoo.USER_AGENT},
-            transport=transport,
-        )
-        return yahoo.YahooFinanceProvider(client=client, clock=lambda: recorded_at)
-    client = HttpClient(
-        ecb.NAME, base_url=ecb.BASE_URL, timeout=90.0, retry=retry, transport=transport
-    )
-    return ecb.EcbProvider(client=client, clock=lambda: recorded_at)
+    match recording.provider:
+        case yahoo.NAME:
+            client = HttpClient(
+                yahoo.NAME,
+                base_url=yahoo.BASE_URL,
+                retry=retry,
+                headers={"User-Agent": yahoo.USER_AGENT},
+                transport=transport,
+            )
+            return yahoo.YahooFinanceProvider(client=client, clock=lambda: recorded_at)
+        case binance.NAME:
+            client = binance.http_client(retry=retry, transport=transport)
+            return binance.BinanceProvider(
+                client=client,
+                clock=lambda: recorded_at,
+                page_size=recording.page_size or binance.PAGE_SIZE,
+            )
+        case okx.NAME:
+            client = okx.http_client(retry=retry, transport=transport)
+            return okx.OkxProvider(
+                client=client,
+                clock=lambda: recorded_at,
+                page_size=recording.page_size or okx.PAGE_SIZE,
+            )
+        case _:
+            client = HttpClient(
+                ecb.NAME, base_url=ecb.BASE_URL, timeout=90.0, retry=retry, transport=transport
+            )
+            return ecb.EcbProvider(client=client, clock=lambda: recorded_at)
 
 
-def _describe(request: BarsRequest | EconomicRequest) -> dict[str, str | None]:
+def _describe(request: Request) -> dict[str, str | None]:
     bounds = {
         "start": request.start.isoformat() if request.start else None,
         "end": request.end.isoformat() if request.end else None,
     }
     if isinstance(request, BarsRequest):
         return {"symbol": request.symbol, "frequency": request.frequency.value, **bounds}
+    if isinstance(request, RatesRequest):
+        return {
+            "symbol": request.symbol,
+            "kind": request.kind.value,
+            "venue": request.venue,
+            **bounds,
+        }
     return {"series_id": request.series_id, "mode": request.mode.value, **bounds}
+
+
+async def _outcome(provider: Provider, request: Request) -> str:
+    """What the adapter made of the recorded responses, for the person recording."""
+    if isinstance(request, BarsRequest) and not isinstance(provider, okx.OkxProvider):
+        return f"{len(await provider.fetch_bars(request))} bars"
+    if isinstance(request, RatesRequest) and isinstance(provider, okx.OkxProvider):
+        return f"{len(await provider.fetch_rates(request))} payments"
+    if isinstance(request, EconomicRequest) and isinstance(provider, ecb.EcbProvider):
+        series = await provider.fetch_economic_series(request)
+        return f"{len(series.observations)} observations"
+    raise TypeError(f"{provider.name} does not serve {type(request).__name__}")
 
 
 async def _record(recording: Recording, recorded_at: datetime) -> dict[str, Any]:
     transport = RecordingTransport()
-    request = recording.request
     async with _provider(recording, transport, recorded_at) as provider:
         try:
-            if isinstance(request, BarsRequest):
-                outcome = f"{len(await provider.fetch_bars(request))} bars"
-            elif isinstance(provider, ecb.EcbProvider):
-                series = await provider.fetch_economic_series(request)
-                outcome = f"{len(series.observations)} observations"
-            else:
-                raise TypeError(f"{recording.provider} serves no economic series")
+            outcome = await _outcome(provider, recording.request)
         except ProviderError as error:
             outcome = f"{type(error).__name__}: {error}"
-    return {
+    cassette: dict[str, Any] = {
         "provider": recording.provider,
         "purpose": recording.purpose,
         "recorded_at": recorded_at.isoformat(timespec="seconds"),
-        "request": _describe(request),
-        "outcome": outcome,
-        "exchanges": transport.exchanges,
+        "request": _describe(recording.request),
     }
+    if recording.page_size:
+        cassette["page_size"] = recording.page_size
+    return {**cassette, "outcome": outcome, "exchanges": transport.exchanges}
 
 
 async def main(selection: str | None) -> int:

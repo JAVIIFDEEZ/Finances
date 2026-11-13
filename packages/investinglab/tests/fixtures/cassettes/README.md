@@ -11,5 +11,8 @@ cuerpo de la respuesta, la hora de grabación (`recorded_at`) y el propósito de
 * Los tests las reproducen con `support.cassettes` y `respx`, sin red.
 * Las casetes con rango relativo al día de grabación (`*_live`) solo son válidas con el reloj
   fijado en `recorded_at`, que los helpers de test aplican.
+* Las casetes `*_paged` se graban con páginas más pequeñas que las del proveedor (`page_size`)
+  para probar la paginación con pocos datos; los tests usan el mismo tamaño.
 
-Ver [ADR-0025](../../../../../docs/adr/0025-yahoo-chart-adapter-and-cassettes.md).
+Ver [ADR-0025](../../../../../docs/adr/0025-yahoo-chart-adapter-and-cassettes.md) y
+[ADR-0032](../../../../../docs/adr/0032-crypto-venues-on-the-shared-http-client.md).

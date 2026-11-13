@@ -21,6 +21,9 @@ What the adapter guarantees, beyond the domain's validation:
   currency (``GBP``).
 * **Adjustment.** Open, high, low and close are split-adjusted; ``adj_close`` (daily and
   coarser) is adjusted for splits and dividends.
+* **Flow.** The volume of the same bars, in units of the instrument (ADR-0031). Yahoo does
+  not report the aggressor side, so there is no delta; currency pairs have no volume and
+  crypto-assets report theirs in the quote currency, so neither has flow here.
 """
 
 from __future__ import annotations
@@ -39,6 +42,7 @@ from investinglab.adapters.providers.yahoo.payload import ChartResponse, Quote
 from investinglab.adapters.providers.yahoo.venues import ASSET_CLASSES, asset_class_of, exchange_of
 from investinglab.config.logging import get_logger
 from investinglab.domain.errors import DomainError
+from investinglab.domain.flow import FlowField, FlowSeries
 from investinglab.domain.instruments import AssetClass, Instrument
 from investinglab.domain.money import parse_quote_currency
 from investinglab.domain.series import (
@@ -65,7 +69,7 @@ if TYPE_CHECKING:
     from investinglab.domain.money import QuoteUnit
     from investinglab.ports.market_data import BarsRequest
 
-__all__ = ["BASE_URL", "DATASET", "NAME", "USER_AGENT", "YahooFinanceProvider"]
+__all__ = ["BASE_URL", "DATASET", "NAME", "SYMBOLS", "USER_AGENT", "YahooFinanceProvider"]
 
 log = get_logger(__name__)
 
@@ -106,6 +110,9 @@ LOOKBACK: Final[dict[Frequency, timedelta]] = {
 
 WINDOW: Final[dict[Frequency, timedelta]] = {Frequency.MINUTE_1: timedelta(days=7)}
 """Longest span of a single request; longer ranges are split into several requests."""
+
+SYMBOLS: Final = r"[^/:]+"
+"""Yahoo's symbols never hold a slash or a colon: venue pairs and swaps go elsewhere."""
 
 _MARGIN: Final = timedelta(days=1)
 """Capabilities advertise one day less than Yahoo's look-back, so edge requests succeed."""
@@ -153,13 +160,17 @@ class YahooFinanceProvider:
 
     @property
     def capabilities(self) -> ProviderCapabilities:
-        """Bars of equities, ETFs, funds, indices, FX, crypto and futures at every frequency."""
+        """Bars of equities, ETFs, funds, indices, FX, crypto and futures at every frequency.
+
+        The flow (volume only) of the same bars, except for currency pairs and crypto-assets.
+        """
         return ProviderCapabilities(
-            datasets=frozenset({Dataset.BARS}),
+            datasets=frozenset({Dataset.BARS, Dataset.FLOW}),
             asset_classes=frozenset(ASSET_CLASSES.values()),
             frequencies=frozenset(Frequency),
             max_history={frequency: limit - _MARGIN for frequency, limit in LOOKBACK.items()},
             rate_limits=RATE_LIMITS,
+            identifiers=SYMBOLS,
         )
 
     async def fetch_bars(self, request: BarsRequest) -> PriceSeries:
@@ -183,6 +194,40 @@ class YahooFinanceProvider:
             return series
         try:
             return series.resample(request.frequency)
+        except DomainError as error:
+            raise ProviderDataError(NAME, f"{request.symbol}: {error}") from error
+
+    async def fetch_flow(self, request: BarsRequest) -> FlowSeries:
+        """The volume of the bars :meth:`fetch_bars` returns, as flow without aggressor side.
+
+        A bar whose volume Yahoo left empty is absent from the flow, never a zero.
+
+        Raises:
+            UnsupportedRequestError: For a currency pair (Yahoo reports no volume) or a
+                crypto-asset (its volume is in the quote currency, not in units: a venue
+                such as ``binance`` serves its flow).
+            ProviderError: As :meth:`fetch_bars`.
+        """
+        series = await self.fetch_bars(request)
+        asset_class = series.instrument.asset_class
+        if asset_class is AssetClass.CRYPTO:
+            raise UnsupportedRequestError(
+                NAME,
+                f"{request.symbol}: Yahoo reports the volume of crypto-assets in the quote "
+                "currency, not in units; ask a venue for a pair (e.g. BTC/USDT)",
+            )
+        if PriceField.VOLUME not in series.bars.columns:
+            raise UnsupportedRequestError(
+                NAME, f"{request.symbol}: Yahoo reports no volume for {asset_class.value}"
+            )
+        volume = series.bars[PriceField.VOLUME].dropna()
+        try:
+            return FlowSeries(
+                series.instrument,
+                series.frequency,
+                series.source,
+                volume.to_frame(FlowField.VOLUME.value),
+            )
         except DomainError as error:
             raise ProviderDataError(NAME, f"{request.symbol}: {error}") from error
 

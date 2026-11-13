@@ -6,6 +6,7 @@ an unknown venue...) to prove each rule; the altered values are never used as ma
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, date, datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
@@ -22,6 +23,7 @@ from investinglab.ports import (
     MarketDataProvider,
     ProviderDataError,
     SymbolNotFoundError,
+    TradeFlowProvider,
     UnsupportedRequestError,
 )
 from support.cassettes import Cassette, load_cassette
@@ -29,7 +31,7 @@ from support.cassettes import Cassette, load_cassette
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
-    from investinglab.domain import PriceSeries
+    from investinglab.domain import FlowSeries, PriceSeries
 
 
 @pytest.fixture
@@ -443,8 +445,9 @@ def test_capabilities_describe_yahoo() -> None:
     capabilities = yahoo.capabilities
 
     assert isinstance(yahoo, MarketDataProvider)
+    assert isinstance(yahoo, TradeFlowProvider)
     assert yahoo.name == "yahoo"
-    assert capabilities.datasets == frozenset({Dataset.BARS})
+    assert capabilities.datasets == frozenset({Dataset.BARS, Dataset.FLOW})
     assert capabilities.frequencies == frozenset(Frequency)
     assert not capabilities.requires_api_key
     assert capabilities.max_history[Frequency.MINUTE_1] == timedelta(days=29)
@@ -454,3 +457,79 @@ def test_capabilities_describe_yahoo() -> None:
         BarsRequest("SAN.MC", frequency=Frequency.MINUTE_1), today
     )
     assert not capabilities.can_serve_bars(BarsRequest("US10Y", asset_class=AssetClass.BOND), today)
+    assert capabilities.can_serve_flow(BarsRequest("SAN.MC"), today)
+    for venue_symbol in ("BTC/USDT", "BTC/USDT:USDT"):  # a venue's pair or swap
+        assert not capabilities.can_serve_bars(BarsRequest(venue_symbol), today)
+
+
+# ── Flow ─────────────────────────────────────────────────────────────
+
+
+async def _flow(cassette: Cassette, router: respx.MockRouter, *, payload: Any = None) -> FlowSeries:
+    cassette.play(router, exact=payload is None, payload=payload)
+    async with YahooFinanceProvider(clock=cassette.clock) as yahoo:
+        return await yahoo.fetch_flow(cassette.bars_request)
+
+
+async def test_flow_is_the_volume_of_the_same_bars_without_aggressor_side(
+    router: respx.MockRouter,
+) -> None:
+    cassette = load_cassette("yahoo/san_mc_1d")
+
+    flow = await _flow(cassette, router)
+
+    recorded = _result(cassette.payload())["indicators"]["quote"][0]["volume"]
+    assert flow.symbol == "SAN.MC"
+    assert flow.volume.tolist() == recorded
+    assert list(flow.flow.columns) == ["volume"]
+    assert not flow.has_aggressor_side
+    with pytest.raises(KeyError, match="no aggressor side"):
+        _ = flow.delta
+    assert flow.source.provider == "yahoo"
+
+
+async def test_a_bar_without_volume_is_absent_from_the_flow(router: respx.MockRouter) -> None:
+    cassette = load_cassette("yahoo/san_mc_1d")
+    payload = cassette.payload()
+    _result(payload)["indicators"]["quote"][0]["volume"][3] = None
+
+    flow = await _flow(cassette, router, payload=payload)
+
+    assert len(flow) == 21
+    assert pd.Timestamp("2024-05-07") not in flow.flow.index
+
+
+async def test_monthly_flow_is_aggregated_like_the_monthly_bars(router: respx.MockRouter) -> None:
+    cassette = load_cassette("yahoo/gspc_1d")
+    request = replace(cassette.bars_request, frequency=Frequency.MONTH_1)
+    cassette.play(router)
+
+    async with YahooFinanceProvider(clock=cassette.clock) as yahoo:
+        bars = await yahoo.fetch_bars(request)
+        flow = await yahoo.fetch_flow(request)
+
+    assert flow.frequency is Frequency.MONTH_1
+    assert flow.flow.index.equals(bars.bars.index)
+    assert flow.volume.tolist() == bars.bars["volume"].tolist()
+
+
+@pytest.mark.parametrize(
+    ("name", "message"),
+    [("yahoo/eurusd_1d", "no volume for fx"), ("yahoo/btc_usd_1d_live", "quote currency")],
+    ids=["currency-pair", "crypto-asset"],
+)
+async def test_pairs_and_crypto_assets_have_no_flow_here(
+    router: respx.MockRouter, name: str, message: str
+) -> None:
+    with pytest.raises(UnsupportedRequestError, match=message):
+        await _flow(load_cassette(name), router)
+
+
+async def test_a_series_without_any_volume_has_no_flow(router: respx.MockRouter) -> None:
+    cassette = load_cassette("yahoo/san_mc_1d")
+    payload = cassette.payload()
+    quote = _result(payload)["indicators"]["quote"][0]
+    quote["volume"] = [None] * len(quote["volume"])
+
+    with pytest.raises(ProviderDataError, match="at least 3 observations"):
+        await _flow(cassette, router, payload=payload)
