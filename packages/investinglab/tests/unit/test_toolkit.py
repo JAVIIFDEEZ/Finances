@@ -460,6 +460,15 @@ def test_patterns_of_closes_only_say_what_is_missing(toolkit: Toolkit) -> None:
     }
 
 
+def test_the_structure_of_the_bars_shown(toolkit: Toolkit) -> None:
+    structure = toolkit.structure("BARS.MC", start=INDEX[100])
+
+    assert structure.basis == "range"
+    assert structure.last_at == INDEX[-1]
+    assert all(t >= INDEX[100] for level in structure.levels for t in level.touched_at)
+    assert toolkit.structure("A.MC").basis == "close"
+
+
 def test_technical_indicators_without_a_start_show_their_warm_up(toolkit: Toolkit) -> None:
     indicators = toolkit.technical("A.MC", names=["SMA"])
 

@@ -47,6 +47,7 @@ from investinglab.domain.money import Currency
 from investinglab.domain.patterns import price_patterns
 from investinglab.domain.portfolio import Portfolio
 from investinglab.domain.rate_series import RateKind
+from investinglab.domain.structure import price_structure
 from investinglab.domain.technical import technical_indicators
 from investinglab.domain.time import Frequency
 from investinglab.ports.market_data import BarsRequest, EconomicRequest, RatesRequest, VintageMode
@@ -72,6 +73,7 @@ if TYPE_CHECKING:
     from investinglab.domain.quality import DataQualityReport
     from investinglab.domain.rate_series import RateSeries
     from investinglab.domain.series import PriceSeries
+    from investinglab.domain.structure import PriceStructure
     from investinglab.domain.technical import TechnicalIndicators
     from investinglab.ports.market_data import ProviderCapabilities
     from investinglab.reporting.markdown import MarkdownReport
@@ -334,6 +336,31 @@ class AsyncToolkit:
         series, first = await self._with_history(symbol, start, end, frequency)
         found = price_patterns(series, names, parameters)
         return found if first is None else found.between(first, None)
+
+    async def structure(
+        self,
+        symbol: str,
+        *,
+        start: DateLike = None,
+        end: DateLike = None,
+        frequency: Frequency | str = Frequency.DAY_1,
+    ) -> PriceStructure:
+        """Support and resistance, divergences and Fibonacci levels of a symbol (ADR-0036).
+
+        The structure of the bars shown, as of the last one: no earlier history is fetched,
+        so the levels are those of the period asked for.
+
+        Args:
+            symbol: Any symbol (``SAN.MC``, ``^GSPC``, ``EURUSD=X``, ``BTC/USDT``).
+            start: First date.
+            end: Last date.
+            frequency: Bar frequency.
+
+        Raises:
+            DataUnavailableError: If no provider could deliver the bars.
+        """
+        series = await self.series(symbol, start=start, end=end, frequency=Frequency(frequency))
+        return price_structure(series)
 
     async def _with_history(
         self, symbol: str, start: DateLike, end: DateLike, frequency: Frequency | str
@@ -716,6 +743,17 @@ class Toolkit:
                 parameters=parameters,
             )
         )
+
+    def structure(
+        self,
+        symbol: str,
+        *,
+        start: DateLike = None,
+        end: DateLike = None,
+        frequency: Frequency | str = Frequency.DAY_1,
+    ) -> PriceStructure:
+        """Price structure of a symbol (see :meth:`AsyncToolkit.structure`)."""
+        return self._run(self._inner.structure(symbol, start=start, end=end, frequency=frequency))
 
     def flow(
         self,
