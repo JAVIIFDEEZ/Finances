@@ -213,6 +213,11 @@ def _recordings(today: date) -> list[Recording]:
             "Spot pair quoted in USDT: UTC dates, OHLCV and the flow of each bar.",
         ),
         Recording(
+            "binance/btc_usdt_1d_2025",
+            BarsRequest("BTC/USDT", start=date(2025, 1, 1), end=date(2026, 1, 31)),
+            "Thirteen months of daily bars: the input of the indicator parity tests.",
+        ),
+        Recording(
             "binance/btc_usdt_1d_paged",
             BarsRequest("BTC/USDT", start=date(2026, 10, 1), end=date(2026, 10, 10)),
             "Pagination: ten daily bars asked for in pages of four.",

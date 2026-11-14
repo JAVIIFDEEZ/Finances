@@ -60,6 +60,10 @@ hooks:
 record-fixtures *only:
     uv run python scripts/record_fixtures.py {{ only }}
 
+# Record CryptoWorld's indicator values for the parity tests (needs a CryptoWorld checkout).
+record-parity cryptoworld:
+    uv run --no-project --python 3.12 --with ta==0.11.0 --with pandas==2.2.2 --with numpy==1.26.4 python scripts/record_parity.py {{ cryptoworld }}/backend/src
+
 # ── Applications ──────────────────────────────────────────────────────
 
 # Serve the REST API with live reload (http://127.0.0.1:8000/docs).
