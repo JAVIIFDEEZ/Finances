@@ -2,15 +2,17 @@
 
 import { Plus, X } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useMemo, useState, type FormEvent } from "react";
+import { Suspense, useCallback, useMemo, useState, type FormEvent } from "react";
 
 import { CorrelationHeatmap, PriceChart, TimeSeriesChart } from "@/components/charts/charts";
 import { useI18n, useTheme } from "@/components/providers";
 import { Badge, Button, Card, Input, PageHeader, ProblemAlert, Refreshing, Segmented, Skeleton, Stat } from "@/components/ui";
 import type { Schemas } from "@/lib/api/client";
-import { isNotFound, useBars, useComparison, useFlow, useFunding, useQuality, useTechnical, type Interval } from "@/lib/api/queries";
+import { isNotFound, useBars, useComparison, useFlow, useFunding, usePatterns, useQuality, useTechnical, type Interval } from "@/lib/api/queries";
+import { isMessageKey } from "@/lib/i18n/messages";
 import { rangeStart, type RangeKey } from "@/lib/util/dates";
 import { perpetualOf } from "@/lib/util/instruments";
+import { byFamily, occurrences, recentEvents, type Direction } from "@/lib/util/patterns";
 import { availableCharts, CHART_LINES, groupUnavailable, indicatorLabel, type Chart } from "@/lib/util/technical";
 import { seriesColor } from "@/lib/theme/tokens";
 
@@ -56,6 +58,14 @@ function InstrumentView({ symbol }: { symbol: string }) {
   const rangeOptions = useRangeOptions();
   const intervalOptions = useIntervalOptions();
   const swap = perpetualOf(symbol);
+  const patterns = usePatterns(symbol, interval, start);
+  const patternLabel = usePatternLabel();
+  const [shown, setShown] = useState<string | null>(null);
+  const shownPattern = patterns.data?.patterns.find((p) => p.name === shown);
+  const priceEvents = useMemo(
+    () => occurrences(patterns.data?.events ?? [], shownPattern).map((o) => ({ ...o, label: patternLabel(shownPattern?.name ?? "") })),
+    [patterns.data, shownPattern, patternLabel],
+  );
 
   if (bars.isError && !series) {
     return (
@@ -113,11 +123,23 @@ function InstrumentView({ symbol }: { symbol: string }) {
                   low: t("markets.low"),
                   close: t("markets.close"),
                 }}
+                events={priceEvents}
               />
             </Refreshing>
           ) : (
             <Skeleton className="h-[380px]" />
           )}
+          {shownPattern ? (
+            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-text-2">
+              <span>
+                {t("markets.onChart")}: <strong className="font-medium text-text">{patternLabel(shownPattern.name)}</strong> ({fmt.number(priceEvents.length, 0)})
+              </span>
+              <Button size="sm" variant="ghost" onClick={() => setShown(null)}>
+                <X className="size-3.5" aria-hidden="true" />
+                {t("markets.hide")}
+              </Button>
+            </div>
+          ) : null}
         </Card>
 
         <Card title={t("markets.stats")}>
@@ -165,6 +187,8 @@ function InstrumentView({ symbol }: { symbol: string }) {
       </div>
 
       <TechnicalCard symbol={symbol} interval={interval} start={start} digits={digits} />
+
+      <PatternsCard query={patterns} shown={shown} onShow={setShown} />
 
       <div className={swap ? "grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(300px,1fr)]" : "grid grid-cols-1 gap-6"}>
         <FlowCard symbol={symbol} interval={interval} start={start} color={color} />
@@ -253,6 +277,141 @@ function TechnicalCard({ symbol, interval, start, digits }: { symbol: string; in
               ) : null,
             )}
           </div>
+        </div>
+      ) : null}
+    </Card>
+  );
+}
+
+/** A pattern's name in the interface language (its catalogue name if the web does not know it). */
+function usePatternLabel(): (name: string) => string {
+  const { t } = useI18n();
+  return useCallback(
+    (name: string) => {
+      const key = `pattern.${name}`;
+      return isMessageKey(key) ? t(key) : name;
+    },
+    [t],
+  );
+}
+
+/** The direction of a pattern's definition: shape and colour together, and named for readers. */
+function DirectionMark({ direction }: { direction: Direction }) {
+  const { t } = useI18n();
+  const { tokens } = useTheme();
+  const color = direction === "bullish" ? tokens.up : direction === "bearish" ? tokens.down : tokens.muted;
+  return (
+    <>
+      <span aria-hidden="true" className="w-3 shrink-0 text-center text-[10px]" style={{ color }}>
+        {direction === "bullish" ? "▲" : direction === "bearish" ? "▼" : "◆"}
+      </span>
+      <span className="sr-only">{t(`direction.${direction}`)}</span>
+    </>
+  );
+}
+
+function PatternsCard({
+  query,
+  shown,
+  onShow,
+}: {
+  query: ReturnType<typeof usePatterns>;
+  shown: string | null;
+  onShow: (name: string | null) => void;
+}) {
+  const { t, fmt, locale } = useI18n();
+  const label = usePatternLabel();
+  const data = query.data;
+  const latest = data ? recentEvents(data.events, 8) : [];
+  return (
+    <Card title={t("markets.patterns")} subtitle={t("markets.patternsNote")}>
+      {query.isLoading ? (
+        <Skeleton className="h-[240px]" />
+      ) : query.isError ? (
+        <ProblemAlert error={query.error} onRetry={() => void query.refetch()} />
+      ) : data ? (
+        <div className="flex flex-col gap-5">
+          {data.patterns.length > 0 ? (
+            <Refreshing active={query.isFetching}>
+              <div className="grid grid-cols-1 items-start gap-x-8 gap-y-5 lg:grid-cols-2">
+                {byFamily(data.patterns).map((group) => (
+                  <table key={group.family} className="w-full text-[13px]">
+                    <caption className="mb-1 text-left text-xs font-medium text-text-2">{t(`family.${group.family}`)}</caption>
+                    <thead className="sr-only">
+                      <tr>
+                        <th scope="col">{t("markets.patterns")}</th>
+                        <th scope="col">{t("markets.bars")}</th>
+                        <th scope="col">{t("markets.lastSeen")}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {group.patterns.map((pattern) => (
+                        <tr key={pattern.name} className="border-t hairline">
+                          <th scope="row" className="py-0.5 pr-2 text-left font-normal">
+                            <div className="flex min-w-0 items-center gap-1.5">
+                              {pattern.state || pattern.count === 0 ? (
+                                <span className="flex min-h-7 items-center gap-1.5 px-1.5 text-text-2">
+                                  <DirectionMark direction={pattern.direction} />
+                                  {label(pattern.name)}
+                                </span>
+                              ) : (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  aria-pressed={shown === pattern.name}
+                                  onClick={() => onShow(shown === pattern.name ? null : pattern.name)}
+                                  className="h-auto min-h-7 justify-start px-1.5 text-left text-[13px] font-normal aria-pressed:bg-accent-wash aria-pressed:text-text"
+                                >
+                                  <DirectionMark direction={pattern.direction} />
+                                  {label(pattern.name)}
+                                </Button>
+                              )}
+                              {pattern.active ? <Badge tone="accent" icon={false}>{t("markets.now")}</Badge> : null}
+                            </div>
+                          </th>
+                          <td className="tabular w-12 py-0.5 text-right text-text">{fmt.number(pattern.count, 0)}</td>
+                          <td className="tabular w-28 py-0.5 pl-3 text-right whitespace-nowrap text-muted">
+                            {pattern.last ? fmt.date(String(pattern.last)) : "—"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ))}
+              </div>
+            </Refreshing>
+          ) : (
+            <p className="text-text-2">{t("markets.noPattern")}</p>
+          )}
+          {data.events.length > 0 ? <p className="text-xs text-muted">{t("markets.patternsHint")}</p> : null}
+          {latest.length > 0 ? (
+            <div className="flex flex-col gap-1 border-t hairline pt-3">
+              <p className="text-xs font-medium text-text-2">{t("markets.recent")}</p>
+              <ul className="grid grid-cols-1 gap-x-6 gap-y-1 text-[13px] sm:grid-cols-2">
+                {latest.map((event) => {
+                  const pattern = data.patterns.find((p) => p.name === event.name);
+                  return (
+                    <li key={`${String(event.time)}-${event.name}`} className="flex min-w-0 items-center gap-2">
+                      <span className="tabular w-24 shrink-0 text-muted">{fmt.date(String(event.time))}</span>
+                      {pattern ? <DirectionMark direction={pattern.direction} /> : null}
+                      <span className="truncate text-text">{label(event.name)}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ) : null}
+          {data.unavailable.length > 0 ? (
+            <div className="flex flex-col gap-1 border-t hairline pt-3">
+              <p className="text-xs font-medium text-text-2">{t("markets.unavailable")}</p>
+              {groupUnavailable(data.unavailable).map((group) => (
+                <p key={group.missing.join()} className="text-xs text-muted">
+                  {t("markets.needs")} {new Intl.ListFormat(locale, { type: "conjunction" }).format(group.missing.map((column) => t(`column.${column}`)))}:{" "}
+                  {group.names.map(label).join(", ")}
+                </p>
+              ))}
+            </div>
+          ) : null}
         </div>
       ) : null}
     </Card>

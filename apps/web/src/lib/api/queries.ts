@@ -89,6 +89,23 @@ export function useTechnical(symbol: string, interval: Interval, start: string |
   });
 }
 
+/** Price patterns of ``symbol`` (ADR-0035): counts, last bars and every occurrence. */
+export function usePatterns(symbol: string, interval: Interval, start: string | null) {
+  return useQuery({
+    queryKey: ["patterns", symbol, interval, start],
+    queryFn: async () =>
+      unwrap(
+        await api.GET("/api/v1/market/patterns", {
+          params: { query: { symbol, interval, start: start ?? undefined } },
+        }),
+      ),
+    enabled: symbol.length > 0,
+    placeholderData: keepPreviousData,
+    staleTime: 5 * MINUTE,
+    retry: (count, error) => !isNotFound(error) && count < 2,
+  });
+}
+
 /** Funding of the perpetual swap ``swap`` (``BTC/USDT:USDT``); disabled with ``null``. */
 export function useFunding(swap: string | null, start: string | null) {
   return useQuery({

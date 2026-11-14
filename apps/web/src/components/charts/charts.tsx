@@ -192,7 +192,19 @@ export interface PriceBar {
   volume?: number | null;
 }
 
-/** Candles (hollow up, filled down: direction never by colour alone) or a close line, with volume below. */
+/** An event on a bar (a price pattern): drawn as a marker on it and named in the tooltip. */
+export interface PriceEvent {
+  time: string;
+  label: string;
+  direction: "bullish" | "bearish" | "neutral";
+}
+
+/**
+ * Candles (hollow up, filled down: direction never by colour alone) or a close line, with volume
+ * below. ``events`` are marked on their bars: bullish below the low (an upward triangle), bearish
+ * above the high (a downward one), neutral on the close (a diamond); shape and side carry the
+ * direction, not the colour alone.
+ */
 export function PriceChart({
   bars,
   format,
@@ -200,6 +212,7 @@ export function PriceChart({
   color,
   height = 380,
   labels,
+  events = NO_EVENTS,
 }: {
   bars: PriceBar[];
   format: Format;
@@ -207,6 +220,7 @@ export function PriceChart({
   color: string;
   height?: number;
   labels: { price: string; volume: string; open: string; high: string; low: string; close: string };
+  events?: readonly PriceEvent[];
 }) {
   const { tokens } = useTheme();
   const { fmt } = useI18n();
@@ -214,6 +228,28 @@ export function PriceChart({
     const ohlc = bars.length > 0 && bars.every((b) => b.open != null && b.high != null && b.low != null);
     const volume = bars.some((b) => (b.volume ?? 0) > 0);
     const times = bars.map((b) => b.time);
+    const position = new Map(times.map((time, i) => [time, i]));
+    const onBar = new Map<string, PriceEvent[]>();
+    for (const event of events) onBar.set(event.time, [...(onBar.get(event.time) ?? []), event]);
+    const markerColor = (event: PriceEvent) =>
+      event.direction === "bullish" ? tokens.up : event.direction === "bearish" ? tokens.down : tokens.muted;
+    const markers = events.flatMap((event) => {
+      const bar = bars[position.get(event.time) ?? -1];
+      if (!bar) return [];
+      const up = event.direction === "bullish";
+      const down = event.direction === "bearish";
+      return [
+        {
+          coord: [event.time, up ? (bar.low ?? bar.close) : down ? (bar.high ?? bar.close) : bar.close],
+          symbol: up || down ? "triangle" : "diamond",
+          symbolSize: 10,
+          symbolRotate: down ? 180 : 0,
+          symbolOffset: [0, up ? 10 : down ? -10 : 0],
+          itemStyle: { color: markerColor(event), borderColor: tokens.surface, borderWidth: 1 },
+        },
+      ];
+    });
+    const markPoint = markers.length > 0 ? { silent: true, animation: false, label: { show: false }, data: markers } : undefined;
     const priceGrid = volume ? { left: 4, right: 12, top: 12, height: "66%", containLabel: true } : { left: 4, right: 12, top: 12, bottom: 4, containLabel: true };
     const grids = volume ? [priceGrid, { left: 4, right: 12, top: "78%", bottom: 4, containLabel: true }] : [priceGrid];
     const category = (gridIndex: number, show: boolean) => ({
@@ -235,6 +271,7 @@ export function PriceChart({
             yAxisIndex: 0,
             barMaxWidth: 12,
             itemStyle: { color: tokens.surface, color0: tokens.down, borderColor: tokens.up, borderColor0: tokens.down, borderWidth: 1 },
+            markPoint,
             data: bars.map((b) => [b.open, b.close, b.low, b.high]),
           }
         : {
@@ -247,6 +284,7 @@ export function PriceChart({
             lineStyle: { width: 2, color },
             areaStyle: { color, opacity: 0.1 },
             itemStyle: { color },
+            markPoint,
             data: bars.map((b) => b.close),
           },
     ];
@@ -282,6 +320,7 @@ export function PriceChart({
               ]
             : [row(color, format(bar.close), labels.close, tokens.muted)];
           if (volume && bar.volume != null) lines.push(row(tokens.axis, fmt.compact(bar.volume), labels.volume, tokens.muted));
+          for (const event of onBar.get(bar.time) ?? []) lines.push(row(markerColor(event), "", event.label, tokens.muted));
           return heading(fmt.date(bar.time), tokens.muted) + lines.join("");
         },
       }),
@@ -292,9 +331,11 @@ export function PriceChart({
       dataZoom: [{ type: "inside", xAxisIndex: volume ? [0, 1] : [0], zoomOnMouseWheel: "ctrl", moveOnMouseMove: true }],
       series,
     };
-  }, [bars, format, labels, color, tokens, fmt]);
+  }, [bars, format, labels, color, tokens, fmt, events]);
   return <EChart option={option} height={height} label={label} />;
 }
+
+const NO_EVENTS: readonly PriceEvent[] = [];
 
 // ── Correlation ──────────────────────────────────────────────────────
 
