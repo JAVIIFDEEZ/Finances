@@ -77,6 +77,7 @@ async def test_serves_the_catalogued_files(tmp_path: Path, monkeypatch: pytest.M
     assert capabilities.serves("SYN.MC")
     assert not capabilities.serves("SYNXMC")  # the dot is literal
     assert not capabilities.serves("SAN.MC")  # only the catalogue is served
+    assert not capabilities.cacheable  # an edited file must be seen at once
 
 
 async def test_unknown_symbols_and_missing_files(tmp_path: Path) -> None:

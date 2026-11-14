@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import threading
+from dataclasses import replace
 from datetime import UTC, date, datetime, timedelta
 
 import pandas as pd
@@ -48,6 +49,8 @@ from support.factories import (
     make_series,
 )
 from support.fakes import (
+    BARS_CAPABILITIES,
+    FLOW_CAPABILITIES,
     FakeBarsProvider,
     FakeEconomicProvider,
     FakeFlowProvider,
@@ -146,6 +149,36 @@ async def test_fresh_cache_entries_avoid_provider_calls() -> None:
 
     assert len(provider.calls) == 1
     assert cached.prices.iloc[0] == 101.0
+
+
+async def test_local_files_are_read_every_time_and_never_cached() -> None:
+    """An edited file is seen at once, not when a cached copy of it expires."""
+    store = InMemoryStore(now=NOW)
+    local = replace(BARS_CAPABILITIES, cacheable=False, identifiers="SPY")  # its catalogue
+    files = FakeBarsProvider("files", {"SPY": SPY}, capabilities=local)
+    remote = FakeBarsProvider("remote", {"QQQ": QQQ})
+    service = _service(files, remote, store=store)
+
+    await service.get_bars(BarsRequest("SPY"))
+    files.series = {"SPY": make_series([1.0, 2.0, 3.0], symbol="SPY")}  # the file is edited
+    edited = await service.get_bars(BarsRequest("SPY"))
+
+    assert len(files.calls) == 2
+    assert edited.prices.tolist() == [1.0, 2.0, 3.0]
+    assert ("SPY", Frequency.DAY_1) not in store.bars
+    await service.get_bars(BarsRequest("QQQ"))  # a symbol the files do not have: cached
+    assert ("QQQ", Frequency.DAY_1) in store.bars
+
+
+async def test_local_flow_is_read_every_time() -> None:
+    local = replace(FLOW_CAPABILITIES, cacheable=False)
+    files = FakeFlowProvider("files", {"BTC/USDT": _flow()}, capabilities=local)
+    service = _service(files)
+
+    await service.get_flow(BarsRequest("BTC/USDT"))
+    await service.get_flow(BarsRequest("BTC/USDT"))
+
+    assert len(files.calls) == 2
 
 
 async def test_stale_cache_entries_are_refreshed() -> None:

@@ -8,7 +8,8 @@ Every request follows the same path:
 
 1. **Cache**: if a fresh cached entry covers the request, it is returned sliced to the
    requested dates. A stale entry, or one that lacks the end of the request, is extended
-   with only the bars it is missing (ADR-0019).
+   with only the bars it is missing (ADR-0019). What a provider that is not cacheable
+   would serve (local files, which their owner may edit) skips the cache altogether.
 2. **Routing**: the registry returns the providers able to serve the request, in preference
    order.
 3. **Fallback**: providers are tried in order; any provider failure is recorded and the
@@ -250,6 +251,9 @@ class MarketDataService:
         Raises:
             DataUnavailableError: If no provider could deliver the series.
         """
+        if not self._cacheable(self._registry.bars_candidates(request, self._clock().date())):
+            log.debug("bars_cache_skipped", symbol=request.symbol, reason="local source")
+            return await self._fetch_bars(request)
         cached = None if refresh else await self._cached_bars(request)
         if cached is not None and self._answers(cached, request):
             log.debug("bars_cache_hit", symbol=request.symbol, frequency=request.frequency.value)
@@ -354,12 +358,19 @@ class MarketDataService:
         """
         now = self._clock()
         key = ("flow", request)
-        if not refresh and isinstance(
-            remembered := self._memory.get(key, now, self._cache_policy.ttl_for(request.frequency)),
-            FlowSeries,
+        candidates = self._registry.flow_candidates(request, now.date())
+        remember = self._cacheable(candidates)
+        if (
+            remember
+            and not refresh
+            and isinstance(
+                remembered := self._memory.get(
+                    key, now, self._cache_policy.ttl_for(request.frequency)
+                ),
+                FlowSeries,
+            )
         ):
             return remembered
-        candidates = self._registry.flow_candidates(request, now.date())
 
         async def fetch(provider: TradeFlowProvider) -> FlowSeries:
             flow = await provider.fetch_flow(request)
@@ -367,7 +378,8 @@ class MarketDataService:
             return flow
 
         flow = await _first_answer("flow", request.symbol, str(request), candidates, fetch)
-        self._memory.put(key, now, flow)
+        if remember:
+            self._memory.put(key, now, flow)
         return flow
 
     async def get_rates(self, request: RatesRequest, *, refresh: bool = False) -> RateSeries:
@@ -438,6 +450,11 @@ class MarketDataService:
             # An unreadable cache is a cache miss, never an error for the caller.
             log.warning("cache_read_failed", symbol=request.symbol, error=str(error))
             return None
+
+    @staticmethod
+    def _cacheable(candidates: Sequence[MarketDataProvider | TradeFlowProvider]) -> bool:
+        """Whether the provider that would answer first lets its answers be cached."""
+        return not candidates or candidates[0].capabilities.cacheable
 
     def _answers(self, cached: CachedBars, request: BarsRequest) -> bool:
         """Whether a cached entry is fresh and covers the request."""

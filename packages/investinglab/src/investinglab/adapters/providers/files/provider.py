@@ -94,6 +94,7 @@ class LocalFilesProvider:
             asset_classes=frozenset(AssetClass),
             frequencies=frozenset(spec.frequency for spec in self._catalogue.values()),
             identifiers="|".join(re.escape(symbol) for symbol in self.symbols) or "(?!)",
+            cacheable=False,  # reading the file is as cheap as the cache, and never stale
         )
 
     async def fetch_bars(self, request: BarsRequest) -> PriceSeries:

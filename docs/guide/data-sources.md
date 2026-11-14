@@ -202,6 +202,10 @@ memoria mientras vive el proceso (la API, un notebook): el flujo, lo mismo que l
 frecuencia (15 minutos las intradía, 12 horas las diarias), y el funding, una hora. Con
 `refresh=True` se vuelven a descargar.
 
+Lo que sirven tus **ficheros locales** no pasa por la caché: leer el fichero cuesta lo mismo que
+leer la caché, y así un fichero editado (otra columna, un precio corregido) se ve en la
+siguiente consulta, no cuando caduque una copia guardada. Solo se cachea lo que se descarga.
+
 ## Trabajar sin red
 
 Con `INVESTINGLAB_OFFLINE=true` no se registra ninguna fuente remota: solo se usan tus
