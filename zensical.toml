@@ -57,6 +57,7 @@ nav = [
     "adr/0032-crypto-venues-on-the-shared-http-client.md",
     "adr/0034-technical-indicators-in-numpy.md",
     "adr/0035-causal-price-patterns.md",
+    "adr/0036-price-structure-with-confirmation-times.md",
   ] },
   { "Referencia API" = [
     "reference/index.md",

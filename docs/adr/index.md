@@ -40,6 +40,7 @@ actualiza el estado del antiguo.
 | [0032](0032-crypto-venues-on-the-shared-http-client.md) | *Venues* cripto con adaptadores propios sobre `HttpClient`, sin ccxt para leer datos | Aceptado |
 | [0034](0034-technical-indicators-in-numpy.md) | Indicadores técnicos propios en NumPy y pandas, con las definiciones de `ta` | Aceptado |
 | [0035](0035-causal-price-patterns.md) | Patrones de precio como sucesos causales, con un solo vocabulario | Aceptado |
+| [0036](0036-price-structure-with-confirmation-times.md) | Estructura de precio con su momento de confirmación | Aceptado |
 
 ## Cómo añadir un ADR
 
