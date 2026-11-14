@@ -9,6 +9,7 @@ curl "http://127.0.0.1:8000/api/v1/market/bars?symbol=SAN.MC&start=2024-01-01"
 curl "http://127.0.0.1:8000/api/v1/market/flow?symbol=BTC/USDT&start=2026-10-01"
 curl "http://127.0.0.1:8000/api/v1/market/holding-rates?symbol=BTC/USDT:USDT&kind=funding"
 curl "http://127.0.0.1:8000/api/v1/market/technical?symbol=EURUSD=X&start=2026-01-01&name=RSI&name=MFI"
+curl "http://127.0.0.1:8000/api/v1/market/patterns?symbol=BTC/USDT&interval=1h&start=2026-11-01"
 ```
 
 ## Endpoints
@@ -21,6 +22,7 @@ curl "http://127.0.0.1:8000/api/v1/market/technical?symbol=EURUSD=X&start=2026-0
 | GET | `/api/v1/market/bars` | Barras de un instrumento con metadatos, procedencia y estadísticos |
 | GET | `/api/v1/market/flow` | Flujo de las mismas barras: volumen y, si la fuente dice quién agredió, *delta* y CVD |
 | GET | `/api/v1/market/technical` | Indicadores técnicos del catálogo (todos, o los `name` pedidos) sobre las mismas barras, ya calentados en `start`; los que necesitan una columna que la serie no tiene van en `unavailable` con las columnas que faltan |
+| GET | `/api/v1/market/patterns` | Patrones de precio (velas, liquidez y estructura, sesión, zonas de Fibonacci): de cada uno, familia, dirección de su definición, velas marcadas, la última y si está activo; cada suceso, y los que la serie no admite con lo que les falta (columnas o barras intradía) |
 | GET | `/api/v1/market/holding-rates` | Funding, comisión de préstamo o coste de financiación (`kind`), con su intervalo y lo acumulado |
 | POST | `/api/v1/market/compare` | Rendimiento base 100, caídas, métricas y correlación de varios |
 | GET | `/api/v1/market/quality` | Diagnóstico de calidad frente al calendario oficial |

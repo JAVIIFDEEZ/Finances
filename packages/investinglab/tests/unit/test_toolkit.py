@@ -21,6 +21,7 @@ from investinglab.domain import (
     Portfolio,
     PriceSeries,
     RateKind,
+    price_patterns,
 )
 from investinglab.ports import ProviderCapabilities
 from investinglab.services import DataUnavailableError
@@ -43,6 +44,7 @@ INDEX = business_days(300)
 A = make_series(gbm_prices(300, seed=1), symbol="A.MC", index=INDEX)
 B = make_series(gbm_prices(300, seed=2), symbol="B.MC", index=INDEX)
 US = make_series(gbm_prices(300, seed=3), symbol="US", index=INDEX, currency=USD)
+BARS = make_series(gbm_prices(300, seed=7), symbol="BARS.MC", index=INDEX, ohlc=True)
 USD_EUR = make_fx_series(
     gbm_prices(320, mu=0.0, sigma=0.05, s0=0.9, seed=4),
     pair="USDEUR",
@@ -64,7 +66,7 @@ def _settings(tmp_path: Path, **changes: object) -> Settings:
 
 @pytest.fixture
 def toolkit(tmp_path: Path) -> Iterator[Toolkit]:
-    bars = FakeBarsProvider("fake", {s.symbol: s for s in (A, B, US, USD_EUR)})
+    bars = FakeBarsProvider("fake", {s.symbol: s for s in (A, B, US, BARS, USD_EUR)})
     rates = FakeEconomicProvider("rates", {"ECBESTRVOLWGTTRMDMNRT": _estr()})  # type: ignore[dict-item]
     with Toolkit.from_settings(_settings(tmp_path), providers=[bars, rates], cache=False) as tk:
         yield tk
@@ -437,6 +439,25 @@ def test_technical_indicators_are_warm_at_the_first_date_shown(toolkit: Toolkit)
 
     assert indicators.values.index[0] == INDEX[260]
     assert not indicators.values.isna().any().any()  # 260 earlier bars kept them warm
+
+
+def test_patterns_count_what_the_bars_before_the_start_set_up(toolkit: Toolkit) -> None:
+    patterns = toolkit.patterns("BARS.MC", start=INDEX[260], names=["SWEEP_LOW", "FVG_BULL"])
+
+    whole = price_patterns(BARS, ["SWEEP_LOW", "FVG_BULL"])
+    assert patterns.flags.index[0] == INDEX[260]
+    assert patterns.flags.equals(whole.flags.loc[INDEX[260] :])  # same as with all the history
+    assert patterns.unavailable == {}
+
+
+def test_patterns_of_closes_only_say_what_is_missing(toolkit: Toolkit) -> None:
+    patterns = toolkit.patterns("A.MC", names=["DOJI", "ORB_UP"])
+
+    assert patterns.names == ()
+    assert patterns.unavailable == {
+        "DOJI": ("high", "low", "open"),
+        "ORB_UP": ("high", "low", "intraday"),
+    }
 
 
 def test_technical_indicators_without_a_start_show_their_warm_up(toolkit: Toolkit) -> None:

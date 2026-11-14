@@ -151,6 +151,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/market/patterns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Price patterns of an instrument
+         * @description Candle, liquidity, session and zone patterns of the instrument's bars (ADR-0035).
+         *
+         *     For daily and coarser bars, what the bars before ``start`` set up (an order block, a
+         *     swing) counts from ``start``. Patterns the series cannot have (those needing the open of
+         *     a series of closes, or intraday bars) are listed in ``unavailable`` with what they lack.
+         */
+        get: operations["patterns_api_v1_market_patterns_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/market/flow": {
         parameters: {
             query?: never;
@@ -1196,6 +1220,81 @@ export interface components {
             risk_contributions: components["schemas"]["RiskContributionOut"][];
         };
         /**
+         * PatternEventOut
+         * @description An occurrence of an event pattern: the bar that completed it.
+         */
+        PatternEventOut: {
+            /** Time */
+            time: string;
+            /** Name */
+            name: string;
+        };
+        /**
+         * PatternOut
+         * @description One price pattern over the bars (ADR-0035).
+         */
+        PatternOut: {
+            /**
+             * Name
+             * @description Name in the catalogue (BULL_ENGULF, FVG_BULL, ORB_UP...).
+             */
+            name: string;
+            /**
+             * Family
+             * @description Candles, structure and liquidity, session openings or Fibonacci zones.
+             * @enum {string}
+             */
+            family: "candle" | "liquidity" | "session" | "zone";
+            /**
+             * Direction
+             * @description The way the definition points (mirror patterns are opposite); no forecast.
+             * @enum {string}
+             */
+            direction: "bullish" | "bearish" | "neutral";
+            /**
+             * State
+             * @description A zone the price stays in, rather than an event on a bar.
+             */
+            state: boolean;
+            /** Parameters */
+            parameters: {
+                [key: string]: number;
+            };
+            /**
+             * Count
+             * @description Bars flagged (for a zone, the bars spent in it).
+             */
+            count: number;
+            /**
+             * Last
+             * @description The last bar flagged (null if none).
+             */
+            last: string | null;
+            /**
+             * Active
+             * @description Whether the last bar is flagged.
+             */
+            active: boolean;
+        };
+        /**
+         * PatternsOut
+         * @description Price patterns of an instrument, for any asset class.
+         */
+        PatternsOut: {
+            instrument: components["schemas"]["InstrumentOut"];
+            frequency: components["schemas"]["Frequency"];
+            source: components["schemas"]["SourceOut"];
+            /** Patterns */
+            patterns: components["schemas"]["PatternOut"][];
+            /**
+             * Events
+             * @description Every occurrence, oldest first; zones aside.
+             */
+            events: components["schemas"]["PatternEventOut"][];
+            /** Unavailable */
+            unavailable: components["schemas"]["UnavailablePatternOut"][];
+        };
+        /**
          * PlanFanPointOut
          * @description Wealth percentiles at one month, in today's money.
          */
@@ -2012,6 +2111,19 @@ export interface components {
              */
             missing: ("high" | "low" | "close" | "volume")[];
         };
+        /**
+         * UnavailablePatternOut
+         * @description A pattern the series cannot have, and what it lacks for it.
+         */
+        UnavailablePatternOut: {
+            /** Name */
+            name: string;
+            /**
+             * Missing
+             * @description Price columns the series does not have, or intraday bars for a session pattern on daily bars.
+             */
+            missing: ("open" | "high" | "low" | "close" | "intraday")[];
+        };
         /** ValidationError */
         ValidationError: {
             /** Location */
@@ -2289,6 +2401,67 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TechnicalOut"];
+                };
+            };
+            /** @description No provider has the requested data. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The request breaks the schema, a limit or a domain rule. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Every provider able to serve the data failed; retry later. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    patterns_api_v1_market_patterns_get: {
+        parameters: {
+            query: {
+                /** @description Instrument symbol: Yahoo style (SAN.MC, ^GSPC), a venue's pair (BTC/USDT) or a perpetual swap (BTC/USDT:USDT). */
+                symbol: string;
+                /** @description Bar frequency. */
+                interval?: components["schemas"]["Frequency"];
+                /** @description First session (inclusive). */
+                start?: string | null;
+                /** @description Last session (inclusive). */
+                end?: string | null;
+                /** @description Patterns of the catalogue to evaluate (repeat it); all by default. */
+                name?: string[] | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PatternsOut"];
                 };
             };
             /** @description No provider has the requested data. */

@@ -44,6 +44,7 @@ from investinglab.config.settings import Settings, get_settings
 from investinglab.domain.errors import DomainError, InvestingLabError
 from investinglab.domain.metrics import DEFAULT_CONFIDENCE_LEVELS
 from investinglab.domain.money import Currency
+from investinglab.domain.patterns import price_patterns
 from investinglab.domain.portfolio import Portfolio
 from investinglab.domain.rate_series import RateKind
 from investinglab.domain.technical import technical_indicators
@@ -66,6 +67,7 @@ if TYPE_CHECKING:
     from investinglab.domain.economic import EconomicSeries
     from investinglab.domain.flow import FlowSeries
     from investinglab.domain.metrics import RiskMetrics
+    from investinglab.domain.patterns import PricePatterns
     from investinglab.domain.portfolio import RebalancePolicy
     from investinglab.domain.quality import DataQualityReport
     from investinglab.domain.rate_series import RateSeries
@@ -105,6 +107,8 @@ WARMUP: Final[dict[Frequency, timedelta]] = {
     Frequency.YEAR_1: timedelta(days=60 * 366),
 }
 """History fetched before the start so that the indicators are warm at the first date shown.
+
+The patterns use it too: an order block or a swing set up before the start counts after it.
 
 About 250 bars, enough for a 200-bar average or a triple exponential average. Intraday bars
 get none: providers keep little intraday history, so their warm-up shows.
@@ -294,15 +298,54 @@ class AsyncToolkit:
             DataUnavailableError: If no provider could deliver the bars.
             DomainError: An unknown indicator or invalid parameters.
         """
+        series, first = await self._with_history(symbol, start, end, frequency)
+        indicators = technical_indicators(series, names, parameters)
+        return indicators if first is None else indicators.between(first, None)
+
+    async def patterns(
+        self,
+        symbol: str,
+        *,
+        start: DateLike = None,
+        end: DateLike = None,
+        frequency: Frequency | str = Frequency.DAY_1,
+        names: Iterable[str] | None = None,
+        parameters: Mapping[str, Mapping[str, float]] | None = None,
+    ) -> PricePatterns:
+        """Price patterns of a symbol's bars from ``start`` (ADR-0035).
+
+        For daily and coarser bars, :data:`WARMUP` of earlier history is fetched too, so that
+        what the bars before ``start`` set up (an order block, the swing of a sweep or of a
+        Fibonacci zone) counts from ``start``; the result starts at ``start``. The session
+        patterns need intraday bars.
+
+        Args:
+            symbol: Any symbol (``SAN.MC``, ``^GSPC``, ``EURUSD=X``, ``BTC/USDT``).
+            start: First date shown.
+            end: Last date shown.
+            frequency: Bar frequency.
+            names: Patterns of the catalogue to evaluate (all by default).
+            parameters: Parameters by pattern (each one's defaults otherwise).
+
+        Raises:
+            DataUnavailableError: If no provider could deliver the bars.
+            DomainError: An unknown pattern or invalid parameters.
+        """
+        series, first = await self._with_history(symbol, start, end, frequency)
+        found = price_patterns(series, names, parameters)
+        return found if first is None else found.between(first, None)
+
+    async def _with_history(
+        self, symbol: str, start: DateLike, end: DateLike, frequency: Frequency | str
+    ) -> tuple[PriceSeries, pd.Timestamp | None]:
+        """The bars from :data:`WARMUP` before ``start``, and where to cut them (if anywhere)."""
         wanted = Frequency(frequency)
         first = _as_date(start)
         padding = WARMUP.get(wanted)
         fetch_from = first - padding if first is not None and padding is not None else first
         series = await self.series(symbol, start=fetch_from, end=end, frequency=wanted)
-        indicators = technical_indicators(series, names, parameters)
-        if first is None or fetch_from == first:
-            return indicators
-        return indicators.between(pd.Timestamp(first), None)
+        cut = None if first is None or fetch_from == first else pd.Timestamp(first)
+        return series, cut
 
     async def flow(
         self,
@@ -643,6 +686,28 @@ class Toolkit:
         """Technical indicators of a symbol (see :meth:`AsyncToolkit.technical`)."""
         return self._run(
             self._inner.technical(
+                symbol,
+                start=start,
+                end=end,
+                frequency=frequency,
+                names=names,
+                parameters=parameters,
+            )
+        )
+
+    def patterns(
+        self,
+        symbol: str,
+        *,
+        start: DateLike = None,
+        end: DateLike = None,
+        frequency: Frequency | str = Frequency.DAY_1,
+        names: Iterable[str] | None = None,
+        parameters: Mapping[str, Mapping[str, float]] | None = None,
+    ) -> PricePatterns:
+        """Price patterns of a symbol (see :meth:`AsyncToolkit.patterns`)."""
+        return self._run(
+            self._inner.patterns(
                 symbol,
                 start=start,
                 end=end,

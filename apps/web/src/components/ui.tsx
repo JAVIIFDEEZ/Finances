@@ -7,7 +7,7 @@
 
 import { clsx, type ClassValue } from "clsx";
 import { AlertTriangle, CheckCircle2, Info, OctagonAlert, RotateCw } from "lucide-react";
-import { forwardRef, useEffect, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes } from "react";
+import { forwardRef, useEffect, useId, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes } from "react";
 import { twMerge } from "tailwind-merge";
 
 import { useI18n } from "@/components/providers";
@@ -51,12 +51,15 @@ export function Card({
   className?: string;
   padded?: boolean;
 }) {
+  const heading = useId();
   return (
-    <section className={cn("rounded-lg border hairline bg-surface", className)}>
+    <section className={cn("rounded-lg border hairline bg-surface", className)} aria-labelledby={title ? heading : undefined}>
       {title ? (
         <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2 border-b hairline px-4 py-3">
           <div className="min-w-0">
-            <h2 className="text-[13px] font-semibold uppercase tracking-[0.04em] text-text-2">{title}</h2>
+            <h2 id={heading} className="text-[13px] font-semibold uppercase tracking-[0.04em] text-text-2">
+              {title}
+            </h2>
             {subtitle ? <p className="mt-0.5 text-xs text-muted">{subtitle}</p> : null}
           </div>
           {actions ? <div className="flex min-w-0 flex-wrap items-center gap-2">{actions}</div> : null}

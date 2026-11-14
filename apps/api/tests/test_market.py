@@ -298,3 +298,70 @@ def test_an_unknown_indicator_is_an_invalid_request(client: TestClient) -> None:
 
     assert response.status_code == 422
     assert "Unknown indicators" in response.json()["detail"]
+
+
+# ── Price patterns (SYNTHETIC) ───────────────────────────────────────
+
+
+def test_patterns_of_daily_bars(client: TestClient) -> None:
+    response = client.get(
+        "/api/v1/market/patterns",
+        params={"symbol": "BARS.MC", "start": "2024-01-02", "end": "2024-12-31"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    patterns = {pattern["name"]: pattern for pattern in body["patterns"]}
+    assert {"BULL_ENGULF", "FVG_BULL", "SWEEP_LOW", "OB_BULL", "FIB_DISCOUNT"} <= set(patterns)
+    unavailable = {item["name"]: item["missing"] for item in body["unavailable"]}
+    assert unavailable == {"ORB_UP": ["intraday"], "ORB_DOWN": ["intraday"]}  # daily bars
+    engulf = patterns["BULL_ENGULF"]
+    assert (engulf["family"], engulf["direction"], engulf["state"]) == ("candle", "bullish", False)
+    assert patterns["FIB_DISCOUNT"]["state"] is True
+    assert patterns["SWEEP_LOW"]["parameters"] == {"window": 20}
+    times = [event["time"] for event in body["events"]]
+    assert times == sorted(times)
+    assert times[0] >= "2024-01-02"
+    assert times[-1] <= "2024-12-31"
+    for name, pattern in patterns.items():
+        mine = [event["time"] for event in body["events"] if event["name"] == name]
+        if pattern["state"]:
+            assert mine == []  # zones are counted, not listed
+        else:
+            assert len(mine) == pattern["count"]
+            assert pattern["last"] == (mine[-1] if mine else None)
+
+
+def test_patterns_of_a_series_of_closes_say_what_is_missing(client: TestClient) -> None:
+    body = client.get("/api/v1/market/patterns", params={"symbol": "AAA.MC"}).json()
+
+    assert body["patterns"] == []
+    assert body["events"] == []
+    unavailable = {item["name"]: item["missing"] for item in body["unavailable"]}
+    assert unavailable["DOJI"] == ["high", "low", "open"]
+    assert unavailable["ORB_UP"] == ["high", "low", "intraday"]
+
+
+def test_session_patterns_on_intraday_bars(client: TestClient) -> None:
+    body = client.get(
+        "/api/v1/market/patterns",
+        params=[
+            ("symbol", "SESSION.MC"),
+            ("interval", "1h"),
+            ("name", "ORB_UP"),
+            ("name", "ORB_DOWN"),
+        ],
+    ).json()
+
+    assert [pattern["name"] for pattern in body["patterns"]] == ["ORB_UP", "ORB_DOWN"]
+    assert body["unavailable"] == []
+    assert sum(pattern["count"] for pattern in body["patterns"]) > 0
+    days = [event["time"][:10] for event in body["events"] if event["name"] == "ORB_UP"]
+    assert len(days) == len(set(days))  # once per session at most
+
+
+def test_an_unknown_pattern_is_an_invalid_request(client: TestClient) -> None:
+    response = client.get("/api/v1/market/patterns", params={"symbol": "BARS.MC", "name": "NOPE"})
+
+    assert response.status_code == 422
+    assert "Unknown patterns" in response.json()["detail"]

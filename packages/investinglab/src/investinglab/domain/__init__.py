@@ -47,6 +47,7 @@ from investinglab.domain.optimization import (
     View,
 )
 from investinglab.domain.panel import AlignedPanel, AlignmentMethod, align
+from investinglab.domain.patterns import PricePatterns, price_patterns
 from investinglab.domain.planning import PlanResult, SavingsPlan
 from investinglab.domain.portfolio import (
     WEIGHT_TOLERANCE,
@@ -155,6 +156,7 @@ __all__ = [
     "PortfolioBacktest",
     "PriceAdjustment",
     "PriceField",
+    "PricePatterns",
     "PriceSeries",
     "QualityIssue",
     "QualityThresholds",
@@ -186,6 +188,7 @@ __all__ = [
     "assess_quality",
     "currency_attribution",
     "parse_quote_currency",
+    "price_patterns",
     "technical_indicators",
     "weight_problems",
 ]

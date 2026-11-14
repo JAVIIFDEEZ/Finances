@@ -196,6 +196,9 @@ class ProviderCapabilities:
             asking it.
         rate_kinds: Holding rates served (funding, borrow fees, financing costs), for a
             provider of ``Dataset.HOLDING_RATES``.
+        cacheable: Whether what it serves may be cached. A source as fast as the cache that
+            its owner edits (local files) is read every time instead, so that an edited file
+            is seen at once rather than when the cached copy expires.
 
     Raises:
         DomainError: If ``identifiers`` is not a valid regular expression.
@@ -209,6 +212,7 @@ class ProviderCapabilities:
     rate_limits: tuple[RateLimit, ...] = ()
     identifiers: str | None = None
     rate_kinds: frozenset[RateKind] = frozenset()
+    cacheable: bool = True
 
     def __post_init__(self) -> None:
         if self.identifiers is not None:

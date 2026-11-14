@@ -71,9 +71,34 @@ test("the technical indicators of any instrument, and those its data cannot have
   await expect(page.getByRole("rowheader", { name: "RSI (14)", exact: true })).toBeVisible();
   await page.getByRole("radio", { name: "MACD" }).click();
   await expect(page.getByRole("img", { name: "MACD" })).toBeVisible();
-  // The synthetic files hold closes and volumes only: indicators of highs and lows say so.
-  await expect(page.getByText("No disponibles para esta serie")).toBeVisible();
-  await expect(page.getByText(/^Necesitan máximos y mínimos: .*ADX/)).toBeVisible();
+  // The synthetic file of ITX.MC holds closes and volumes only: indicators of highs and lows say so.
+  const technical = page.getByRole("region", { name: "Análisis técnico" });
+  await expect(technical.getByText("No disponibles para esta serie")).toBeVisible();
+  await expect(technical.getByText(/^Necesitan máximos y mínimos: .*ADX/)).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test("the price patterns of an instrument, marked on its price chart", async ({ page }) => {
+  const errors = trackErrors(page);
+  await page.goto("/markets?symbol=SAN.MC"); // synthetic opens, highs and lows
+
+  await expect(page.getByRole("heading", { name: "Patrones de precio" })).toBeVisible();
+  await expect(page.getByRole("table", { name: "Velas" })).toBeVisible();
+  await expect(page.getByRole("table", { name: "Liquidez y estructura" })).toBeVisible();
+  const crt = page.getByRole("button", { name: /Toma del rango previo \(CRT\)/ });
+  await crt.click();
+  await expect(crt).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByText(/^En el gráfico: Toma del rango previo \(CRT\) \(\d+\)$/)).toBeVisible();
+  await page.getByRole("button", { name: "Quitar del gráfico" }).click();
+  await expect(crt).toHaveAttribute("aria-pressed", "false");
+  await expect(page.getByText("Últimos sucesos")).toBeVisible();
+  // Daily bars: the session patterns need intraday ones.
+  await expect(page.getByText(/^Necesitan barras intradía: Ruptura al alza de la apertura/)).toBeVisible();
+
+  await page.goto("/markets?symbol=ITX.MC"); // closes only
+  const patterns = page.getByRole("region", { name: "Patrones de precio" });
+  await expect(patterns.getByText("Ningún patrón con estas velas.")).toBeVisible();
+  await expect(patterns.getByText(/^Necesitan máximos, mínimos y aperturas: .*Doji/)).toBeVisible();
   expect(errors).toEqual([]);
 });
 

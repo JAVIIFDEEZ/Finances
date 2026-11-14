@@ -492,6 +492,166 @@
         }
       }
     },
+    "/api/v1/market/patterns": {
+      "get": {
+        "tags": [
+          "market"
+        ],
+        "summary": "Price patterns of an instrument",
+        "description": "Candle, liquidity, session and zone patterns of the instrument's bars (ADR-0035).\n\nFor daily and coarser bars, what the bars before ``start`` set up (an order block, a\nswing) counts from ``start``. Patterns the series cannot have (those needing the open of\na series of closes, or intraday bars) are listed in ``unavailable`` with what they lack.",
+        "operationId": "patterns_api_v1_market_patterns_get",
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 32,
+              "pattern": "^[A-Za-z0-9.^=\\-_/:]+$",
+              "description": "Instrument symbol: Yahoo style (SAN.MC, ^GSPC), a venue's pair (BTC/USDT) or a perpetual swap (BTC/USDT:USDT).",
+              "examples": [
+                "SAN.MC",
+                "^GSPC",
+                "EURUSD=X",
+                "BTC/USDT",
+                "BTC/USDT:USDT"
+              ],
+              "title": "Symbol"
+            },
+            "description": "Instrument symbol: Yahoo style (SAN.MC, ^GSPC), a venue's pair (BTC/USDT) or a perpetual swap (BTC/USDT:USDT)."
+          },
+          {
+            "name": "interval",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/Frequency",
+              "description": "Bar frequency.",
+              "default": "1d"
+            },
+            "description": "Bar frequency."
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First session (inclusive).",
+              "title": "Start"
+            },
+            "description": "First session (inclusive)."
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last session (inclusive).",
+              "title": "End"
+            },
+            "description": "Last session (inclusive)."
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Patterns of the catalogue to evaluate (repeat it); all by default.",
+              "title": "Name"
+            },
+            "description": "Patterns of the catalogue to evaluate (repeat it); all by default."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PatternsOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No provider has the requested data.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request breaks the schema, a limit or a domain rule.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Every provider able to serve the data failed; retry later.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/market/flow": {
       "get": {
         "tags": [
@@ -4090,6 +4250,162 @@
         "title": "OptimizedOut",
         "description": "An optimised portfolio, ex ante."
       },
+      "PatternEventOut": {
+        "properties": {
+          "time": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ],
+            "title": "Time"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "time",
+          "name"
+        ],
+        "title": "PatternEventOut",
+        "description": "An occurrence of an event pattern: the bar that completed it."
+      },
+      "PatternOut": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Name in the catalogue (BULL_ENGULF, FVG_BULL, ORB_UP...)."
+          },
+          "family": {
+            "type": "string",
+            "enum": [
+              "candle",
+              "liquidity",
+              "session",
+              "zone"
+            ],
+            "title": "Family",
+            "description": "Candles, structure and liquidity, session openings or Fibonacci zones."
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "bullish",
+              "bearish",
+              "neutral"
+            ],
+            "title": "Direction",
+            "description": "The way the definition points (mirror patterns are opposite); no forecast."
+          },
+          "state": {
+            "type": "boolean",
+            "title": "State",
+            "description": "A zone the price stays in, rather than an event on a bar."
+          },
+          "parameters": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Parameters"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count",
+            "description": "Bars flagged (for a zone, the bars spent in it)."
+          },
+          "last": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last",
+            "description": "The last bar flagged (null if none)."
+          },
+          "active": {
+            "type": "boolean",
+            "title": "Active",
+            "description": "Whether the last bar is flagged."
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "family",
+          "direction",
+          "state",
+          "parameters",
+          "count",
+          "last",
+          "active"
+        ],
+        "title": "PatternOut",
+        "description": "One price pattern over the bars (ADR-0035)."
+      },
+      "PatternsOut": {
+        "properties": {
+          "instrument": {
+            "$ref": "#/components/schemas/InstrumentOut"
+          },
+          "frequency": {
+            "$ref": "#/components/schemas/Frequency"
+          },
+          "source": {
+            "$ref": "#/components/schemas/SourceOut"
+          },
+          "patterns": {
+            "items": {
+              "$ref": "#/components/schemas/PatternOut"
+            },
+            "type": "array",
+            "title": "Patterns"
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/PatternEventOut"
+            },
+            "type": "array",
+            "title": "Events",
+            "description": "Every occurrence, oldest first; zones aside."
+          },
+          "unavailable": {
+            "items": {
+              "$ref": "#/components/schemas/UnavailablePatternOut"
+            },
+            "type": "array",
+            "title": "Unavailable"
+          }
+        },
+        "type": "object",
+        "required": [
+          "instrument",
+          "frequency",
+          "source",
+          "patterns",
+          "events",
+          "unavailable"
+        ],
+        "title": "PatternsOut",
+        "description": "Price patterns of an instrument, for any asset class."
+      },
       "PlanFanPointOut": {
         "properties": {
           "month": {
@@ -5955,6 +6271,36 @@
         ],
         "title": "UnavailableIndicatorOut",
         "description": "An indicator the series cannot have, and the price columns it lacks for it."
+      },
+      "UnavailablePatternOut": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "missing": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "open",
+                "high",
+                "low",
+                "close",
+                "intraday"
+              ]
+            },
+            "type": "array",
+            "title": "Missing",
+            "description": "Price columns the series does not have, or intraday bars for a session pattern on daily bars."
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "missing"
+        ],
+        "title": "UnavailablePatternOut",
+        "description": "A pattern the series cannot have, and what it lacks for it."
       },
       "ValidationError": {
         "properties": {

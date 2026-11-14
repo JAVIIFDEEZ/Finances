@@ -29,8 +29,8 @@ export function indicatorLabel(name: string, parameters: Record<string, number>)
   return values.length === 0 ? name : `${name} (${values.join(", ")})`;
 }
 
-/** A price column an indicator reads. */
-export type Column = "high" | "low" | "close" | "volume";
+/** What an indicator or a pattern can lack: a price column, or intraday bars. */
+export type Column = "open" | "high" | "low" | "close" | "volume" | "intraday";
 
 export interface Unavailable {
   name: string;
