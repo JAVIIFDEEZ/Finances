@@ -5,7 +5,7 @@
 :class:`~investinglab.domain.series.PriceSeries`: the same RSI for ``SAN.MC``, ``^GSPC``,
 ``EURUSD=X`` and ``BTC/USDT``. An indicator that needs a column the series does not have
 (the volume of a currency pair, the highs and lows of a series of closes) is left out with
-the reason, never computed from substitutes.
+the columns it misses, never computed from substitutes.
 """
 
 from __future__ import annotations

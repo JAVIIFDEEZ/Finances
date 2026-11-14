@@ -95,7 +95,7 @@ async def technical(
 
     For daily and coarser bars the indicators are already warm at ``start``; those that
     need a column the series lacks (the volume of a currency pair) are listed in
-    ``unavailable`` with the reason.
+    ``unavailable`` with the columns they miss.
     """
     indicators = await toolkit.technical(
         symbol, start=start, end=end, frequency=interval, names=names

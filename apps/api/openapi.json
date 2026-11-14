@@ -338,7 +338,7 @@
           "market"
         ],
         "summary": "Technical indicators of an instrument",
-        "description": "The indicators of CryptoWorld's catalogue on the instrument's bars (ADR-0034).\n\nFor daily and coarser bars the indicators are already warm at ``start``; those that\nneed a column the series lacks (the volume of a currency pair) are listed in\n``unavailable`` with the reason.",
+        "description": "The indicators of CryptoWorld's catalogue on the instrument's bars (ADR-0034).\n\nFor daily and coarser bars the indicators are already warm at ``start``; those that\nneed a column the series lacks (the volume of a currency pair) are listed in\n``unavailable`` with the columns they miss.",
         "operationId": "technical_api_v1_market_technical_get",
         "parameters": [
           {
