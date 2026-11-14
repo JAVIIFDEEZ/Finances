@@ -5,8 +5,8 @@ sirve para:
 
 * descargar varias series a la vez de todas las fuentes configuradas;
 * leer el flujo de cada vela (`tk.flow`) y el funding de los perpetuos (`tk.holding_rates`);
-* calcular los indicadores técnicos de cualquier instrumento (`tk.technical`) y sus patrones
-  de precio (`tk.patterns`);
+* calcular los indicadores técnicos de cualquier instrumento (`tk.technical`), sus patrones
+  de precio (`tk.patterns`) y su estructura (`tk.structure`);
 * leer series económicas *point-in-time* (`tk.economic`), como el €STR o el índice de miedo y
   codicia cripto;
 * construir carteras en una divisa base;
@@ -147,6 +147,25 @@ que un *order block* o un *swing* que se formó antes cuenta después. La ruptur
 apertura necesita barras intradía y toma la sesión del mercado (la fecha local de la bolsa, o
 la UTC en los mercados que no cierran). Un patrón que necesita una columna que la serie no
 tiene (la apertura de una serie de cierres) no se calcula con sustitutos.
+
+## Estructura de precio
+
+`tk.structure` describe la serie a su última vela
+([ADR-0036](../adr/0036-price-structure-with-confirmation-times.md)): soportes y resistencias
+por agrupación de pivotes (con cuántas veces y cuándo los tocó el precio), divergencias entre
+el cierre y su RSI y los niveles de Fibonacci del último *swing*.
+
+```python
+st = tk.structure("SAN.MC", start="2025-06-01")
+st.nearest_support, st.nearest_resistance
+for d in st.divergences:
+    print(d.kind, d.first_at, d.second_at, "confirmada el", d.confirmed_at)
+st.fibonacci.levels  # ((0.236, precio), (0.382, precio), …)
+st.basis  # "range" con máximos y mínimos; "close" si la serie solo tiene cierres
+```
+
+Un pivote necesita `k` velas posteriores (3 por defecto) para confirmarse, así que cada
+divergencia dice desde qué vela se sabe, no solo que existe.
 
 ## Carteras en varias divisas
 
