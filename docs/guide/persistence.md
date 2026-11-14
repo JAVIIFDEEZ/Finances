@@ -85,14 +85,19 @@ Los tests de extremo a extremo de la web usan `INVESTINGLAB_E2E_DATABASE_URL` de
 ## Problemas frecuentes
 
 * **`just db-up` no consigue descargar la imagen** (`failed to copy: httpReadSeeker`, `EOF`,
-  `TLS handshake timeout`, `connection reset`): la conexión con Docker Hub se cortó a mitad
-  de descarga. Es la red, no el proyecto. `db-up` ya reintenta cuatro veces, esperando cada
-  vez un poco más; Docker conserva las capas terminadas, así que cada intento descarga menos.
-  Si sigue fallando:
+  `TLS handshake timeout`, `connection reset`): la conexión con los servidores de descarga
+  de Docker Hub se cortó. Es la red, no el proyecto. `db-up` reintenta (Docker conserva las
+  capas terminadas, así que cada intento descarga menos) y, si Docker Hub sigue fallando,
+  descarga la misma imagen de sus copias: `mirror.gcr.io` (Google) y
+  `public.ecr.aws/docker/library` (Amazon). Las tres publican la imagen oficial con el
+  mismo *digest*, byte a byte; `db-up` le pone su nombre de siempre (`postgres:16`) para
+  que Compose la use. Si fallan las tres:
     * vuelve a lanzarlo más tarde o desde otra red (las redes de la universidad o de la
-      oficina, las VPN y los antivirus que inspeccionan HTTPS suelen cortar descargas
-      largas; un punto de acceso del móvil sirve de prueba rápida);
+      oficina, las VPN y los antivirus que inspeccionan HTTPS suelen cortar descargas;
+      un punto de acceso del móvil sirve de prueba rápida);
     * reinicia Docker Desktop (icono de la ballena → *Restart*);
+    * en Docker Desktop → *Settings* → *General*, desactiva *Use containerd for pulling and
+      storing images*: el almacén de imágenes clásico reintenta cada capa por su cuenta;
     * detrás de un proxy, configúralo en Docker Desktop → *Settings* → *Resources* →
       *Proxies*;
     * o prescinde de Docker: instala PostgreSQL 16 (`winget install
