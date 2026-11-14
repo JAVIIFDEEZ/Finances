@@ -58,6 +58,7 @@ nav = [
     "adr/0034-technical-indicators-in-numpy.md",
     "adr/0035-causal-price-patterns.md",
     "adr/0036-price-structure-with-confirmation-times.md",
+    "adr/0037-conventional-indicator-readings.md",
   ] },
   { "Referencia API" = [
     "reference/index.md",

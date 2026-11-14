@@ -112,12 +112,15 @@ export function TimeSeriesChart({
   label,
   height = 300,
   reference,
+  zone,
 }: {
   lines: TimeLine[];
   format: Format;
   label: string;
   height?: number;
   reference?: number;
+  /** A band to shade with its bounds drawn (an oscillator's conventional zone). */
+  zone?: readonly [number, number] | null;
 }) {
   const { tokens } = useTheme();
   const { fmt } = useI18n();
@@ -165,19 +168,23 @@ export function TimeSeriesChart({
         endLabel: endLabels ? { show: true, formatter: "{a}", color: tokens.text2, fontSize: 11, distance: 6 } : undefined,
         emphasis: { focus: "none", lineStyle: { width: 2 } },
         markLine:
-          reference !== undefined && index === 0
+          index === 0 && (reference !== undefined || zone)
             ? {
                 silent: true,
                 symbol: "none",
-                label: { show: false },
-                lineStyle: { color: tokens.axis, width: 1, type: "solid" },
-                data: [{ yAxis: reference }],
+                label: zone ? { show: true, position: "insideEndTop", color: tokens.muted, fontSize: 10, formatter: (p: { value: number }) => format(p.value) } : { show: false },
+                lineStyle: { color: tokens.axis, width: 1, type: zone ? "dashed" : "solid" },
+                data: [...(reference !== undefined ? [{ yAxis: reference }] : []), ...(zone ? zone.map((y) => ({ yAxis: y })) : [])],
               }
+            : undefined,
+        markArea:
+          index === 0 && zone
+            ? { silent: true, itemStyle: { color: tokens.muted, opacity: 0.1 }, data: [[{ yAxis: zone[0] }, { yAxis: zone[1] }]] }
             : undefined,
         data: line.points.map((p) => [p.time, p.value]),
       })),
     };
-  }, [lines, format, tokens, fmt, reference]);
+  }, [lines, format, tokens, fmt, reference, zone]);
   return <EChart option={option} height={height} label={label} />;
 }
 
@@ -190,6 +197,23 @@ export interface PriceBar {
   low?: number | null;
   close: number;
   volume?: number | null;
+}
+
+/** A line drawn over the prices (an average, a band): one value per bar time, gaps as null. */
+export interface PriceOverlay {
+  name: string;
+  color: string;
+  values: ReadonlyMap<string, number | null>;
+  /** ``dashed`` for bands and channels; ``dots`` for a stop such as the parabolic SAR. */
+  style?: "solid" | "dashed" | "dots";
+}
+
+/** A horizontal level over the prices (a support, a resistance, a Fibonacci ratio). */
+export interface PriceLevel {
+  price: number;
+  /** Written at the right end; empty to draw the line alone (labels must not overlap). */
+  label: string;
+  color: string;
 }
 
 /** An event on a bar (a price pattern): drawn as a marker on it and named in the tooltip. */
@@ -213,6 +237,8 @@ export function PriceChart({
   height = 380,
   labels,
   events = NO_EVENTS,
+  overlays = NO_OVERLAYS,
+  levels = NO_LEVELS,
 }: {
   bars: PriceBar[];
   format: Format;
@@ -221,6 +247,8 @@ export function PriceChart({
   height?: number;
   labels: { price: string; volume: string; open: string; high: string; low: string; close: string };
   events?: readonly PriceEvent[];
+  overlays?: readonly PriceOverlay[];
+  levels?: readonly PriceLevel[];
 }) {
   const { tokens } = useTheme();
   const { fmt } = useI18n();
@@ -250,8 +278,23 @@ export function PriceChart({
       ];
     });
     const markPoint = markers.length > 0 ? { silent: true, animation: false, label: { show: false }, data: markers } : undefined;
-    const priceGrid = volume ? { left: 4, right: 12, top: 12, height: "66%", containLabel: true } : { left: 4, right: 12, top: 12, bottom: 4, containLabel: true };
-    const grids = volume ? [priceGrid, { left: 4, right: 12, top: "78%", bottom: 4, containLabel: true }] : [priceGrid];
+    const markLine =
+      levels.length > 0
+        ? {
+            silent: true,
+            symbol: "none",
+            animation: false,
+            data: levels.map((level) => ({
+              yAxis: level.price,
+              lineStyle: { color: level.color, width: 1, type: "dashed" },
+              label: { show: level.label !== "", position: "end", formatter: level.label, color: level.color, fontSize: 10 },
+            })),
+          }
+        : undefined;
+    // Labelled levels are written past the right end of the plot, in a margin kept for them.
+    const right = levels.some((level) => level.label !== "") ? 64 : 12;
+    const priceGrid = volume ? { left: 4, right, top: 12, height: "66%", containLabel: true } : { left: 4, right, top: 12, bottom: 4, containLabel: true };
+    const grids = volume ? [priceGrid, { left: 4, right, top: "78%", bottom: 4, containLabel: true }] : [priceGrid];
     const category = (gridIndex: number, show: boolean) => ({
       type: "category",
       gridIndex,
@@ -272,6 +315,7 @@ export function PriceChart({
             barMaxWidth: 12,
             itemStyle: { color: tokens.surface, color0: tokens.down, borderColor: tokens.up, borderColor0: tokens.down, borderWidth: 1 },
             markPoint,
+            markLine,
             data: bars.map((b) => [b.open, b.close, b.low, b.high]),
           }
         : {
@@ -285,8 +329,33 @@ export function PriceChart({
             areaStyle: { color, opacity: 0.1 },
             itemStyle: { color },
             markPoint,
+            markLine,
             data: bars.map((b) => b.close),
           },
+      ...overlays.map((overlay) =>
+        overlay.style === "dots"
+          ? {
+              name: overlay.name,
+              type: "scatter",
+              xAxisIndex: 0,
+              yAxisIndex: 0,
+              symbolSize: 3,
+              itemStyle: { color: overlay.color },
+              data: bars.map((b) => overlay.values.get(b.time) ?? null),
+            }
+          : {
+              name: overlay.name,
+              type: "line",
+              xAxisIndex: 0,
+              yAxisIndex: 0,
+              showSymbol: false,
+              connectNulls: false,
+              lineStyle: { width: 1.5, color: overlay.color, type: overlay.style === "dashed" ? "dashed" : "solid" },
+              itemStyle: { color: overlay.color },
+              emphasis: { disabled: true },
+              data: bars.map((b) => overlay.values.get(b.time) ?? null),
+            },
+      ),
     ];
     if (volume) {
       series.push({
@@ -320,6 +389,10 @@ export function PriceChart({
               ]
             : [row(color, format(bar.close), labels.close, tokens.muted)];
           if (volume && bar.volume != null) lines.push(row(tokens.axis, fmt.compact(bar.volume), labels.volume, tokens.muted));
+          for (const overlay of overlays) {
+            const value = overlay.values.get(bar.time);
+            if (value != null) lines.push(row(overlay.color, format(value), overlay.name, tokens.muted));
+          }
           for (const event of onBar.get(bar.time) ?? []) lines.push(row(markerColor(event), "", event.label, tokens.muted));
           return heading(fmt.date(bar.time), tokens.muted) + lines.join("");
         },
@@ -331,11 +404,13 @@ export function PriceChart({
       dataZoom: [{ type: "inside", xAxisIndex: volume ? [0, 1] : [0], zoomOnMouseWheel: "ctrl", moveOnMouseMove: true }],
       series,
     };
-  }, [bars, format, labels, color, tokens, fmt, events]);
+  }, [bars, format, labels, color, tokens, fmt, events, overlays, levels]);
   return <EChart option={option} height={height} label={label} />;
 }
 
 const NO_EVENTS: readonly PriceEvent[] = [];
+const NO_OVERLAYS: readonly PriceOverlay[] = [];
+const NO_LEVELS: readonly PriceLevel[] = [];
 
 // ── Correlation ──────────────────────────────────────────────────────
 

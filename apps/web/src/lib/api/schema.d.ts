@@ -1063,6 +1063,30 @@ export interface components {
              * @description One value per bar (null in warm-up).
              */
             values: components["schemas"]["Point"][];
+            /**
+             * Family
+             * @description What it measures.
+             * @enum {string}
+             */
+            family: "trend" | "momentum" | "volatility" | "volume" | "price";
+            /**
+             * Zone
+             * @description Conventional zone of an oscillator (Wilder's 30/70 for the RSI...), not the search range of `threshold` (ADR-0037).
+             */
+            zone: [
+                number,
+                number
+            ] | null;
+            /**
+             * Reading
+             * @description Where it stands on the last bar: in its upper or lower zone, or the close above or below a level (null in warm-up or for the price itself).
+             */
+            reading: ("high" | "low" | "neutral" | "above" | "below") | null;
+            /**
+             * Percentile
+             * @description For the ATR in percent and the volume ratio: share of their values over these bars at or below the last one.
+             */
+            percentile: number | null;
         };
         /**
          * InstrumentOut

@@ -89,6 +89,23 @@ export function useTechnical(symbol: string, interval: Interval, start: string |
   });
 }
 
+/** Support and resistance, divergences and Fibonacci levels of ``symbol`` (ADR-0036). */
+export function useStructure(symbol: string, interval: Interval, start: string | null) {
+  return useQuery({
+    queryKey: ["structure", symbol, interval, start],
+    queryFn: async () =>
+      unwrap(
+        await api.GET("/api/v1/market/structure", {
+          params: { query: { symbol, interval, start: start ?? undefined } },
+        }),
+      ),
+    enabled: symbol.length > 0,
+    placeholderData: keepPreviousData,
+    staleTime: 5 * MINUTE,
+    retry: (count, error) => !isNotFound(error) && count < 2,
+  });
+}
+
 /** Price patterns of ``symbol`` (ADR-0035): counts, last bars and every occurrence. */
 export function usePatterns(symbol: string, interval: Interval, start: string | null) {
   return useQuery({

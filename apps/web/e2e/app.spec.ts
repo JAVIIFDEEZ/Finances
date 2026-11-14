@@ -68,7 +68,10 @@ test("the technical indicators of any instrument, and those its data cannot have
   await expect(page.getByRole("heading", { name: "Análisis técnico" })).toBeVisible();
   await expect(page.getByRole("radio", { name: "RSI" })).toHaveAttribute("aria-checked", "true");
   await expect(page.getByRole("img", { name: "RSI" })).toBeVisible();
-  await expect(page.getByRole("rowheader", { name: "RSI (14)", exact: true })).toBeVisible();
+  await expect(page.getByRole("rowheader", { name: /^Fuerza relativa\s*RSI \(14\)$/ })).toBeVisible();
+  const summary = page.getByRole("region", { name: "Resumen técnico" });
+  await expect(summary.getByText(/^RSI \d/)).toBeVisible();
+  await expect(summary.getByText(/^Precio (sobre|bajo) la media de 50$/)).toBeVisible();
   await page.getByRole("radio", { name: "MACD" }).click();
   await expect(page.getByRole("img", { name: "MACD" })).toBeVisible();
   // The synthetic file of ITX.MC holds closes and volumes only: indicators of highs and lows say so.
@@ -99,6 +102,26 @@ test("the price patterns of an instrument, marked on its price chart", async ({ 
   const patterns = page.getByRole("region", { name: "Patrones de precio" });
   await expect(patterns.getByText("Ningún patrón con estas velas.")).toBeVisible();
   await expect(patterns.getByText(/^Necesitan máximos, mínimos y aperturas: .*Doji/)).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test("overlays and the price structure over the price chart", async ({ page }) => {
+  const errors = trackErrors(page);
+  await page.goto("/markets?symbol=SAN.MC"); // synthetic opens, highs and lows
+
+  const overlays = page.getByRole("group", { name: "Sobre el precio" });
+  await expect(overlays.getByRole("button", { name: "Medias" })).toHaveAttribute("aria-pressed", "true");
+  const levels = overlays.getByRole("button", { name: "Soportes y resistencias" });
+  await levels.click();
+  await expect(levels).toHaveAttribute("aria-pressed", "true");
+  await overlays.getByRole("button", { name: "Bollinger" }).click();
+  await expect(overlays.getByRole("button", { name: "Bollinger" })).toHaveAttribute("aria-pressed", "true");
+
+  const structure = page.getByRole("region", { name: "Estructura de precio" });
+  await expect(structure.getByRole("table", { name: "Soporte / Resistencia" })).toBeVisible();
+  await expect(structure.getByRole("heading", { name: "Divergencias RSI/precio" })).toBeVisible();
+  await expect(structure.getByRole("table", { name: "Fibonacci del último swing" })).toBeVisible();
+  await expect(structure.getByText(/^Swing (alcista|bajista): /)).toBeVisible();
   expect(errors).toEqual([]);
 });
 

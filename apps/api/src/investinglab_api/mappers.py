@@ -337,6 +337,10 @@ def technical_out(indicators: TechnicalIndicators) -> TechnicalOut:
     """Every indicator with its parameters, its latest value and its values per bar."""
     values = indicators.values
     latest = indicators.latest()
+    readings = {
+        name: (r.family.value, r.zone, None if r.reading is None else r.reading.value, r.percentile)
+        for name, r in indicators.readings().items()
+    }
     return TechnicalOut(
         instrument=instrument_out(indicators.instrument),
         frequency=indicators.frequency,
@@ -349,6 +353,10 @@ def technical_out(indicators: TechnicalIndicators) -> TechnicalOut:
                 threshold=indicators.threshold(name),
                 latest=finite(latest[name]),
                 values=_points(values[name]),
+                family=readings[name][0],  # type: ignore[arg-type]
+                zone=readings[name][1],
+                reading=readings[name][2],  # type: ignore[arg-type]
+                percentile=readings[name][3],
             )
             for name in indicators.names
         ],
