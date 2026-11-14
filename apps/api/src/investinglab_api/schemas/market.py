@@ -25,6 +25,7 @@ __all__ = [
     "FlowBarOut",
     "FlowOut",
     "FlowSummaryOut",
+    "IndicatorOut",
     "InstrumentOut",
     "IssueOut",
     "MetricsOut",
@@ -37,6 +38,8 @@ __all__ = [
     "StatsOut",
     "Symbol",
     "TailRiskOut",
+    "TechnicalOut",
+    "UnavailableIndicatorOut",
 ]
 
 Symbol = Annotated[
@@ -293,3 +296,35 @@ class RatesOut(ApiModel):
     periods_per_year: float
     summary: RatesSummaryOut
     rates: list[RatePointOut]
+
+
+class IndicatorOut(ApiModel):
+    """One technical indicator over the bars (ADR-0034)."""
+
+    name: str = Field(description="Name in the catalogue (RSI, BB_UPPER, DONCH_UPPER...).")
+    kind: Literal["oscillator", "level"] = Field(
+        description="An oscillator is read against thresholds; a level, against the price."
+    )
+    parameters: dict[str, float]
+    threshold: tuple[float, float] | None = Field(
+        description="Range of meaningful thresholds of an oscillator (null for a level)."
+    )
+    latest: float | None = Field(description="Value on the last bar (null in warm-up).")
+    values: list[Point] = Field(description="One value per bar (null in warm-up).")
+
+
+class UnavailableIndicatorOut(ApiModel):
+    """An indicator the series cannot have, and why."""
+
+    name: str
+    reason: str
+
+
+class TechnicalOut(ApiModel):
+    """Technical indicators of an instrument, for any asset class."""
+
+    instrument: InstrumentOut
+    frequency: Frequency
+    source: SourceOut
+    indicators: list[IndicatorOut]
+    unavailable: list[UnavailableIndicatorOut]

@@ -127,6 +127,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/market/technical": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Technical indicators of an instrument
+         * @description The indicators of CryptoWorld's catalogue on the instrument's bars (ADR-0034).
+         *
+         *     For daily and coarser bars the indicators are already warm at ``start``; those that
+         *     need a column the series lacks (the volume of a currency pair) are listed in
+         *     ``unavailable`` with the reason.
+         */
+        get: operations["technical_api_v1_market_technical_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/market/flow": {
         parameters: {
             query?: never;
@@ -915,6 +939,45 @@ export interface components {
             currency: string;
             /** Weight */
             weight: number;
+        };
+        /**
+         * IndicatorOut
+         * @description One technical indicator over the bars (ADR-0034).
+         */
+        IndicatorOut: {
+            /**
+             * Name
+             * @description Name in the catalogue (RSI, BB_UPPER, DONCH_UPPER...).
+             */
+            name: string;
+            /**
+             * Kind
+             * @description An oscillator is read against thresholds; a level, against the price.
+             * @enum {string}
+             */
+            kind: "oscillator" | "level";
+            /** Parameters */
+            parameters: {
+                [key: string]: number;
+            };
+            /**
+             * Threshold
+             * @description Range of meaningful thresholds of an oscillator (null for a level).
+             */
+            threshold: [
+                number,
+                number
+            ] | null;
+            /**
+             * Latest
+             * @description Value on the last bar (null in warm-up).
+             */
+            latest: number | null;
+            /**
+             * Values
+             * @description One value per bar (null in warm-up).
+             */
+            values: components["schemas"]["Point"][];
         };
         /**
          * InstrumentOut
@@ -1923,6 +1986,29 @@ export interface components {
             /** Conditional Value At Risk */
             conditional_value_at_risk: number | null;
         };
+        /**
+         * TechnicalOut
+         * @description Technical indicators of an instrument, for any asset class.
+         */
+        TechnicalOut: {
+            instrument: components["schemas"]["InstrumentOut"];
+            frequency: components["schemas"]["Frequency"];
+            source: components["schemas"]["SourceOut"];
+            /** Indicators */
+            indicators: components["schemas"]["IndicatorOut"][];
+            /** Unavailable */
+            unavailable: components["schemas"]["UnavailableIndicatorOut"][];
+        };
+        /**
+         * UnavailableIndicatorOut
+         * @description An indicator the series cannot have, and why.
+         */
+        UnavailableIndicatorOut: {
+            /** Name */
+            name: string;
+            /** Reason */
+            reason: string;
+        };
         /** ValidationError */
         ValidationError: {
             /** Location */
@@ -2139,6 +2225,67 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SeriesOut"];
+                };
+            };
+            /** @description No provider has the requested data. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The request breaks the schema, a limit or a domain rule. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Every provider able to serve the data failed; retry later. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    technical_api_v1_market_technical_get: {
+        parameters: {
+            query: {
+                /** @description Instrument symbol: Yahoo style (SAN.MC, ^GSPC), a venue's pair (BTC/USDT) or a perpetual swap (BTC/USDT:USDT). */
+                symbol: string;
+                /** @description Bar frequency. */
+                interval?: components["schemas"]["Frequency"];
+                /** @description First session (inclusive). */
+                start?: string | null;
+                /** @description Last session (inclusive). */
+                end?: string | null;
+                /** @description Indicators of the catalogue to compute (repeat it); all by default. */
+                name?: string[] | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TechnicalOut"];
                 };
             };
             /** @description No provider has the requested data. */

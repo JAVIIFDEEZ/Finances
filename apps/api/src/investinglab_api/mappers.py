@@ -42,6 +42,7 @@ from investinglab_api.schemas.market import (
     FlowBarOut,
     FlowOut,
     FlowSummaryOut,
+    IndicatorOut,
     InstrumentOut,
     IssueOut,
     MetricsOut,
@@ -53,6 +54,8 @@ from investinglab_api.schemas.market import (
     SourceOut,
     StatsOut,
     TailRiskOut,
+    TechnicalOut,
+    UnavailableIndicatorOut,
 )
 from investinglab_api.schemas.meta import (
     HealthOut,
@@ -89,6 +92,7 @@ if TYPE_CHECKING:
     from investinglab.domain.rate_series import RateSeries
     from investinglab.domain.series import DataSource, PriceSeries, SeriesStats
     from investinglab.domain.simulation import SimulationResult
+    from investinglab.domain.technical import TechnicalIndicators
     from investinglab.modules import ModuleInfo
     from investinglab.ports import Page, ProviderCapabilities, Stored
     from investinglab.services import BatchResult
@@ -112,6 +116,7 @@ __all__ = [
     "saved_portfolio_page",
     "series_out",
     "simulation_out",
+    "technical_out",
 ]
 
 ISSUE_EXAMPLES: Final = 10
@@ -313,6 +318,32 @@ def rates_out(rates: RateSeries) -> RatesOut:
                 accumulated.to_numpy(),
                 strict=True,
             )
+        ],
+    )
+
+
+def technical_out(indicators: TechnicalIndicators) -> TechnicalOut:
+    """Every indicator with its parameters, its latest value and its values per bar."""
+    values = indicators.values
+    latest = indicators.latest()
+    return TechnicalOut(
+        instrument=instrument_out(indicators.instrument),
+        frequency=indicators.frequency,
+        source=_source_out(indicators.source),
+        indicators=[
+            IndicatorOut(
+                name=name,
+                kind="oscillator" if indicators.threshold(name) else "level",
+                parameters=dict(indicators.parameters[name]),
+                threshold=indicators.threshold(name),
+                latest=finite(latest[name]),
+                values=_points(values[name]),
+            )
+            for name in indicators.names
+        ],
+        unavailable=[
+            UnavailableIndicatorOut(name=name, reason=reason)
+            for name, reason in indicators.unavailable.items()
         ],
     )
 

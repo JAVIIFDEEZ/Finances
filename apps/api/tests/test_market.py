@@ -252,3 +252,49 @@ def test_rates_requests_are_checked(
     client: TestClient, params: dict[str, str], status: int
 ) -> None:
     assert client.get("/api/v1/market/holding-rates", params=params).status_code == status
+
+
+# ── Technical indicators (SYNTHETIC) ─────────────────────────────────
+
+
+def test_technical_indicators_of_a_series_of_closes(client: TestClient) -> None:
+    response = client.get(
+        "/api/v1/market/technical",
+        params={"symbol": "AAA.MC", "start": "2024-01-02", "end": "2024-06-28"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    names = {indicator["name"] for indicator in body["indicators"]}
+    assert {"RSI", "MACD_LINE", "BB_UPPER", "SMA"} <= names
+    unavailable = {item["name"]: item["reason"] for item in body["unavailable"]}
+    assert unavailable["ADX"] == "the series has no high, low"  # synthetic closes only
+    assert names.isdisjoint(unavailable)
+    rsi = next(i for i in body["indicators"] if i["name"] == "RSI")
+    assert (rsi["kind"], rsi["parameters"], rsi["threshold"]) == (
+        "oscillator",
+        {"window": 14},
+        [15.0, 85.0],
+    )
+    assert rsi["values"][0]["time"] == "2024-01-02"
+    assert rsi["values"][0]["value"] is not None  # warmed up on the bars before the start
+    assert rsi["latest"] == rsi["values"][-1]["value"]
+    sma = next(i for i in body["indicators"] if i["name"] == "SMA")
+    assert (sma["kind"], sma["threshold"]) == ("level", None)
+
+
+def test_a_selection_of_indicators(client: TestClient) -> None:
+    body = client.get(
+        "/api/v1/market/technical",
+        params=[("symbol", "AAA.MC"), ("name", "RSI"), ("name", "EMA")],
+    ).json()
+
+    assert [i["name"] for i in body["indicators"]] == ["RSI", "EMA"]
+    assert body["unavailable"] == []
+
+
+def test_an_unknown_indicator_is_an_invalid_request(client: TestClient) -> None:
+    response = client.get("/api/v1/market/technical", params={"symbol": "AAA.MC", "name": "NOPE"})
+
+    assert response.status_code == 422
+    assert "Unknown indicators" in response.json()["detail"]
