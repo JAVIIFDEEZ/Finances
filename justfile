@@ -70,9 +70,10 @@ record-parity cryptoworld:
 api:
     uv run investinglab-api --reload
 
-# Start a local PostgreSQL with Docker (the database of INVESTINGLAB_API_DATABASE_URL).
+# Start a local PostgreSQL with Docker (the database of INVESTINGLAB_API_DATABASE_URL);
+# the first time it downloads the image, retrying when the connection drops.
 db-up:
-    docker compose up --detach --wait postgres
+    uv run python scripts/db.py
 
 # Bring the database to the schema this version needs.
 db-upgrade:
