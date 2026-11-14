@@ -87,6 +87,7 @@ from investinglab.domain.simulation import (
     SimulationResult,
     VolatilityAssumption,
 )
+from investinglab.domain.technical import TechnicalIndicators, technical_indicators
 from investinglab.domain.time import (
     CALENDAR_YEAR_DAYS,
     CRYPTO_SCHEDULE,
@@ -176,6 +177,7 @@ __all__ = [
     "SimulationResult",
     "Survivorship",
     "TailRisk",
+    "TechnicalIndicators",
     "Universe",
     "UnknownCurrencyError",
     "View",
@@ -184,5 +186,6 @@ __all__ = [
     "assess_quality",
     "currency_attribution",
     "parse_quote_currency",
+    "technical_indicators",
     "weight_problems",
 ]

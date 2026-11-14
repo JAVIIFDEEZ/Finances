@@ -430,3 +430,17 @@ def test_a_pair_binance_does_not_list_falls_back_on_the_next_venue(tmp_path: Pat
 
     assert bars.source.provider == "kraken"
     assert len(bars) == 20
+
+
+def test_technical_indicators_are_warm_at_the_first_date_shown(toolkit: Toolkit) -> None:
+    indicators = toolkit.technical("A.MC", start=INDEX[260], names=["SMA", "RSI"])
+
+    assert indicators.values.index[0] == INDEX[260]
+    assert not indicators.values.isna().any().any()  # 260 earlier bars kept them warm
+
+
+def test_technical_indicators_without_a_start_show_their_warm_up(toolkit: Toolkit) -> None:
+    indicators = toolkit.technical("A.MC", names=["SMA"])
+
+    assert indicators.values.index[0] == INDEX[0]
+    assert indicators.values["SMA"].iloc[:49].isna().all()

@@ -22,8 +22,8 @@ from __future__ import annotations
 import asyncio
 import threading
 from dataclasses import replace
-from datetime import date
-from typing import TYPE_CHECKING, Any, Self, Unpack
+from datetime import date, timedelta
+from typing import TYPE_CHECKING, Any, Final, Self, Unpack
 
 import pandas as pd
 
@@ -46,6 +46,7 @@ from investinglab.domain.metrics import DEFAULT_CONFIDENCE_LEVELS
 from investinglab.domain.money import Currency
 from investinglab.domain.portfolio import Portfolio
 from investinglab.domain.rate_series import RateKind
+from investinglab.domain.technical import technical_indicators
 from investinglab.domain.time import Frequency
 from investinglab.ports.market_data import BarsRequest, EconomicRequest, RatesRequest, VintageMode
 from investinglab.reporting.options import ReportOptions
@@ -69,6 +70,7 @@ if TYPE_CHECKING:
     from investinglab.domain.quality import DataQualityReport
     from investinglab.domain.rate_series import RateSeries
     from investinglab.domain.series import PriceSeries
+    from investinglab.domain.technical import TechnicalIndicators
     from investinglab.ports.market_data import ProviderCapabilities
     from investinglab.reporting.markdown import MarkdownReport
     from investinglab.reporting.options import ReportSettings
@@ -93,6 +95,20 @@ type RemoteProvider = (
 
 def _as_date(value: DateLike) -> date | None:
     return None if value is None else pd.Timestamp(value).date()
+
+
+WARMUP: Final[dict[Frequency, timedelta]] = {
+    Frequency.DAY_1: timedelta(days=400),
+    Frequency.WEEK_1: timedelta(days=5 * 366),
+    Frequency.MONTH_1: timedelta(days=20 * 366),
+    Frequency.QUARTER_1: timedelta(days=40 * 366),
+    Frequency.YEAR_1: timedelta(days=60 * 366),
+}
+"""History fetched before the start so that the indicators are warm at the first date shown.
+
+About 250 bars, enough for a 200-bar average or a triple exponential average. Intraday bars
+get none: providers keep little intraday history, so their warm-up shows.
+"""
 
 
 def _remote_providers(config: Settings, registry: ProviderRegistry) -> list[RemoteProvider]:
@@ -250,6 +266,43 @@ class AsyncToolkit:
         """
         request = EconomicRequest(series_id, _as_date(start), _as_date(end), VintageMode(mode))
         return await self._market_data.get_economic_series(request, refresh=refresh)
+
+    async def technical(
+        self,
+        symbol: str,
+        *,
+        start: DateLike = None,
+        end: DateLike = None,
+        frequency: Frequency | str = Frequency.DAY_1,
+        names: Iterable[str] | None = None,
+        parameters: Mapping[str, Mapping[str, float]] | None = None,
+    ) -> TechnicalIndicators:
+        """Technical indicators of a symbol's bars from ``start`` (ADR-0034).
+
+        For daily and coarser bars, :data:`WARMUP` of earlier history is fetched too, so
+        that the indicators are already defined at ``start``; the result starts at ``start``.
+
+        Args:
+            symbol: Any symbol (``SAN.MC``, ``^GSPC``, ``EURUSD=X``, ``BTC/USDT``).
+            start: First date shown.
+            end: Last date shown.
+            frequency: Bar frequency.
+            names: Indicators of the catalogue to compute (all by default).
+            parameters: Parameters by indicator (each one's defaults otherwise).
+
+        Raises:
+            DataUnavailableError: If no provider could deliver the bars.
+            DomainError: An unknown indicator or invalid parameters.
+        """
+        wanted = Frequency(frequency)
+        first = _as_date(start)
+        padding = WARMUP.get(wanted)
+        fetch_from = first - padding if first is not None and padding is not None else first
+        series = await self.series(symbol, start=fetch_from, end=end, frequency=wanted)
+        indicators = technical_indicators(series, names, parameters)
+        if first is None or fetch_from == first:
+            return indicators
+        return indicators.between(pd.Timestamp(first), None)
 
     async def flow(
         self,
@@ -575,6 +628,28 @@ class Toolkit:
         """An economic series (see :meth:`AsyncToolkit.economic`)."""
         return self._run(
             self._inner.economic(series_id, start=start, end=end, mode=mode, refresh=refresh)
+        )
+
+    def technical(
+        self,
+        symbol: str,
+        *,
+        start: DateLike = None,
+        end: DateLike = None,
+        frequency: Frequency | str = Frequency.DAY_1,
+        names: Iterable[str] | None = None,
+        parameters: Mapping[str, Mapping[str, float]] | None = None,
+    ) -> TechnicalIndicators:
+        """Technical indicators of a symbol (see :meth:`AsyncToolkit.technical`)."""
+        return self._run(
+            self._inner.technical(
+                symbol,
+                start=start,
+                end=end,
+                frequency=frequency,
+                names=names,
+                parameters=parameters,
+            )
         )
 
     def flow(
