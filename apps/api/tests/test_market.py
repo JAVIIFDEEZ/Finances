@@ -365,3 +365,40 @@ def test_an_unknown_pattern_is_an_invalid_request(client: TestClient) -> None:
 
     assert response.status_code == 422
     assert "Unknown patterns" in response.json()["detail"]
+
+
+# ── Price structure (SYNTHETIC) ──────────────────────────────────────
+
+
+def test_structure_of_daily_bars(client: TestClient) -> None:
+    response = client.get(
+        "/api/v1/market/structure",
+        params={"symbol": "BARS.MC", "start": "2024-01-02", "end": "2024-12-31"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["basis"] == "range"
+    assert body["last_at"] <= "2024-12-31"
+    assert 0 < len(body["levels"]) <= 8
+    for level in body["levels"]:
+        assert level["kind"] == (
+            "resistance" if level["price"] >= body["last_close"] else "support"
+        )
+        assert len(level["touched_at"]) == level["touches"]
+        assert all("2024-01-02" <= t <= "2024-12-31" for t in level["touched_at"])
+    supports = [lv["price"] for lv in body["levels"] if lv["kind"] == "support"]
+    assert body["nearest_support"] == (max(supports) if supports else None)
+    swing = body["fibonacci"]
+    assert [lv["ratio"] for lv in swing["levels"]] == [0.236, 0.382, 0.5, 0.618, 0.786]
+    assert swing["low"] <= min(lv["price"] for lv in swing["levels"])
+    for divergence in body["divergences"]:
+        assert divergence["first_at"] < divergence["second_at"] < divergence["confirmed_at"]
+    assert body["parameters"]["k"] == 3
+
+
+def test_structure_of_a_series_of_closes(client: TestClient) -> None:
+    body = client.get("/api/v1/market/structure", params={"symbol": "AAA.MC"}).json()
+
+    assert body["basis"] == "close"
+    assert body["fibonacci"] is not None

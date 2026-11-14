@@ -20,8 +20,10 @@ __all__ = [
     "CompareRequest",
     "CompareSeriesOut",
     "ComparisonOut",
+    "DivergenceOut",
     "ExchangeOut",
     "FailureOut",
+    "FibonacciLevelOut",
     "FlowBarOut",
     "FlowOut",
     "FlowSummaryOut",
@@ -39,6 +41,9 @@ __all__ = [
     "SeriesOut",
     "SourceOut",
     "StatsOut",
+    "StructureLevelOut",
+    "StructureOut",
+    "SwingOut",
     "Symbol",
     "TailRiskOut",
     "TechnicalOut",
@@ -368,6 +373,69 @@ class UnavailablePatternOut(ApiModel):
         description="Price columns the series does not have, or intraday bars for a session "
         "pattern on daily bars."
     )
+
+
+class StructureLevelOut(ApiModel):
+    """A support or resistance level (ADR-0036)."""
+
+    price: float = Field(description="Mean price of the pivots that touched it.")
+    touches: int = Field(description="Pivots that touched it: its strength.")
+    kind: Literal["support", "resistance"]
+    distance_pct: float = Field(description="Distance from the last close, in percent.")
+    touched_at: list[date | datetime] = Field(description="Bars of those pivots, oldest first.")
+
+
+class DivergenceOut(ApiModel):
+    """The close and its RSI disagree on the last two pivots."""
+
+    kind: Literal["bearish", "bullish"]
+    first_at: date | datetime
+    second_at: date | datetime
+    confirmed_at: date | datetime = Field(
+        description="Bar that confirmed the later pivot: the divergence is known from here."
+    )
+    price_first: float
+    price_second: float
+    rsi_first: float
+    rsi_second: float
+
+
+class FibonacciLevelOut(ApiModel):
+    """One retracement level of the swing."""
+
+    ratio: float
+    price: float
+
+
+class SwingOut(ApiModel):
+    """The recent swing and its Fibonacci retracement levels."""
+
+    high: float
+    low: float
+    high_at: date | datetime
+    low_at: date | datetime
+    rising: bool = Field(description="The low came first: the levels retrace down from the high.")
+    levels: list[FibonacciLevelOut]
+    nearest: float | None = Field(description="Ratio of the level closest to the last close.")
+
+
+class StructureOut(ApiModel):
+    """Support and resistance, divergences and Fibonacci levels, as of the last bar."""
+
+    instrument: InstrumentOut
+    frequency: Frequency
+    source: SourceOut
+    basis: Literal["range", "close"] = Field(
+        description="Levels from the highs and lows, or from the closes of a series without them."
+    )
+    last_at: date | datetime | None
+    last_close: float | None
+    levels: list[StructureLevelOut]
+    nearest_support: float | None
+    nearest_resistance: float | None
+    divergences: list[DivergenceOut]
+    fibonacci: SwingOut | None
+    parameters: dict[str, float]
 
 
 class PatternsOut(ApiModel):

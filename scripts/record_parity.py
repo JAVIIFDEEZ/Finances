@@ -11,7 +11,10 @@ range and the middle):
 * every pattern of ``price_patterns.PATTERNS``, on those daily candles and on the hourly
   ``binance/btc_usdt_1h_2026_10`` (the session patterns need intraday bars);
 * the candles that only its screen had (``detect_candle_patterns``), on both. The screen
-  only looks at the last five bars, so it is run on a window of five ending at each bar.
+  only looks at the last five bars, so it is run on a window of five ending at each bar;
+* its price structure (``price_structure``: support and resistance levels and RSI
+  divergences) and the Fibonacci levels of its confluence card, on both. They describe the
+  series as of its last bar, so they are run on many cuts of it.
 
 It needs CryptoWorld's pinned versions, in a throwaway environment that never touches the
 project's (they are not dependencies of InvestingLab)::
@@ -21,8 +24,9 @@ project's (they are not dependencies of InvestingLab)::
 (the recipe runs this script with ``uv run --no-project --python 3.12`` and the three
 pinned packages).
 
-The outputs, ``tests/fixtures/parity/cryptoworld_indicators.json`` and
-``cryptoworld_patterns.json``, are committed and never edited by hand.
+The outputs, ``tests/fixtures/parity/cryptoworld_indicators.json``,
+``cryptoworld_patterns.json`` and ``cryptoworld_structure.json``, are committed and never
+edited by hand.
 """
 
 from __future__ import annotations
@@ -43,6 +47,12 @@ CANDLES = "binance/btc_usdt_1d_2025"
 HOURLY = "binance/btc_usdt_1h_2026_10"
 OUTPUT = FIXTURES / "parity" / "cryptoworld_indicators.json"
 PATTERNS_OUTPUT = FIXTURES / "parity" / "cryptoworld_patterns.json"
+STRUCTURE_OUTPUT = FIXTURES / "parity" / "cryptoworld_structure.json"
+LEVEL_CUTS = 20
+"""Bars between two cuts of a series for the levels (support, resistance, Fibonacci)."""
+DIVERGENCE_CUTS = 3
+"""Bars between two cuts for the divergences (they only look at the last pivots)."""
+FIRST_CUT = 60
 SCREEN = (
     "Inverted Hammer",
     "Morning Star",
@@ -129,8 +139,41 @@ def _patterns(name: str) -> dict[str, Any]:
     }
 
 
+def _structure(name: str) -> dict[str, Any]:
+    """CryptoWorld's levels, divergences and Fibonacci levels on cuts of one cassette."""
+    ta = importlib.import_module("ta")  # only in the throwaway environment
+    structure = importlib.import_module("core.domain.services.price_structure")
+    confluence = importlib.import_module("core.domain.services.confluence_service")
+    candles = _candles(name)
+    high, low, close = (candles[c].to_numpy(dtype=float) for c in ("high", "low", "close"))
+    rsi = ta.momentum.RSIIndicator(candles["close"], window=14).rsi().to_numpy(dtype=float)
+    levels, divergences, fibonacci = [], [], []
+    for end in range(FIRST_CUT, len(candles) + 1, LEVEL_CUTS):
+        for params in ({}, {"k": 5, "tolerance_pct": 1.0, "max_levels": 6}):
+            found = structure.support_resistance(high[:end], low[:end], close[:end], **params)
+            levels.append({"end": end, "params": params, "levels": found})
+        for lookback in (180, 60):
+            swing = confluence.calculate_fibonacci_levels(candles.iloc[:end], lookback=lookback)
+            fibonacci.append({"end": end, "lookback": lookback, **swing})
+    for end in range(FIRST_CUT, len(candles) + 1, DIVERGENCE_CUTS):
+        found = structure.detect_divergences(close[:end], rsi[:end], lookback=80)
+        divergences.append(
+            {
+                "end": end,
+                "divergences": [{k: v for k, v in d.items() if k != "detail"} for d in found],
+            }
+        )
+    return {
+        "candles": name,
+        "open_times": [int(t) for t in candles["open_time"]],
+        "levels": levels,
+        "divergences": divergences,
+        "fibonacci": fibonacci,
+    }
+
+
 def main(source: Path) -> int:
-    """Evaluate CryptoWorld's indicators and patterns and write the parity fixtures."""
+    """Evaluate CryptoWorld's indicators, patterns and structure and write the fixtures."""
     sys.path.insert(0, str(source))
     spec = importlib.import_module("core.domain.services.strategy_spec")
     registry: dict[str, dict[str, Any]] = spec._ALL  # noqa: SLF001 - CryptoWorld's registry
@@ -170,6 +213,21 @@ def main(source: Path) -> int:
     PATTERNS_OUTPUT.write_text(json.dumps(patterns, separators=(",", ":")) + "\n", "utf-8")
     cases = sum(len(entry["grammar"]) + len(entry["screen"]) for entry in series)
     print(f"{cases} pattern cases over {len(series)} series -> {PATTERNS_OUTPUT}")  # noqa: T201
+    shapes = [_structure(CANDLES), _structure(HOURLY)]
+    structure = {
+        "purpose": "CryptoWorld's price structure as of many cuts, for the parity tests.",
+        "source": [
+            "core.domain.services.price_structure.support_resistance",
+            "core.domain.services.price_structure.detect_divergences",
+            "core.domain.services.confluence_service.calculate_fibonacci_levels",
+        ],
+        "cryptoworld": fixture["cryptoworld"],
+        "versions": fixture["versions"],
+        "series": shapes,
+    }
+    STRUCTURE_OUTPUT.write_text(json.dumps(structure, separators=(",", ":")) + "\n", "utf-8")
+    cuts = sum(len(s["levels"]) + len(s["divergences"]) + len(s["fibonacci"]) for s in shapes)
+    print(f"{cuts} structure cases over {len(shapes)} series -> {STRUCTURE_OUTPUT}")  # noqa: T201
     return 0
 
 

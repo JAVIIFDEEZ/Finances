@@ -22,6 +22,7 @@ curl "http://127.0.0.1:8000/api/v1/market/patterns?symbol=BTC/USDT&interval=1h&s
 | GET | `/api/v1/market/bars` | Barras de un instrumento con metadatos, procedencia y estadísticos |
 | GET | `/api/v1/market/flow` | Flujo de las mismas barras: volumen y, si la fuente dice quién agredió, *delta* y CVD |
 | GET | `/api/v1/market/technical` | Indicadores técnicos del catálogo (todos, o los `name` pedidos) sobre las mismas barras, ya calentados en `start`; los que necesitan una columna que la serie no tiene van en `unavailable` con las columnas que faltan |
+| GET | `/api/v1/market/structure` | Soportes y resistencias con sus toques, el más cercano de cada lado, divergencias RSI/precio con la vela que las confirmó y el *swing* de Fibonacci, a la última vela; `basis` dice si salen de máximos y mínimos o de los cierres |
 | GET | `/api/v1/market/patterns` | Patrones de precio (velas, liquidez y estructura, sesión, zonas de Fibonacci): de cada uno, familia, dirección de su definición, velas marcadas, la última y si está activo; cada suceso, y los que la serie no admite con lo que les falta (columnas o barras intradía) |
 | GET | `/api/v1/market/holding-rates` | Funding, comisión de préstamo o coste de financiación (`kind`), con su intervalo y lo acumulado |
 | POST | `/api/v1/market/compare` | Rendimiento base 100, caídas, métricas y correlación de varios |

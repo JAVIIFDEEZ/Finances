@@ -112,6 +112,7 @@ def test_the_openapi_document_describes_every_endpoint(client: TestClient) -> No
         "/api/v1/market/flow",
         "/api/v1/market/technical",
         "/api/v1/market/patterns",
+        "/api/v1/market/structure",
         "/api/v1/market/holding-rates",
         "/api/v1/market/quality",
         "/api/v1/rates/risk-free",

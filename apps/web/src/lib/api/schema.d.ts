@@ -175,6 +175,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/market/structure": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Support and resistance, divergences and Fibonacci levels of an instrument
+         * @description The price structure of the bars asked for, as of the last one (ADR-0036).
+         *
+         *     Levels and the swing come from the highs and lows, or from the closes of a series
+         *     without them (``basis``). Each divergence says the bar that confirmed it.
+         */
+        get: operations["structure_api_v1_market_structure_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/market/flow": {
         parameters: {
             query?: never;
@@ -615,6 +638,34 @@ export interface components {
          */
         Dataset: "bars" | "economic" | "flow" | "holding_rates";
         /**
+         * DivergenceOut
+         * @description The close and its RSI disagree on the last two pivots.
+         */
+        DivergenceOut: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "bearish" | "bullish";
+            /** First At */
+            first_at: string;
+            /** Second At */
+            second_at: string;
+            /**
+             * Confirmed At
+             * @description Bar that confirmed the later pivot: the divergence is known from here.
+             */
+            confirmed_at: string;
+            /** Price First */
+            price_first: number;
+            /** Price Second */
+            price_second: number;
+            /** Rsi First */
+            rsi_first: number;
+            /** Rsi Second */
+            rsi_second: number;
+        };
+        /**
          * DrawdownEpisodeOut
          * @description A peak-to-recovery episode.
          */
@@ -748,6 +799,16 @@ export interface components {
             p95: number;
             /** P99 */
             p99: number;
+        };
+        /**
+         * FibonacciLevelOut
+         * @description One retracement level of the swing.
+         */
+        FibonacciLevelOut: {
+            /** Ratio */
+            ratio: number;
+            /** Price */
+            price: number;
         };
         /**
          * FlowBarOut
@@ -2072,6 +2133,95 @@ export interface components {
             excess_kurtosis: number | null;
         };
         /**
+         * StructureLevelOut
+         * @description A support or resistance level (ADR-0036).
+         */
+        StructureLevelOut: {
+            /**
+             * Price
+             * @description Mean price of the pivots that touched it.
+             */
+            price: number;
+            /**
+             * Touches
+             * @description Pivots that touched it: its strength.
+             */
+            touches: number;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "support" | "resistance";
+            /**
+             * Distance Pct
+             * @description Distance from the last close, in percent.
+             */
+            distance_pct: number;
+            /**
+             * Touched At
+             * @description Bars of those pivots, oldest first.
+             */
+            touched_at: (string)[];
+        };
+        /**
+         * StructureOut
+         * @description Support and resistance, divergences and Fibonacci levels, as of the last bar.
+         */
+        StructureOut: {
+            instrument: components["schemas"]["InstrumentOut"];
+            frequency: components["schemas"]["Frequency"];
+            source: components["schemas"]["SourceOut"];
+            /**
+             * Basis
+             * @description Levels from the highs and lows, or from the closes of a series without them.
+             * @enum {string}
+             */
+            basis: "range" | "close";
+            /** Last At */
+            last_at: string | null;
+            /** Last Close */
+            last_close: number | null;
+            /** Levels */
+            levels: components["schemas"]["StructureLevelOut"][];
+            /** Nearest Support */
+            nearest_support: number | null;
+            /** Nearest Resistance */
+            nearest_resistance: number | null;
+            /** Divergences */
+            divergences: components["schemas"]["DivergenceOut"][];
+            fibonacci: components["schemas"]["SwingOut"] | null;
+            /** Parameters */
+            parameters: {
+                [key: string]: number;
+            };
+        };
+        /**
+         * SwingOut
+         * @description The recent swing and its Fibonacci retracement levels.
+         */
+        SwingOut: {
+            /** High */
+            high: number;
+            /** Low */
+            low: number;
+            /** High At */
+            high_at: string;
+            /** Low At */
+            low_at: string;
+            /**
+             * Rising
+             * @description The low came first: the levels retrace down from the high.
+             */
+            rising: boolean;
+            /** Levels */
+            levels: components["schemas"]["FibonacciLevelOut"][];
+            /**
+             * Nearest
+             * @description Ratio of the level closest to the last close.
+             */
+            nearest: number | null;
+        };
+        /**
          * TailRiskOut
          * @description VaR and CVaR per period, as positive loss fractions.
          */
@@ -2462,6 +2612,65 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PatternsOut"];
+                };
+            };
+            /** @description No provider has the requested data. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The request breaks the schema, a limit or a domain rule. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Every provider able to serve the data failed; retry later. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    structure_api_v1_market_structure_get: {
+        parameters: {
+            query: {
+                /** @description Instrument symbol: Yahoo style (SAN.MC, ^GSPC), a venue's pair (BTC/USDT) or a perpetual swap (BTC/USDT:USDT). */
+                symbol: string;
+                /** @description Bar frequency. */
+                interval?: components["schemas"]["Frequency"];
+                /** @description First session (inclusive). */
+                start?: string | null;
+                /** @description Last session (inclusive). */
+                end?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StructureOut"];
                 };
             };
             /** @description No provider has the requested data. */
