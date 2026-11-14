@@ -107,3 +107,48 @@ def test_oscillators_carry_their_threshold_range_and_levels_none() -> None:
     assert indicators.threshold("SMA") is None
     with pytest.raises(KeyError, match="was not computed"):
         indicators.threshold("ADX")
+
+
+def test_each_indicator_reads_on_the_last_bar() -> None:
+    readings = technical_indicators(FULL).readings()
+
+    assert set(readings) == set(technical_indicators(FULL).names)
+    rsi_reading = readings["RSI"]
+    assert rsi_reading.family == "momentum"
+    assert rsi_reading.zone == (30.0, 70.0)
+    last_rsi = technical_indicators(FULL)["RSI"].iloc[-1]
+    expected = "low" if last_rsi < 30 else "high" if last_rsi > 70 else "neutral"
+    assert rsi_reading.reading == expected
+    sma = technical_indicators(FULL)["SMA"].iloc[-1]
+    close = FULL.bars["close"].iloc[-1]
+    assert readings["SMA"].reading == ("above" if close > sma else "below")
+    assert readings["SMA"].zone is None
+    assert readings["ATR_PCT"].percentile is not None
+    assert readings["PRICE"].reading is None
+
+
+def test_a_volume_of_zeros_is_volume_the_source_does_not_publish() -> None:
+    index_like = make_series(
+        gbm_prices(260, seed=8), symbol="^IDX", index=DAYS, ohlc=True, volume=[0.0] * 260
+    )
+
+    indicators = technical_indicators(index_like)
+
+    assert indicators.unavailable["MFI"] == ("volume",)
+    assert indicators.unavailable["VOLRATIO"] == ("volume",)
+    assert "RSI" in indicators.names
+
+
+def test_the_closes_must_be_those_of_the_bars() -> None:
+    indicators = technical_indicators(FULL, ["RSI"])
+
+    with pytest.raises(DomainError, match="closes"):
+        TechnicalIndicators(
+            FULL.instrument,
+            FULL.frequency,
+            FULL.source,
+            indicators.values,
+            indicators.parameters,
+            close=FULL.bars["close"].iloc[:-1],
+        )
+    assert technical_indicators(FULL, ["RSI"]).between(DAYS[100]).readings()["RSI"].zone

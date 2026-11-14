@@ -95,7 +95,11 @@ from investinglab.domain.structure import (
     StructureLevel,
     price_structure,
 )
-from investinglab.domain.technical import TechnicalIndicators, technical_indicators
+from investinglab.domain.technical import (
+    IndicatorReading,
+    TechnicalIndicators,
+    technical_indicators,
+)
 from investinglab.domain.time import (
     CALENDAR_YEAR_DAYS,
     CRYPTO_SCHEDULE,
@@ -148,6 +152,7 @@ __all__ = [
     "Holding",
     "Identifiers",
     "IncompatibleSeriesError",
+    "IndicatorReading",
     "Instrument",
     "InvalidIdentifierError",
     "InvalidPortfolioError",
