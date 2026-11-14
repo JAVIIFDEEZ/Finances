@@ -5,6 +5,7 @@ sirve para:
 
 * descargar varias series a la vez de todas las fuentes configuradas;
 * leer el flujo de cada vela (`tk.flow`) y el funding de los perpetuos (`tk.holding_rates`);
+* calcular los indicadores técnicos de cualquier instrumento (`tk.technical`);
 * leer series económicas *point-in-time* (`tk.economic`), como el €STR o el índice de miedo y
   codicia cripto;
 * construir carteras en una divisa base;
@@ -104,6 +105,25 @@ Un fichero suelto se importa sin carpeta:
 san = tk.load("descargas/SAN.csv", symbol="SAN.MC", currency="EUR", exchange="XMAD")
 serie = tk.from_dataframe(df, symbol="X", currency="USD")
 ```
+
+## Indicadores técnicos
+
+`tk.technical` calcula los 26 indicadores del catálogo de CryptoWorld
+([ADR-0034](../adr/0034-technical-indicators-in-numpy.md)) sobre las barras de cualquier
+símbolo: el mismo RSI para `SAN.MC`, `^GSPC`, `EURUSD=X` o `BTC/USDT`.
+
+```python
+tec = tk.technical("SAN.MC", start="2025-01-01", names=["RSI", "MACD_LINE", "ADX"])
+tec["RSI"]  # serie con NaN durante el calentamiento, nunca valores inventados
+tec.latest()  # valor de cada indicador en la última vela
+tec.threshold("RSI")  # rango de umbrales que explora CryptoWorld: (15.0, 85.0)
+tec.unavailable  # {} aquí; en una serie sin volumen, {"MFI": ("volume",), …}
+```
+
+En barras diarias o más largas descarga también historia anterior a `start` (400 días para
+las diarias) para que los indicadores ya estén calentados en esa fecha. Un indicador que
+necesita una columna que la serie no tiene (el volumen de un par de divisas) no se calcula con
+sustitutos: queda en `unavailable` con las columnas que le faltan.
 
 ## Carteras en varias divisas
 

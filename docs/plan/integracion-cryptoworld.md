@@ -767,6 +767,14 @@ Es decir: **unos 6-8 meses hasta la paridad en lo esencial (G0-G8)** y unos 10-1
 
 **Avance (13-11-2026):** los 26 indicadores del catálogo de `strategy_spec` ya están en `analytics/technical/` con las definiciones de `ta` ([ADR-0034](../adr/0034-technical-indicators-in-numpy.md)). La paridad se graba ejecutando el código de CryptoWorld (`just record-parity`): 61 casos sobre 396 velas reales, que coinciden salvo en el calentamiento que `ta` inventa.
 
+**Avance (14-11-2026):** fachada de dominio `technical_indicators` para cualquier
+`PriceSeries`, `tk.technical` (con historia previa para que los indicadores lleguen calentados
+a `start`), `GET /api/v1/market/technical` y el panel técnico de la pantalla de mercados. Las
+rutas cuelgan de `/market/…` con `symbol` como parámetro, como el resto: un símbolo como
+`BTC/USDT:USDT` no cabe en un segmento de ruta `/assets/{id}`. Lo que la serie no puede tener
+(el volumen de un par de divisas) se lista con las columnas que faltan, nunca se calcula con
+sustitutos. Pendiente en G2: patrones, estructura, confluencia multimarco y ficha de activo.
+
 ### G3 — Backtest, validación, mundos nulos y metodología
 
 **Contenido.**
