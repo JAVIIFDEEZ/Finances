@@ -37,8 +37,10 @@ from investinglab_api.schemas.market import (
     BarOut,
     CompareSeriesOut,
     ComparisonOut,
+    DivergenceOut,
     ExchangeOut,
     FailureOut,
+    FibonacciLevelOut,
     FlowBarOut,
     FlowOut,
     FlowSummaryOut,
@@ -56,6 +58,9 @@ from investinglab_api.schemas.market import (
     SeriesOut,
     SourceOut,
     StatsOut,
+    StructureLevelOut,
+    StructureOut,
+    SwingOut,
     TailRiskOut,
     TechnicalOut,
     UnavailableIndicatorOut,
@@ -97,6 +102,7 @@ if TYPE_CHECKING:
     from investinglab.domain.rate_series import RateSeries
     from investinglab.domain.series import DataSource, PriceSeries, SeriesStats
     from investinglab.domain.simulation import SimulationResult
+    from investinglab.domain.structure import PriceStructure
     from investinglab.domain.technical import TechnicalIndicators
     from investinglab.modules import ModuleInfo
     from investinglab.ports import Page, ProviderCapabilities, Stored
@@ -382,6 +388,57 @@ def patterns_out(patterns: PricePatterns) -> PatternsOut:
             UnavailablePatternOut(name=name, missing=list(missing))  # type: ignore[arg-type]
             for name, missing in patterns.unavailable.items()
         ],
+    )
+
+
+def structure_out(structure: PriceStructure) -> StructureOut:
+    """Levels, divergences and the Fibonacci swing, with the bars they come from."""
+    swing = structure.fibonacci
+    support, resistance = structure.nearest_support, structure.nearest_resistance
+    return StructureOut(
+        instrument=instrument_out(structure.instrument),
+        frequency=structure.frequency,
+        source=_source_out(structure.source),
+        basis=structure.basis,
+        last_at=None if structure.last_at is None else _time(structure.last_at),
+        last_close=structure.last_close,
+        levels=[
+            StructureLevelOut(
+                price=level.price,
+                touches=level.touches,
+                kind=level.kind,
+                distance_pct=level.distance_pct,
+                touched_at=[_time(t) for t in level.touched_at],
+            )
+            for level in structure.levels
+        ],
+        nearest_support=None if support is None else support.price,
+        nearest_resistance=None if resistance is None else resistance.price,
+        divergences=[
+            DivergenceOut(
+                kind=d.kind,
+                first_at=_time(d.first_at),
+                second_at=_time(d.second_at),
+                confirmed_at=_time(d.confirmed_at),
+                price_first=d.price_first,
+                price_second=d.price_second,
+                rsi_first=d.rsi_first,
+                rsi_second=d.rsi_second,
+            )
+            for d in structure.divergences
+        ],
+        fibonacci=None
+        if swing is None
+        else SwingOut(
+            high=swing.high,
+            low=swing.low,
+            high_at=_time(swing.high_at),
+            low_at=_time(swing.low_at),
+            rising=swing.rising,
+            levels=[FibonacciLevelOut(ratio=r, price=p) for r, p in swing.levels],
+            nearest=swing.nearest,
+        ),
+        parameters=dict(structure.parameters),
     )
 
 

@@ -20,6 +20,7 @@ from investinglab_api.mappers import (
     rates_out,
     risk_free_out,
     series_out,
+    structure_out,
     technical_out,
 )
 from investinglab_api.routers import problems
@@ -31,6 +32,7 @@ from investinglab_api.schemas.market import (
     QualityOut,
     RatesOut,
     SeriesOut,
+    StructureOut,
     Symbol,
     TechnicalOut,
 )
@@ -134,6 +136,29 @@ async def patterns(
     """
     found = await toolkit.patterns(symbol, start=start, end=end, frequency=interval, names=names)
     return await asyncio.to_thread(patterns_out, found)
+
+
+@router.get(
+    "/market/structure",
+    summary="Support and resistance, divergences and Fibonacci levels of an instrument",
+    response_model=StructureOut,
+    responses=problems(404, 422, 503),
+)
+async def structure(
+    toolkit: ToolkitDep,
+    symbol: SymbolQuery,
+    *,
+    interval: Interval = Frequency.DAY_1,
+    start: Start = None,
+    end: End = None,
+) -> StructureOut:
+    """The price structure of the bars asked for, as of the last one (ADR-0036).
+
+    Levels and the swing come from the highs and lows, or from the closes of a series
+    without them (``basis``). Each divergence says the bar that confirmed it.
+    """
+    found = await toolkit.structure(symbol, start=start, end=end, frequency=interval)
+    return await asyncio.to_thread(structure_out, found)
 
 
 @router.get(

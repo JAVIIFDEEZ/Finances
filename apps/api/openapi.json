@@ -652,6 +652,145 @@
         }
       }
     },
+    "/api/v1/market/structure": {
+      "get": {
+        "tags": [
+          "market"
+        ],
+        "summary": "Support and resistance, divergences and Fibonacci levels of an instrument",
+        "description": "The price structure of the bars asked for, as of the last one (ADR-0036).\n\nLevels and the swing come from the highs and lows, or from the closes of a series\nwithout them (``basis``). Each divergence says the bar that confirmed it.",
+        "operationId": "structure_api_v1_market_structure_get",
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 32,
+              "pattern": "^[A-Za-z0-9.^=\\-_/:]+$",
+              "description": "Instrument symbol: Yahoo style (SAN.MC, ^GSPC), a venue's pair (BTC/USDT) or a perpetual swap (BTC/USDT:USDT).",
+              "examples": [
+                "SAN.MC",
+                "^GSPC",
+                "EURUSD=X",
+                "BTC/USDT",
+                "BTC/USDT:USDT"
+              ],
+              "title": "Symbol"
+            },
+            "description": "Instrument symbol: Yahoo style (SAN.MC, ^GSPC), a venue's pair (BTC/USDT) or a perpetual swap (BTC/USDT:USDT)."
+          },
+          {
+            "name": "interval",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/Frequency",
+              "description": "Bar frequency.",
+              "default": "1d"
+            },
+            "description": "Bar frequency."
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First session (inclusive).",
+              "title": "Start"
+            },
+            "description": "First session (inclusive)."
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last session (inclusive).",
+              "title": "End"
+            },
+            "description": "Last session (inclusive)."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StructureOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No provider has the requested data.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request breaks the schema, a limit or a domain rule.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Every provider able to serve the data failed; retry later.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/market/flow": {
       "get": {
         "tags": [
@@ -2753,6 +2892,87 @@
         "title": "Dataset",
         "description": "Kind of data a provider serves."
       },
+      "DivergenceOut": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "bearish",
+              "bullish"
+            ],
+            "title": "Kind"
+          },
+          "first_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ],
+            "title": "First At"
+          },
+          "second_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ],
+            "title": "Second At"
+          },
+          "confirmed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ],
+            "title": "Confirmed At",
+            "description": "Bar that confirmed the later pivot: the divergence is known from here."
+          },
+          "price_first": {
+            "type": "number",
+            "title": "Price First"
+          },
+          "price_second": {
+            "type": "number",
+            "title": "Price Second"
+          },
+          "rsi_first": {
+            "type": "number",
+            "title": "Rsi First"
+          },
+          "rsi_second": {
+            "type": "number",
+            "title": "Rsi Second"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "first_at",
+          "second_at",
+          "confirmed_at",
+          "price_first",
+          "price_second",
+          "rsi_first",
+          "rsi_second"
+        ],
+        "title": "DivergenceOut",
+        "description": "The close and its RSI disagree on the last two pivots."
+      },
       "DrawdownEpisodeOut": {
         "properties": {
           "peak": {
@@ -3059,6 +3279,25 @@
         ],
         "title": "FanPointOut",
         "description": "Value percentiles at one period of the simulation."
+      },
+      "FibonacciLevelOut": {
+        "properties": {
+          "ratio": {
+            "type": "number",
+            "title": "Ratio"
+          },
+          "price": {
+            "type": "number",
+            "title": "Price"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ratio",
+          "price"
+        ],
+        "title": "FibonacciLevelOut",
+        "description": "One retracement level of the swing."
       },
       "FlowBarOut": {
         "properties": {
@@ -6162,6 +6401,253 @@
         ],
         "title": "StatsOut",
         "description": "Statistics computed when the series was built (per period unless annualised)."
+      },
+      "StructureLevelOut": {
+        "properties": {
+          "price": {
+            "type": "number",
+            "title": "Price",
+            "description": "Mean price of the pivots that touched it."
+          },
+          "touches": {
+            "type": "integer",
+            "title": "Touches",
+            "description": "Pivots that touched it: its strength."
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "support",
+              "resistance"
+            ],
+            "title": "Kind"
+          },
+          "distance_pct": {
+            "type": "number",
+            "title": "Distance Pct",
+            "description": "Distance from the last close, in percent."
+          },
+          "touched_at": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Touched At",
+            "description": "Bars of those pivots, oldest first."
+          }
+        },
+        "type": "object",
+        "required": [
+          "price",
+          "touches",
+          "kind",
+          "distance_pct",
+          "touched_at"
+        ],
+        "title": "StructureLevelOut",
+        "description": "A support or resistance level (ADR-0036)."
+      },
+      "StructureOut": {
+        "properties": {
+          "instrument": {
+            "$ref": "#/components/schemas/InstrumentOut"
+          },
+          "frequency": {
+            "$ref": "#/components/schemas/Frequency"
+          },
+          "source": {
+            "$ref": "#/components/schemas/SourceOut"
+          },
+          "basis": {
+            "type": "string",
+            "enum": [
+              "range",
+              "close"
+            ],
+            "title": "Basis",
+            "description": "Levels from the highs and lows, or from the closes of a series without them."
+          },
+          "last_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last At"
+          },
+          "last_close": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Close"
+          },
+          "levels": {
+            "items": {
+              "$ref": "#/components/schemas/StructureLevelOut"
+            },
+            "type": "array",
+            "title": "Levels"
+          },
+          "nearest_support": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nearest Support"
+          },
+          "nearest_resistance": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nearest Resistance"
+          },
+          "divergences": {
+            "items": {
+              "$ref": "#/components/schemas/DivergenceOut"
+            },
+            "type": "array",
+            "title": "Divergences"
+          },
+          "fibonacci": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SwingOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "parameters": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Parameters"
+          }
+        },
+        "type": "object",
+        "required": [
+          "instrument",
+          "frequency",
+          "source",
+          "basis",
+          "last_at",
+          "last_close",
+          "levels",
+          "nearest_support",
+          "nearest_resistance",
+          "divergences",
+          "fibonacci",
+          "parameters"
+        ],
+        "title": "StructureOut",
+        "description": "Support and resistance, divergences and Fibonacci levels, as of the last bar."
+      },
+      "SwingOut": {
+        "properties": {
+          "high": {
+            "type": "number",
+            "title": "High"
+          },
+          "low": {
+            "type": "number",
+            "title": "Low"
+          },
+          "high_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ],
+            "title": "High At"
+          },
+          "low_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ],
+            "title": "Low At"
+          },
+          "rising": {
+            "type": "boolean",
+            "title": "Rising",
+            "description": "The low came first: the levels retrace down from the high."
+          },
+          "levels": {
+            "items": {
+              "$ref": "#/components/schemas/FibonacciLevelOut"
+            },
+            "type": "array",
+            "title": "Levels"
+          },
+          "nearest": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nearest",
+            "description": "Ratio of the level closest to the last close."
+          }
+        },
+        "type": "object",
+        "required": [
+          "high",
+          "low",
+          "high_at",
+          "low_at",
+          "rising",
+          "levels",
+          "nearest"
+        ],
+        "title": "SwingOut",
+        "description": "The recent swing and its Fibonacci retracement levels."
       },
       "TailRiskOut": {
         "properties": {
