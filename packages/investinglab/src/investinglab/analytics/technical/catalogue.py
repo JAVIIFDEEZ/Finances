@@ -24,8 +24,9 @@ __all__ = ["CATALOGUE", "Column", "Indicator", "Parameter", "compute"]
 
 
 class Column(StrEnum):
-    """Price columns an indicator reads."""
+    """Price columns an indicator or a price pattern reads."""
 
+    OPEN = "open"
     HIGH = "high"
     LOW = "low"
     CLOSE = "close"

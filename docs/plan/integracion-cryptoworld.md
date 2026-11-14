@@ -775,6 +775,13 @@ rutas cuelgan de `/market/…` con `symbol` como parámetro, como el resto: un s
 (el volumen de un par de divisas) se lista con las columnas que faltan, nunca se calcula con
 sustitutos. Pendiente en G2: patrones, estructura, confluencia multimarco y ficha de activo.
 
+**Avance (14-11-2026, patrones):** los 20 patrones de `price_patterns` y las cinco velas que
+solo tenía la pantalla de CryptoWorld están en `analytics/patterns/` con un solo vocabulario
+([ADR-0035](../adr/0035-causal-price-patterns.md)). La paridad se graba ejecutando su código
+sobre 396 velas diarias y 336 horarias (casete nueva `binance/btc_usdt_1h_2026_10`, para el
+ORB): 76 casos con las mismas velas marcadas. El ORB lee la sesión del mercado y no la
+medianoche UTC; los *order blocks* corrigen una guarda de longitud que no era causal.
+
 ### G3 — Backtest, validación, mundos nulos y metodología
 
 **Contenido.**

@@ -108,7 +108,7 @@ uv run just test-fast [args]  # pytest -x sin cobertura
 uv run just docs              # web de documentación con recarga en vivo
 uv run just traceability      # regenerar docs/modules/ desde el registro de módulos
 uv run just record-fixtures   # regrabar las casetes de los proveedores (necesita red)
-uv run just record-parity ../CryptoWorld  # regrabar la paridad de indicadores con CryptoWorld
+uv run just record-parity ../CryptoWorld  # regrabar la paridad de indicadores y patrones con CryptoWorld
 uv run just web-install       # instalar las dependencias de la web (pnpm; `just dev` lo hace si faltan)
 uv run just dev               # API (:8000, o INVESTINGLAB_API_PORT) y web (:3000) a la vez
 uv run just preview           # igual, con la build de producción de la web (sin recarga)
@@ -134,8 +134,8 @@ bash). Lo que necesite más lógica va a un script de Python en `scripts/`, tipa
   `support.cassettes` (URL y parámetros exactos). No se editan a mano.
 - Todo proveedor nuevo se añade como caso del contrato `tests/contract/`.
 - Paridad con CryptoWorld: `tests/fixtures/parity/` guarda lo que calcula el propio código de
-  CryptoWorld (`just record-parity`); no se edita a mano. Un indicador nuevo del catálogo
-  entra en la paridad si CryptoWorld lo tiene.
+  CryptoWorld (`just record-parity`); no se edita a mano. Un indicador o patrón nuevo del
+  catálogo entra en la paridad si CryptoWorld lo tiene.
 - Web: Vitest para la lógica (`src/lib/__tests__/`) y Playwright de extremo a extremo con
   la API real sin red sobre ficheros **sintéticos** (`e2e/synthetic_data.py`).
 - Móvil: toda pantalla nueva entra en `SCREENS` de `e2e/mobile.spec.ts` (sin desplazamiento
