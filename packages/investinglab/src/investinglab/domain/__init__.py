@@ -88,6 +88,13 @@ from investinglab.domain.simulation import (
     SimulationResult,
     VolatilityAssumption,
 )
+from investinglab.domain.structure import (
+    FibonacciSwing,
+    PriceDivergence,
+    PriceStructure,
+    StructureLevel,
+    price_structure,
+)
 from investinglab.domain.technical import TechnicalIndicators, technical_indicators
 from investinglab.domain.time import (
     CALENDAR_YEAR_DAYS,
@@ -133,6 +140,7 @@ __all__ = [
     "EfficientFrontier",
     "Estimates",
     "Exchange",
+    "FibonacciSwing",
     "FlowField",
     "FlowSeries",
     "Frequency",
@@ -155,9 +163,11 @@ __all__ = [
     "Portfolio",
     "PortfolioBacktest",
     "PriceAdjustment",
+    "PriceDivergence",
     "PriceField",
     "PricePatterns",
     "PriceSeries",
+    "PriceStructure",
     "QualityIssue",
     "QualityThresholds",
     "QuoteUnit",
@@ -177,6 +187,7 @@ __all__ = [
     "SimulationConfig",
     "SimulationModel",
     "SimulationResult",
+    "StructureLevel",
     "Survivorship",
     "TailRisk",
     "TechnicalIndicators",
@@ -189,6 +200,7 @@ __all__ = [
     "currency_attribution",
     "parse_quote_currency",
     "price_patterns",
+    "price_structure",
     "technical_indicators",
     "weight_problems",
 ]
