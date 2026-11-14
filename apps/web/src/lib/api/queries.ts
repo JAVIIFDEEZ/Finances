@@ -73,6 +73,22 @@ export function useFlow(symbol: string, interval: Interval, start: string | null
   });
 }
 
+export function useTechnical(symbol: string, interval: Interval, start: string | null) {
+  return useQuery({
+    queryKey: ["technical", symbol, interval, start],
+    queryFn: async () =>
+      unwrap(
+        await api.GET("/api/v1/market/technical", {
+          params: { query: { symbol, interval, start: start ?? undefined } },
+        }),
+      ),
+    enabled: symbol.length > 0,
+    placeholderData: keepPreviousData,
+    staleTime: 5 * MINUTE,
+    retry: (count, error) => !isNotFound(error) && count < 2,
+  });
+}
+
 /** Funding of the perpetual swap ``swap`` (``BTC/USDT:USDT``); disabled with ``null``. */
 export function useFunding(swap: string | null, start: string | null) {
   return useQuery({

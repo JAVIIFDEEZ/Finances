@@ -61,6 +61,22 @@ test("an instrument is found with the search and explored", async ({ page }) => 
   expect(errors).toEqual([]);
 });
 
+test("the technical indicators of any instrument, and those its data cannot have", async ({ page }) => {
+  const errors = trackErrors(page);
+  await page.goto("/markets?symbol=ITX.MC");
+
+  await expect(page.getByRole("heading", { name: "Análisis técnico" })).toBeVisible();
+  await expect(page.getByRole("radio", { name: "RSI" })).toHaveAttribute("aria-checked", "true");
+  await expect(page.getByRole("img", { name: "RSI" })).toBeVisible();
+  await expect(page.getByRole("rowheader", { name: "RSI (14)", exact: true })).toBeVisible();
+  await page.getByRole("radio", { name: "MACD" }).click();
+  await expect(page.getByRole("img", { name: "MACD" })).toBeVisible();
+  // The synthetic files hold closes and volumes only: indicators of highs and lows say so.
+  await expect(page.getByText("No disponibles para esta serie")).toBeVisible();
+  await expect(page.getByText(/^Necesitan máximos y mínimos: .*ADX/)).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
 test("every instrument shows its flow, or why it has none", async ({ page }) => {
   const errors = trackErrors(page);
   await page.goto("/markets?symbol=ITX.MC");
