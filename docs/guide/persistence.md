@@ -84,6 +84,23 @@ Los tests de extremo a extremo de la web usan `INVESTINGLAB_E2E_DATABASE_URL` de
 
 ## Problemas frecuentes
 
+* **`just db-up` no consigue descargar la imagen** (`failed to copy: httpReadSeeker`, `EOF`,
+  `TLS handshake timeout`, `connection reset`): la conexión con Docker Hub se cortó a mitad
+  de descarga. Es la red, no el proyecto. `db-up` ya reintenta cuatro veces, esperando cada
+  vez un poco más; Docker conserva las capas terminadas, así que cada intento descarga menos.
+  Si sigue fallando:
+    * vuelve a lanzarlo más tarde o desde otra red (las redes de la universidad o de la
+      oficina, las VPN y los antivirus que inspeccionan HTTPS suelen cortar descargas
+      largas; un punto de acceso del móvil sirve de prueba rápida);
+    * reinicia Docker Desktop (icono de la ballena → *Restart*);
+    * detrás de un proxy, configúralo en Docker Desktop → *Settings* → *Resources* →
+      *Proxies*;
+    * o prescinde de Docker: instala PostgreSQL 16 (`winget install
+      PostgreSQL.PostgreSQL.16`) y apunta `INVESTINGLAB_API_DATABASE_URL` a él.
+
+  Todo funciona sin base de datos salvo las carteras guardadas.
+* **`just db-up` dice que Docker no está en marcha**: abre Docker Desktop, espera a que
+  indique que está funcionando y repite.
 * **«Para guardar carteras hace falta una base de datos»**: la API arrancó sin
   `INVESTINGLAB_API_DATABASE_URL`. Añádela a `.env` y reinicia.
 * **`/health/ready` dice `migrations_pending`**: ejecuta `uv run just db-upgrade`.
