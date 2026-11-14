@@ -1,8 +1,10 @@
 """Write SYNTHETIC price files for the end-to-end tests (never market data).
 
 Usage: ``uv run python e2e/synthetic_data.py <folder>``. Each series is a seeded geometric
-Brownian motion with a seeded log-normal volume (none for currency pairs); the catalogue names
-every instrument "Synthetic …" so nobody can take the numbers for real prices.
+Brownian motion with a seeded log-normal volume (none for currency pairs); a few also have
+seeded opens, highs and lows (``WITH_RANGE``), so that both the price patterns and the
+"cannot have" path are exercised. The catalogue names every instrument "Synthetic …" so
+nobody can take the numbers for real prices.
 """
 
 from __future__ import annotations
@@ -25,6 +27,8 @@ INSTRUMENTS = {
     "EURUSD=X": ("Synthetic EUR/USD", "USD", "FX", "fx", 0.0, 0.07),
     "BTC-USD": ("Synthetic Bitcoin", "USD", "CRYPTO", "crypto", 0.20, 0.60),
 }
+WITH_RANGE = frozenset({"SAN.MC", "^GSPC", "BTC-USD"})
+"""Instruments whose files also have open, high and low; the rest are closes only."""
 
 
 def main(folder: Path) -> None:
@@ -42,6 +46,13 @@ def main(folder: Path) -> None:
         columns = {"Date": days.strftime("%Y-%m-%d"), "Close": prices}
         if asset_class != "fx":  # currency pairs have no volume
             columns["Volume"] = np.round(rng.lognormal(13.0, 0.4, len(days)))
+        if symbol in WITH_RANGE:  # drawn last: the closes and volumes stay the same
+            gap = rng.normal(0.0, sigma / np.sqrt(252) / 4, len(days))
+            opens = np.concatenate([[start], prices[:-1]]) * np.exp(gap)
+            reach = np.abs(rng.normal(0.0, sigma / np.sqrt(252) / 2, (2, len(days))))
+            columns["Open"] = opens
+            columns["High"] = np.maximum(opens, prices) * (1 + reach[0])
+            columns["Low"] = np.minimum(opens, prices) * (1 - reach[1])
         pd.DataFrame(columns).to_csv(folder / f"{symbol}.csv", index=False)
         catalogue.append(
             f'["{symbol}"]\nname = "{name}"\ncurrency = "{currency}"\n'
