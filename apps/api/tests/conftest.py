@@ -18,7 +18,15 @@ from fastapi.testclient import TestClient
 from sqlalchemy.engine import make_url
 
 from investinglab.config import Settings, get_settings
-from investinglab.domain import USD, AssetClass, FlowSeries, Frequency, RateKind, RateSeries
+from investinglab.domain import (
+    USD,
+    AssetClass,
+    FlowSeries,
+    Frequency,
+    PriceSeries,
+    RateKind,
+    RateSeries,
+)
 from investinglab.toolkit import AsyncToolkit
 from investinglab_api.app import create_app
 from investinglab_api.persistence import Database
@@ -46,8 +54,6 @@ if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Callable, Iterator
     from pathlib import Path
 
-    from investinglab.domain import PriceSeries
-
 DAYS = business_days(600, start="2023-01-02")
 
 # Read at import: the tests then run without any INVESTINGLAB_* variable (see below).
@@ -56,8 +62,42 @@ TEST_DATABASE_URL = os.environ.get("INVESTINGLAB_TEST_DATABASE_URL")
 EUROPEAN = ("AAA.MC", "BBB.MC", "CCC.MC")
 
 
+def synthetic_bars(symbol: str, index: pd.DatetimeIndex, *, seed: int) -> PriceSeries:
+    """SYNTHETIC open, high, low and close: a random walk, open and close within each range."""
+    rng = np.random.default_rng(seed)
+    close = gbm_prices(len(index), seed=seed)
+    spread = rng.uniform(0.002, 0.02, len(index))
+    high, low = close * (1 + spread), close * (1 - spread)
+    frequency = Frequency.HOUR_1 if index.tz is not None else Frequency.DAY_1
+    return PriceSeries(
+        instrument=make_instrument(symbol),
+        frequency=frequency,
+        source=SYNTHETIC_SOURCE,
+        data=pd.DataFrame(
+            {
+                "open": low + rng.uniform(0, 1, len(index)) * (high - low),
+                "high": high,
+                "low": low,
+                "close": close,
+            },
+            index=index,
+        ),
+    )
+
+
+def market_hours(days: int) -> pd.DatetimeIndex:
+    """Hourly bars of the Madrid session (09:00-16:00 local) over ``days`` business days."""
+    local = [
+        pd.Timestamp(f"{day.date()} {hour:02d}:00", tz="Europe/Madrid")
+        for day in business_days(days, start="2024-03-04")
+        for hour in range(9, 17)
+    ]
+    return pd.DatetimeIndex(local).tz_convert("UTC")
+
+
 def synthetic_series() -> list[PriceSeries]:
-    """Three EUR equities, a USD equity, its USD→EUR fixings and an hourly series."""
+    """Three EUR equities, a USD equity, its USD→EUR fixings, an hourly series, and two with
+    open, high and low (daily and hourly, for the price patterns)."""
     series = [
         make_series(
             gbm_prices(len(DAYS), mu=0.04 + 0.02 * i, sigma=0.15 + 0.05 * i, seed=i + 1),
@@ -83,6 +123,8 @@ def synthetic_series() -> list[PriceSeries]:
             frequency=Frequency.HOUR_1,
         )
     )
+    series.append(synthetic_bars("BARS.MC", DAYS, seed=31))
+    series.append(synthetic_bars("SESSION.MC", market_hours(20), seed=32))
     return series
 
 

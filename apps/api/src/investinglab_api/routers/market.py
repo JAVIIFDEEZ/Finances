@@ -15,6 +15,7 @@ from investinglab_api.dependencies import SettingsDep, ToolkitDep, at_most
 from investinglab_api.mappers import (
     comparison_out,
     flow_out,
+    patterns_out,
     quality_out,
     rates_out,
     risk_free_out,
@@ -26,6 +27,7 @@ from investinglab_api.schemas.market import (
     CompareRequest,
     ComparisonOut,
     FlowOut,
+    PatternsOut,
     QualityOut,
     RatesOut,
     SeriesOut,
@@ -101,6 +103,37 @@ async def technical(
         symbol, start=start, end=end, frequency=interval, names=names
     )
     return await asyncio.to_thread(technical_out, indicators)
+
+
+@router.get(
+    "/market/patterns",
+    summary="Price patterns of an instrument",
+    response_model=PatternsOut,
+    responses=problems(404, 422, 503),
+)
+async def patterns(
+    toolkit: ToolkitDep,
+    symbol: SymbolQuery,
+    *,
+    interval: Interval = Frequency.DAY_1,
+    start: Start = None,
+    end: End = None,
+    names: Annotated[
+        list[str] | None,
+        Query(
+            alias="name",
+            description="Patterns of the catalogue to evaluate (repeat it); all by default.",
+        ),
+    ] = None,
+) -> PatternsOut:
+    """Candle, liquidity, session and zone patterns of the instrument's bars (ADR-0035).
+
+    For daily and coarser bars, what the bars before ``start`` set up (an order block, a
+    swing) counts from ``start``. Patterns the series cannot have (those needing the open of
+    a series of closes, or intraday bars) are listed in ``unavailable`` with what they lack.
+    """
+    found = await toolkit.patterns(symbol, start=start, end=end, frequency=interval, names=names)
+    return await asyncio.to_thread(patterns_out, found)
 
 
 @router.get(

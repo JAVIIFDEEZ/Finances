@@ -46,6 +46,9 @@ from investinglab_api.schemas.market import (
     InstrumentOut,
     IssueOut,
     MetricsOut,
+    PatternEventOut,
+    PatternOut,
+    PatternsOut,
     QualityOut,
     RatePointOut,
     RatesOut,
@@ -56,6 +59,7 @@ from investinglab_api.schemas.market import (
     TailRiskOut,
     TechnicalOut,
     UnavailableIndicatorOut,
+    UnavailablePatternOut,
 )
 from investinglab_api.schemas.meta import (
     HealthOut,
@@ -86,6 +90,7 @@ if TYPE_CHECKING:
     from investinglab.domain.instruments import Instrument
     from investinglab.domain.metrics import RiskMetrics
     from investinglab.domain.optimization import EfficientFrontier, OptimizationResult
+    from investinglab.domain.patterns import PricePatterns
     from investinglab.domain.planning import PlanResult
     from investinglab.domain.portfolio import Portfolio
     from investinglab.domain.quality import DataQualityReport
@@ -344,6 +349,38 @@ def technical_out(indicators: TechnicalIndicators) -> TechnicalOut:
         unavailable=[
             UnavailableIndicatorOut(name=name, missing=list(missing))  # type: ignore[arg-type]
             for name, missing in indicators.unavailable.items()
+        ],
+    )
+
+
+def patterns_out(patterns: PricePatterns) -> PatternsOut:
+    """Every pattern with how often and when it last fired, and each occurrence."""
+    active = set(patterns.active())
+    events = patterns.events()
+    return PatternsOut(
+        instrument=instrument_out(patterns.instrument),
+        frequency=patterns.frequency,
+        source=_source_out(patterns.source),
+        patterns=[
+            PatternOut(
+                name=name,
+                family=patterns.pattern(name).family.value,
+                direction=patterns.pattern(name).direction.value,
+                state=patterns.pattern(name).state,
+                parameters=dict(patterns.parameters[name]),
+                count=patterns.count(name),
+                last=None if (last := patterns.last(name)) is None else _time(last),
+                active=name in active,
+            )
+            for name in patterns.names
+        ],
+        events=[
+            PatternEventOut(time=_time(time), name=str(name))
+            for time, name in zip(events["time"], events["pattern"], strict=True)
+        ],
+        unavailable=[
+            UnavailablePatternOut(name=name, missing=list(missing))  # type: ignore[arg-type]
+            for name, missing in patterns.unavailable.items()
         ],
     )
 

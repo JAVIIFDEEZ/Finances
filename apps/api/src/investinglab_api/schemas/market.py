@@ -29,6 +29,9 @@ __all__ = [
     "InstrumentOut",
     "IssueOut",
     "MetricsOut",
+    "PatternEventOut",
+    "PatternOut",
+    "PatternsOut",
     "QualityOut",
     "RatePointOut",
     "RatesOut",
@@ -40,6 +43,7 @@ __all__ = [
     "TailRiskOut",
     "TechnicalOut",
     "UnavailableIndicatorOut",
+    "UnavailablePatternOut",
 ]
 
 Symbol = Annotated[
@@ -330,3 +334,50 @@ class TechnicalOut(ApiModel):
     source: SourceOut
     indicators: list[IndicatorOut]
     unavailable: list[UnavailableIndicatorOut]
+
+
+class PatternOut(ApiModel):
+    """One price pattern over the bars (ADR-0035)."""
+
+    name: str = Field(description="Name in the catalogue (BULL_ENGULF, FVG_BULL, ORB_UP...).")
+    family: Literal["candle", "liquidity", "session", "zone"] = Field(
+        description="Candles, structure and liquidity, session openings or Fibonacci zones."
+    )
+    direction: Literal["bullish", "bearish", "neutral"] = Field(
+        description="The way the definition points (mirror patterns are opposite); no forecast."
+    )
+    state: bool = Field(description="A zone the price stays in, rather than an event on a bar.")
+    parameters: dict[str, float]
+    count: int = Field(description="Bars flagged (for a zone, the bars spent in it).")
+    last: date | datetime | None = Field(description="The last bar flagged (null if none).")
+    active: bool = Field(description="Whether the last bar is flagged.")
+
+
+class PatternEventOut(ApiModel):
+    """An occurrence of an event pattern: the bar that completed it."""
+
+    time: date | datetime
+    name: str
+
+
+class UnavailablePatternOut(ApiModel):
+    """A pattern the series cannot have, and what it lacks for it."""
+
+    name: str
+    missing: list[Literal["open", "high", "low", "close", "intraday"]] = Field(
+        description="Price columns the series does not have, or intraday bars for a session "
+        "pattern on daily bars."
+    )
+
+
+class PatternsOut(ApiModel):
+    """Price patterns of an instrument, for any asset class."""
+
+    instrument: InstrumentOut
+    frequency: Frequency
+    source: SourceOut
+    patterns: list[PatternOut]
+    events: list[PatternEventOut] = Field(
+        description="Every occurrence, oldest first; zones aside."
+    )
+    unavailable: list[UnavailablePatternOut]
