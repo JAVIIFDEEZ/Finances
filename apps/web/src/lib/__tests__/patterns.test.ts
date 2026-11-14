@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { isMessageKey } from "@/lib/i18n/messages";
+import { fill, isMessageKey } from "@/lib/i18n/messages";
 import { byFamily, occurrences, recentEvents, type Pattern, type PatternEvent } from "@/lib/util/patterns";
 
 function pattern(name: string, family: Pattern["family"], direction: Pattern["direction"] = "neutral"): Pattern {
@@ -46,5 +46,12 @@ describe("isMessageKey", () => {
     expect(isMessageKey("pattern.BULL_ENGULF")).toBe(true);
     expect(isMessageKey("pattern.NOT_YET_IN_THE_WEB")).toBe(false);
     expect(isMessageKey("toString")).toBe(false);
+  });
+});
+
+describe("fill", () => {
+  it("fills in the placeholders it knows and leaves the rest", () => {
+    expect(fill("{x} veces la media de {n} velas", { x: "1,3", n: 20 })).toBe("1,3 veces la media de 20 velas");
+    expect(fill("hasta {fecha}", {})).toBe("hasta {fecha}");
   });
 });
