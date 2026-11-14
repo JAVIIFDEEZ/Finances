@@ -209,6 +209,7 @@ def test_busy_ports_are_reported_before_anything_starts(
     advice: str,
 ) -> None:
     monkeypatch.setattr(dev, "listening", lambda port, host="127.0.0.1": port == busy)
+    monkeypatch.setattr(dev, "holder", lambda port: dev.Holder("another program"))
 
     assert dev.main([]) == 1
 
@@ -217,6 +218,152 @@ def test_busy_ports_are_reported_before_anything_starts(
     assert advice in error
     assert launcher["steps"] == []
     assert launcher["servers"] == []
+
+
+def test_the_api_port_is_read_like_the_api_reads_it_also_from_dotenv(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.delenv("INVESTINGLAB_API_PORT", raising=False)
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / ".env").write_text("INVESTINGLAB_API_PORT=8123\n", encoding="utf-8")
+
+    assert dev.api_port() == 8123
+
+
+def test_a_busy_api_port_says_who_holds_it_and_offers_a_free_one(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(dev, "listening", lambda port, host="127.0.0.1": port in {8000, 8001})
+    monkeypatch.setattr(
+        dev,
+        "holder",
+        lambda port: dev.Holder("the Docker container `web_1`", "`docker stop web_1`"),
+    )
+
+    (message,) = dev.busy_ports(8000)
+
+    assert message.startswith("Port 8000 (API) is held by the Docker container `web_1`.")
+    assert "Stop it with `docker stop web_1`." in message
+    assert "INVESTINGLAB_API_PORT=8002 to .env" in message
+
+
+def test_an_unknown_holder_comes_with_the_command_that_finds_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(dev, "listening", lambda port, host="127.0.0.1": port == 3000)
+    monkeypatch.setattr(dev, "holder", lambda port: dev.Holder("another program"))
+
+    (message,) = dev.busy_ports(8000)
+
+    assert "Port 3000 (web app) is held by another program. To see which one:" in message
+    assert "3000" in message.split("To see which one:")[1]
+
+
+def _holder_with(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    ours: bool = False,
+    name: str | None = None,
+    found: tuple[int, str] | None = None,
+) -> Any:
+    monkeypatch.setattr(dev, "investinglab_api", lambda port: ours)
+    monkeypatch.setattr(dev, "container", lambda port: name)
+    monkeypatch.setattr(dev, "process", lambda port: found)
+    return dev.holder(8000)
+
+
+def test_the_holder_is_named_with_the_way_to_free_the_port(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    kill = "Stop-Process -Id" if sys.platform == "win32" else "kill"
+
+    ours = _holder_with(monkeypatch, ours=True, found=(4321, "python.exe"))
+    assert ours.who.startswith("an InvestingLab API that is still running (PID 4321)")
+    assert ours.stop == f"Ctrl+C in its terminal, or `{kill} 4321`"
+    assert _holder_with(monkeypatch, ours=True).stop == "Ctrl+C in its terminal"
+
+    backend = _holder_with(
+        monkeypatch, name="cryptoworld_backend", found=(99, "com.docker.backend.exe")
+    )
+    assert backend == dev.Holder(
+        "the Docker container `cryptoworld_backend`", "`docker stop cryptoworld_backend`"
+    )
+
+    forwarded = _holder_with(monkeypatch, found=(99, "com.docker.backend.exe"))
+    assert forwarded.who.startswith("a Docker container (com.docker.backend.exe, PID 99")
+    assert forwarded.stop is not None
+    assert "docker ps" in forwarded.stop
+
+    other = _holder_with(monkeypatch, found=(77, "node.exe"))
+    assert other == dev.Holder("node.exe (PID 77)", f"`{kill} 77`")
+    assert _holder_with(monkeypatch) == dev.Holder("another program")
+
+
+NETSTAT_ES = """
+Conexiones activas
+
+  Proto  Dirección local          Dirección remota        Estado           PID
+  TCP    0.0.0.0:135            0.0.0.0:0              ESCUCHANDO       1180
+  TCP    127.0.0.1:8000         127.0.0.1:53211        ESTABLECIDO      15872
+  TCP    127.0.0.1:53211        127.0.0.1:8000         ESTABLECIDO      9020
+  TCP    0.0.0.0:8000           0.0.0.0:0              ESCUCHANDO       15872
+  TCP    [::]:8000              [::]:0                 ESCUCHANDO       15872
+"""
+
+
+def test_the_windows_listener_is_found_in_any_language() -> None:
+    assert dev.windows_listener(NETSTAT_ES, 8000) == 15872
+    assert dev.windows_listener(NETSTAT_ES, 135) == 1180
+    assert dev.windows_listener(NETSTAT_ES, 53211) is None  # only a client connection
+    english = "  TCP    [::]:3000    [::]:0    LISTENING    4242\n"
+    assert dev.windows_listener(english, 3000) == 4242
+    assert dev.windows_listener("", 8000) is None
+
+
+def test_task_and_lsof_outputs_are_read() -> None:
+    row = '"com.docker.backend.exe","15872","Console","1","120.512 KB"\n'
+    assert dev.windows_task(row) == "com.docker.backend.exe"
+    assert dev.windows_task("INFORMACIÓN: no hay tareas ejecutándose con los criterios.\n") is None
+    assert dev.lsof_listener("p2024\ncpython3.14\nf7\n") == (2024, "python3.14")
+    assert dev.lsof_listener("") is None
+
+
+def test_diagnostic_commands_that_fail_print_nothing() -> None:
+    assert dev._output(["no-such-command-for-investinglab"]) == ""
+    assert dev._output(_python("import sys; print('x'); sys.exit(3)")) == ""
+    assert dev._output(_python("print('ok')")).strip() == "ok"
+
+
+def _serve(body: bytes) -> tuple[Any, int]:
+    import http.server  # noqa: PLC0415
+    import threading  # noqa: PLC0415
+
+    class Answer(http.server.BaseHTTPRequestHandler):
+        def do_GET(self) -> None:
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, format: str, *args: object) -> None:  # noqa: A002
+            del format, args
+
+    server = http.server.HTTPServer(("127.0.0.1", 0), Answer)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    return server, server.server_address[1]
+
+
+def test_an_investinglab_api_is_told_from_another_server() -> None:
+    ours, ours_port = _serve(b'{"status": "ok", "version": "0.1.0", "core_version": "0.1.0"}')
+    other, other_port = _serve(b'{"detail": "Not Found"}')
+    try:
+        assert dev.investinglab_api(ours_port)
+        assert not dev.investinglab_api(other_port)
+    finally:
+        for server in (ours, other):
+            server.shutdown()
+            server.server_close()
+    assert not dev.investinglab_api(ours_port)  # nothing answers any more
 
 
 def test_listening_tells_whether_a_program_holds_a_port() -> None:

@@ -7,8 +7,11 @@ of them stops on its own the other one is stopped too.
 
 When a database is configured (``INVESTINGLAB_API_DATABASE_URL``), its schema is brought up to
 date first. Before starting, it checks that no other program holds the ports (the API's, 8000 unless
-``INVESTINGLAB_API_PORT`` says otherwise, and the web app's 3000) and points the web app at
-the API's port, so running both elsewhere takes a single variable.
+``INVESTINGLAB_API_PORT`` says otherwise in the environment or in ``.env``, and the web app's
+3000) and points the web app at the API's port, so running both elsewhere takes a single
+variable. When a port is taken it says who holds it (an InvestingLab API still running, a
+Docker container such as another project's backend, or a program by name and PID) and how to
+free it.
 
 By default both listen on this machine only. ``--lan`` serves the web app to the local
 network as well, to open it from a phone on the same Wi-Fi: the API stays on this machine (the
@@ -25,6 +28,8 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import csv
+import json
 import os
 import shutil
 import signal
@@ -32,6 +37,7 @@ import socket
 import subprocess
 import sys
 import time
+import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -45,6 +51,8 @@ WEB = ROOT / "apps" / "web"
 LOCALHOST = "127.0.0.1"
 WEB_PORT = 3000
 POLL_SECONDS = 0.2
+DOCKER_FORWARDERS = ("com.docker", "wslrelay", "vpnkit", "docker-proxy")
+"""Processes that hold the published ports of Docker containers."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -77,11 +85,24 @@ def pnpm() -> list[str]:
 
 
 def api_port() -> int:
-    """The API's port: ``INVESTINGLAB_API_PORT``, as the API itself reads it, or 8000."""
-    value = os.environ.get("INVESTINGLAB_API_PORT", "8000").strip()
-    if not value.isdigit() or not 0 < int(value) < 65536:  # noqa: PLR2004 - TCP's range
-        raise SystemExit(f"INVESTINGLAB_API_PORT must be a port number, not {value!r}.")
-    return int(value)
+    """The API's port as the API reads it: ``INVESTINGLAB_API_PORT`` (environment or ``.env``).
+
+    Raises:
+        SystemExit: If the port, or another API setting, is not valid.
+    """
+    from pydantic import ValidationError  # noqa: PLC0415 - only the launcher needs it
+
+    from investinglab_api.settings import ApiSettings  # noqa: PLC0415
+
+    try:
+        return ApiSettings().port
+    except ValidationError as error:
+        for problem in error.errors():
+            if problem["loc"] == ("port",):
+                raise SystemExit(
+                    f"INVESTINGLAB_API_PORT must be a port number, not {problem['input']!r}."
+                ) from None
+        raise SystemExit(f"The API settings are not valid: {error}") from None
 
 
 def listening(port: int, host: str = LOCALHOST) -> bool:
@@ -91,18 +112,153 @@ def listening(port: int, host: str = LOCALHOST) -> bool:
         return probe.connect_ex((host, port)) == 0
 
 
+@dataclass(frozen=True, slots=True)
+class Holder:
+    """Who holds a port and, when it is known, the command that frees it."""
+
+    who: str
+    stop: str | None = None
+
+
+def _output(command: Sequence[str]) -> str:
+    """What a diagnostic command prints; empty when it is missing, fails or hangs."""
+    try:
+        done = subprocess.run(  # noqa: S603 - fixed diagnostic commands
+            command, check=False, text=True, capture_output=True, timeout=10
+        )
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    return done.stdout if done.returncode == 0 else ""
+
+
+def investinglab_api(port: int) -> bool:
+    """Whether InvestingLab's own API answers there (its liveness has ``core_version``)."""
+    direct = urllib.request.build_opener(urllib.request.ProxyHandler({}))  # never via a proxy
+    try:
+        with direct.open(f"http://{LOCALHOST}:{port}/health/live", timeout=1.0) as response:
+            body = json.load(response)
+    except (OSError, ValueError):
+        return False
+    return isinstance(body, dict) and "core_version" in body
+
+
+def container(port: int) -> str | None:
+    """The Docker container that publishes ``port``, if Docker runs one."""
+    docker = shutil.which("docker")
+    if docker is None:
+        return None
+    names = _output([docker, "ps", "--filter", f"publish={port}", "--format", "{{.Names}}"])
+    return next(iter(names.split()), None)
+
+
+def windows_listener(netstat: str, port: int) -> int | None:
+    """The PID listening on ``port`` in ``netstat -ano -p TCP`` (any Windows language).
+
+    The state column is translated (LISTENING, ESCUCHANDO...), so a listener is told by its
+    remote address instead: port 0.
+    """
+    for line in netstat.splitlines():
+        parts = line.split()
+        if len(parts) < 4 or parts[0].upper() != "TCP" or not parts[-1].isdigit():  # noqa: PLR2004
+            continue
+        local, remote = parts[1], parts[2]
+        if local.rsplit(":", 1)[-1] == str(port) and remote.rsplit(":", 1)[-1] == "0":
+            return int(parts[-1])
+    return None
+
+
+def windows_task(tasklist: str) -> str | None:
+    """The image name in ``tasklist /FO CSV /NH`` output (``None`` if no task matched)."""
+    for row in csv.reader(tasklist.splitlines()):
+        if len(row) >= 2 and row[1].strip().isdigit():  # noqa: PLR2004 - name, PID, ...
+            return row[0]
+    return None
+
+
+def lsof_listener(lsof: str) -> tuple[int, str] | None:
+    """The PID and command in ``lsof -Fpc`` output."""
+    pid = command = None
+    for line in lsof.splitlines():
+        if line.startswith("p") and line[1:].isdigit() and pid is None:
+            pid = int(line[1:])
+        elif line.startswith("c") and command is None:
+            command = line[1:]
+    return (pid, command or "?") if pid is not None else None
+
+
+def process(port: int) -> tuple[int, str] | None:
+    """The PID and name of the program listening on ``port``, if the system tells."""
+    if sys.platform == "win32":
+        pid = windows_listener(_output(["netstat", "-ano", "-p", "TCP"]), port)
+        if pid is None:
+            return None
+        name = windows_task(_output(["tasklist", "/FI", f"PID eq {pid}", "/FO", "CSV", "/NH"]))
+        return pid, name or "?"
+    return lsof_listener(_output(["lsof", "-nP", f"-iTCP:{port}", "-sTCP:LISTEN", "-Fpc"]))
+
+
+def _kill(pid: int) -> str:
+    return f"Stop-Process -Id {pid}" if sys.platform == "win32" else f"kill {pid}"
+
+
+def holder(port: int) -> Holder:
+    """Who holds ``port``: an InvestingLab API, a Docker container or a program."""
+    found = process(port)
+    if investinglab_api(port):
+        where, stop = "", "Ctrl+C in its terminal"
+        if found:
+            where, stop = f" (PID {found[0]})", f"{stop}, or `{_kill(found[0])}`"
+        return Holder(
+            f"an InvestingLab API that is still running{where}: an earlier `just dev`, "
+            "`just preview` or `just api`",
+            stop,
+        )
+    if name := container(port):
+        return Holder(f"the Docker container `{name}`", f"`docker stop {name}`")
+    if found is None:
+        return Holder("another program")
+    pid, name = found
+    if name.lower().startswith(DOCKER_FORWARDERS):
+        return Holder(
+            f"a Docker container ({name}, PID {pid}, forwards its port)",
+            "`docker stop <name>` (`docker ps` lists the containers and their ports)",
+        )
+    return Holder(f"{name} (PID {pid})", f"`{_kill(pid)}`")
+
+
+def _find(port: int) -> str:
+    if sys.platform == "win32":
+        listener = f"(Get-NetTCPConnection -LocalPort {port} -State Listen)"
+        return f"Get-Process -Id {listener}.OwningProcess"
+    return f"lsof -nP -iTCP:{port} -sTCP:LISTEN"
+
+
+def free_port(after: int, tries: int = 20) -> int | None:
+    """The first port after ``after`` that nothing listens on."""
+    return next((p for p in range(after + 1, after + 1 + tries) if not listening(p)), None)
+
+
+def _busy(port: int, role: str, found: Holder) -> str:
+    stop = f"Stop it with {found.stop}" if found.stop else f"To see which one: {_find(port)}"
+    return f"Port {port} ({role}) is held by {found.who}. {stop}."
+
+
 def busy_ports(api: int) -> list[str]:
     """What to do about each port another program already holds (none: ready to start)."""
     problems = []
     if listening(api):
-        problems.append(
-            f"Port {api} (API) is already in use by another program. Stop it, or run the API "
-            "on another port with INVESTINGLAB_API_PORT: the web app follows it."
-        )
+        message = _busy(api, "API", holder(api))
+        spare = free_port(api)
+        if spare is not None:
+            message += (
+                f"\nOr run the API on another port: add INVESTINGLAB_API_PORT={spare} to .env "
+                "(the web app follows it)."
+            )
+        problems.append(message)
     if listening(WEB_PORT):
         problems.append(
-            f"Port {WEB_PORT} (web app) is already in use by another program "
-            "(another `just dev` or `just preview`?). Stop it first."
+            _busy(WEB_PORT, "web app", holder(WEB_PORT))
+            + " The web app always uses this port (another `just dev` or `just preview`?)."
         )
     return problems
 

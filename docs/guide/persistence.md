@@ -106,6 +106,10 @@ Los tests de extremo a extremo de la web usan `INVESTINGLAB_E2E_DATABASE_URL` de
   Todo funciona sin base de datos salvo las carteras guardadas.
 * **`just db-up` dice que Docker no está en marcha**: abre Docker Desktop, espera a que
   indique que está funcionando y repite.
+* **`just db-up` dice `port is already allocated`** (puerto 5432): otro PostgreSQL ocupa el
+  puerto, por ejemplo el de **CryptoWorld**, que publica `5432:5432`. Para o ese contenedor
+  (`docker stop cryptoworld_db`) o usa otro puerto: `INVESTINGLAB_POSTGRES_PORT=5433` en `.env`
+  y el mismo puerto en `INVESTINGLAB_API_DATABASE_URL` (`…@127.0.0.1:5433/investinglab`).
 * **«Para guardar carteras hace falta una base de datos»**: la API arrancó sin
   `INVESTINGLAB_API_DATABASE_URL`. Añádela a `.env` y reinicia.
 * **`/health/ready` dice `migrations_pending`**: ejecuta `uv run just db-upgrade`.

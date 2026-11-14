@@ -98,10 +98,17 @@ pnpm dev
 
 * **«API sin conexión»** (un aviso arriba en todas las pantallas): la API no está en marcha
   u **otro programa ocupa su puerto** (8000). `uv run just dev` comprueba los puertos antes de
-  arrancar y dice cuál está ocupado. Para saber qué programa es:
-  `Get-Process -Id (Get-NetTCPConnection -LocalPort 8000 -State Listen).OwningProcess` en
-  PowerShell o `lsof -i :8000` en Linux y macOS. Ciérralo o usa otro puerto con
-  `INVESTINGLAB_API_PORT=8010`: con `just dev`, la web lo sigue sola. En cuanto la API
+  arrancar y dice **quién** los ocupa y cómo liberarlos:
+    * otra API de InvestingLab que sigue en marcha (un `just dev`, `just preview` o `just api`
+      anterior): Ctrl+C en su terminal, o el `Stop-Process -Id …` que indica;
+    * un contenedor de Docker, por su nombre: `docker stop <nombre>`. El caso típico es el
+      *backend* de **CryptoWorld**, que publica el 8000 con `restart: unless-stopped` y vuelve
+      a arrancar solo cada vez que se abre Docker Desktop si estaba en marcha al cerrarlo; tras
+      un `docker stop`, ya no arranca solo;
+    * cualquier otro programa, por su nombre y su PID.
+
+  Para tener los dos proyectos a la vez, pon `INVESTINGLAB_API_PORT=8001` en `.env` (`just dev`
+  propone un puerto libre): la API lo lee de ahí y la web lo sigue sola. En cuanto la API
   responde, la web se recupera sin recargar la página.
 * **`uv` no se reconoce** en una terminal: no está en el PATH de esa terminal. Abre una nueva
   después de instalarlo, o mira dónde está en una terminal donde sí funcione
