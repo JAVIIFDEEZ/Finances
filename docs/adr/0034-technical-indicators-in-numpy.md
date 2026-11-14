@@ -99,6 +99,10 @@ diarias), con dos juegos de parámetros por indicador. El resultado, en
 
 ## Más información
 
-* La fachada de dominio (indicadores de una `PriceSeries`), la API y la pantalla de análisis
-  técnico llegan en la parte siguiente de G2, junto con los patrones de velas, la estructura
-  (pivotes, soportes y resistencias, divergencias) y la confluencia entre marcos.
+* La fachada de dominio (`domain.technical`, indicadores de una `PriceSeries`), el
+  endpoint `/api/v1/market/technical` y el panel técnico de la pantalla de mercados llegaron
+  en la segunda parte de G2. Quedan los patrones de velas, la estructura (pivotes, soportes y
+  resistencias, divergencias) y la confluencia entre marcos.
+* El umbral de cada oscilador del catálogo es el **rango de búsqueda** de CryptoWorld (RSI
+  15-85), no una zona de lectura como 30/70; por eso la web no lo dibuja como líneas de
+  sobrecompra y sobreventa.

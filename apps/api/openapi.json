@@ -332,6 +332,166 @@
         }
       }
     },
+    "/api/v1/market/technical": {
+      "get": {
+        "tags": [
+          "market"
+        ],
+        "summary": "Technical indicators of an instrument",
+        "description": "The indicators of CryptoWorld's catalogue on the instrument's bars (ADR-0034).\n\nFor daily and coarser bars the indicators are already warm at ``start``; those that\nneed a column the series lacks (the volume of a currency pair) are listed in\n``unavailable`` with the columns they miss.",
+        "operationId": "technical_api_v1_market_technical_get",
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 32,
+              "pattern": "^[A-Za-z0-9.^=\\-_/:]+$",
+              "description": "Instrument symbol: Yahoo style (SAN.MC, ^GSPC), a venue's pair (BTC/USDT) or a perpetual swap (BTC/USDT:USDT).",
+              "examples": [
+                "SAN.MC",
+                "^GSPC",
+                "EURUSD=X",
+                "BTC/USDT",
+                "BTC/USDT:USDT"
+              ],
+              "title": "Symbol"
+            },
+            "description": "Instrument symbol: Yahoo style (SAN.MC, ^GSPC), a venue's pair (BTC/USDT) or a perpetual swap (BTC/USDT:USDT)."
+          },
+          {
+            "name": "interval",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/Frequency",
+              "description": "Bar frequency.",
+              "default": "1d"
+            },
+            "description": "Bar frequency."
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First session (inclusive).",
+              "title": "Start"
+            },
+            "description": "First session (inclusive)."
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last session (inclusive).",
+              "title": "End"
+            },
+            "description": "Last session (inclusive)."
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Indicators of the catalogue to compute (repeat it); all by default.",
+              "title": "Name"
+            },
+            "description": "Indicators of the catalogue to compute (repeat it); all by default."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TechnicalOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No provider has the requested data.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request breaks the schema, a limit or a domain rule.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Every provider able to serve the data failed; retry later.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/market/flow": {
       "get": {
         "tags": [
@@ -3201,6 +3361,84 @@
         "title": "HoldingOut",
         "description": "A holding of an analysed portfolio."
       },
+      "IndicatorOut": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Name in the catalogue (RSI, BB_UPPER, DONCH_UPPER...)."
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "oscillator",
+              "level"
+            ],
+            "title": "Kind",
+            "description": "An oscillator is read against thresholds; a level, against the price."
+          },
+          "parameters": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Parameters"
+          },
+          "threshold": {
+            "anyOf": [
+              {
+                "prefixItems": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "type": "array",
+                "maxItems": 2,
+                "minItems": 2
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Threshold",
+            "description": "Range of meaningful thresholds of an oscillator (null for a level)."
+          },
+          "latest": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest",
+            "description": "Value on the last bar (null in warm-up)."
+          },
+          "values": {
+            "items": {
+              "$ref": "#/components/schemas/Point"
+            },
+            "type": "array",
+            "title": "Values",
+            "description": "One value per bar (null in warm-up)."
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "kind",
+          "parameters",
+          "threshold",
+          "latest",
+          "values"
+        ],
+        "title": "IndicatorOut",
+        "description": "One technical indicator over the bars (ADR-0034)."
+      },
       "InstrumentOut": {
         "properties": {
           "symbol": {
@@ -5651,6 +5889,72 @@
         ],
         "title": "TailRiskOut",
         "description": "VaR and CVaR per period, as positive loss fractions."
+      },
+      "TechnicalOut": {
+        "properties": {
+          "instrument": {
+            "$ref": "#/components/schemas/InstrumentOut"
+          },
+          "frequency": {
+            "$ref": "#/components/schemas/Frequency"
+          },
+          "source": {
+            "$ref": "#/components/schemas/SourceOut"
+          },
+          "indicators": {
+            "items": {
+              "$ref": "#/components/schemas/IndicatorOut"
+            },
+            "type": "array",
+            "title": "Indicators"
+          },
+          "unavailable": {
+            "items": {
+              "$ref": "#/components/schemas/UnavailableIndicatorOut"
+            },
+            "type": "array",
+            "title": "Unavailable"
+          }
+        },
+        "type": "object",
+        "required": [
+          "instrument",
+          "frequency",
+          "source",
+          "indicators",
+          "unavailable"
+        ],
+        "title": "TechnicalOut",
+        "description": "Technical indicators of an instrument, for any asset class."
+      },
+      "UnavailableIndicatorOut": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "missing": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "high",
+                "low",
+                "close",
+                "volume"
+              ]
+            },
+            "type": "array",
+            "title": "Missing",
+            "description": "Price columns the series does not have (a currency pair has no volume)."
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "missing"
+        ],
+        "title": "UnavailableIndicatorOut",
+        "description": "An indicator the series cannot have, and the price columns it lacks for it."
       },
       "ValidationError": {
         "properties": {

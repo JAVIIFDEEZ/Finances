@@ -19,6 +19,7 @@ from investinglab_api.mappers import (
     rates_out,
     risk_free_out,
     series_out,
+    technical_out,
 )
 from investinglab_api.routers import problems
 from investinglab_api.schemas.market import (
@@ -29,6 +30,7 @@ from investinglab_api.schemas.market import (
     RatesOut,
     SeriesOut,
     Symbol,
+    TechnicalOut,
 )
 from investinglab_api.schemas.meta import RiskFreeOut
 
@@ -66,6 +68,39 @@ async def bars(
     """Validated bars of one instrument, with its metadata, provenance and statistics."""
     series = await toolkit.series(symbol, start=start, end=end, frequency=interval)
     return await asyncio.to_thread(series_out, series)
+
+
+@router.get(
+    "/market/technical",
+    summary="Technical indicators of an instrument",
+    response_model=TechnicalOut,
+    responses=problems(404, 422, 503),
+)
+async def technical(
+    toolkit: ToolkitDep,
+    symbol: SymbolQuery,
+    *,
+    interval: Interval = Frequency.DAY_1,
+    start: Start = None,
+    end: End = None,
+    names: Annotated[
+        list[str] | None,
+        Query(
+            alias="name",
+            description="Indicators of the catalogue to compute (repeat it); all by default.",
+        ),
+    ] = None,
+) -> TechnicalOut:
+    """The indicators of CryptoWorld's catalogue on the instrument's bars (ADR-0034).
+
+    For daily and coarser bars the indicators are already warm at ``start``; those that
+    need a column the series lacks (the volume of a currency pair) are listed in
+    ``unavailable`` with the columns they miss.
+    """
+    indicators = await toolkit.technical(
+        symbol, start=start, end=end, frequency=interval, names=names
+    )
+    return await asyncio.to_thread(technical_out, indicators)
 
 
 @router.get(
