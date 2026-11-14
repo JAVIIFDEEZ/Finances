@@ -320,6 +320,21 @@ class IndicatorOut(ApiModel):
     )
     latest: float | None = Field(description="Value on the last bar (null in warm-up).")
     values: list[Point] = Field(description="One value per bar (null in warm-up).")
+    family: Literal["trend", "momentum", "volatility", "volume", "price"] = Field(
+        description="What it measures."
+    )
+    zone: tuple[float, float] | None = Field(
+        description="Conventional zone of an oscillator (Wilder's 30/70 for the RSI...), "
+        "not the search range of `threshold` (ADR-0037)."
+    )
+    reading: Literal["high", "low", "neutral", "above", "below"] | None = Field(
+        description="Where it stands on the last bar: in its upper or lower zone, or the close "
+        "above or below a level (null in warm-up or for the price itself)."
+    )
+    percentile: float | None = Field(
+        description="For the ATR in percent and the volume ratio: share of their values over "
+        "these bars at or below the last one."
+    )
 
 
 class UnavailableIndicatorOut(ApiModel):

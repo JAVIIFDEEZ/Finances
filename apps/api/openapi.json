@@ -3824,6 +3824,71 @@
             "type": "array",
             "title": "Values",
             "description": "One value per bar (null in warm-up)."
+          },
+          "family": {
+            "type": "string",
+            "enum": [
+              "trend",
+              "momentum",
+              "volatility",
+              "volume",
+              "price"
+            ],
+            "title": "Family",
+            "description": "What it measures."
+          },
+          "zone": {
+            "anyOf": [
+              {
+                "prefixItems": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "type": "array",
+                "maxItems": 2,
+                "minItems": 2
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Zone",
+            "description": "Conventional zone of an oscillator (Wilder's 30/70 for the RSI...), not the search range of `threshold` (ADR-0037)."
+          },
+          "reading": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "high",
+                  "low",
+                  "neutral",
+                  "above",
+                  "below"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reading",
+            "description": "Where it stands on the last bar: in its upper or lower zone, or the close above or below a level (null in warm-up or for the price itself)."
+          },
+          "percentile": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Percentile",
+            "description": "For the ATR in percent and the volume ratio: share of their values over these bars at or below the last one."
           }
         },
         "type": "object",
@@ -3833,7 +3898,11 @@
           "parameters",
           "threshold",
           "latest",
-          "values"
+          "values",
+          "family",
+          "zone",
+          "reading",
+          "percentile"
         ],
         "title": "IndicatorOut",
         "description": "One technical indicator over the bars (ADR-0034)."

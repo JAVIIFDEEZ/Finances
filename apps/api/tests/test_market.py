@@ -281,6 +281,24 @@ def test_technical_indicators_of_a_series_of_closes(client: TestClient) -> None:
     assert rsi["latest"] == rsi["values"][-1]["value"]
     sma = next(i for i in body["indicators"] if i["name"] == "SMA")
     assert (sma["kind"], sma["threshold"]) == ("level", None)
+    assert (rsi["family"], rsi["zone"]) == ("momentum", [30.0, 70.0])
+    assert rsi["reading"] in {"high", "low", "neutral"}
+    assert (sma["family"], sma["zone"], sma["reading"]) == ("trend", None, sma["reading"])
+    assert sma["reading"] in {"above", "below"}
+
+
+def test_relative_measures_are_ranked_against_their_own_history(client: TestClient) -> None:
+    body = client.get(
+        "/api/v1/market/technical", params=[("symbol", "BARS.MC"), ("name", "ATR_PCT")]
+    ).json()
+
+    (atr,) = body["indicators"]
+    assert (atr["family"], atr["zone"]) == ("volatility", None)
+    assert 0 <= atr["percentile"] <= 1
+    expected = (
+        "high" if atr["percentile"] > 0.8 else "low" if atr["percentile"] < 0.2 else "neutral"
+    )
+    assert atr["reading"] == expected
 
 
 def test_a_selection_of_indicators(client: TestClient) -> None:
