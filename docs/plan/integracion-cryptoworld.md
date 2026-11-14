@@ -787,8 +787,13 @@ el panel de patrones, que los marca sobre el gráfico de precio.
 **Avance (14-11-2026, estructura):** soportes y resistencias, divergencias RSI/precio y niveles
 de Fibonacci en `analytics/structure.py` ([ADR-0036](../adr/0036-price-structure-with-confirmation-times.md)),
 con paridad sobre 330 cortes de las dos casetes reales; fachada `price_structure` con fechas y
-momento de confirmación, `tk.structure` y `GET /api/v1/market/structure`. Pendiente en G2:
-pantalla de estructura, confluencia multimarco y ficha de activo.
+momento de confirmación, `tk.structure` y `GET /api/v1/market/structure`.
+
+**Avance (14-11-2026, espacio de análisis técnico):** cada indicador tiene familia y lectura
+convencional ([ADR-0037](../adr/0037-conventional-indicator-readings.md)); la pantalla de
+mercados tiene resumen técnico, osciladores con sus zonas, indicadores por familia, estructura de
+precio y superposiciones sobre el gráfico (medias, bandas, Ichimoku, SAR, niveles y Fibonacci).
+Pendiente en G2: confluencia multimarco y ficha de activo.
 
 ### G3 — Backtest, validación, mundos nulos y metodología
 
