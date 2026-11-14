@@ -31,13 +31,14 @@ def test_the_whole_catalogue_on_full_bars() -> None:
     assert indicators.source == SYNTHETIC_SOURCE
 
 
-def test_indicators_needing_columns_the_series_lacks_are_left_out_with_the_reason() -> None:
+def test_indicators_needing_columns_the_series_lacks_are_left_out_with_them() -> None:
     indicators = technical_indicators(CLOSES)
 
     assert "RSI" in indicators.names
     assert "ADX" not in indicators.names
-    assert indicators.unavailable["ADX"] == "the series has no high, low"
-    assert indicators.unavailable["VOLRATIO"] == "the series has no volume"
+    assert indicators.unavailable["ADX"] == ("high", "low")
+    assert indicators.unavailable["VOLRATIO"] == ("volume",)
+    assert indicators.unavailable["MFI"] == ("high", "low", "volume")
     assert set(indicators.names) | set(indicators.unavailable) == set(CATALOGUE)
 
 

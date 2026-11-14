@@ -42,7 +42,7 @@ class TechnicalIndicators:
         source: Provenance of the bars.
         data: One column per indicator, on the index of the bars (``NaN`` in warm-up).
         parameters: Parameters used for each indicator.
-        unavailable: Indicators left out and why (a price column the series lacks).
+        unavailable: Indicators left out, with the price columns the series lacks for them.
     """
 
     instrument: Instrument
@@ -50,7 +50,7 @@ class TechnicalIndicators:
     source: DataSource
     data: InitVar[pd.DataFrame]
     parameters: Mapping[str, Mapping[str, float]]
-    unavailable: Mapping[str, str] = field(default_factory=dict)
+    unavailable: Mapping[str, tuple[str, ...]] = field(default_factory=dict)
     _values: pd.DataFrame = field(init=False, repr=False)
 
     def __post_init__(self, data: pd.DataFrame) -> None:
@@ -145,12 +145,12 @@ def technical_indicators(
     available = {column.value: bars[column] for column in _COLUMNS if column in bars.columns}
     values: dict[str, pd.Series] = {}
     used: dict[str, dict[str, float]] = {}
-    unavailable: dict[str, str] = {}
+    unavailable: dict[str, tuple[str, ...]] = {}
     for name in wanted:
         indicator = CATALOGUE[name]
         missing = sorted(c.value for c in indicator.columns if c.value not in available)
         if missing:
-            unavailable[name] = f"the series has no {', '.join(missing)}"
+            unavailable[name] = tuple(missing)
             continue
         chosen = {**indicator.defaults, **overrides.get(name, {})}
         try:

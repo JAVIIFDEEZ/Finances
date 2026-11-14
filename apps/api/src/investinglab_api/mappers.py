@@ -342,8 +342,8 @@ def technical_out(indicators: TechnicalIndicators) -> TechnicalOut:
             for name in indicators.names
         ],
         unavailable=[
-            UnavailableIndicatorOut(name=name, reason=reason)
-            for name, reason in indicators.unavailable.items()
+            UnavailableIndicatorOut(name=name, missing=list(missing))  # type: ignore[arg-type]
+            for name, missing in indicators.unavailable.items()
         ],
     )
 

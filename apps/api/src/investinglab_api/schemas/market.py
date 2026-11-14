@@ -314,10 +314,12 @@ class IndicatorOut(ApiModel):
 
 
 class UnavailableIndicatorOut(ApiModel):
-    """An indicator the series cannot have, and why."""
+    """An indicator the series cannot have, and the price columns it lacks for it."""
 
     name: str
-    reason: str
+    missing: list[Literal["high", "low", "close", "volume"]] = Field(
+        description="Price columns the series does not have (a currency pair has no volume)."
+    )
 
 
 class TechnicalOut(ApiModel):

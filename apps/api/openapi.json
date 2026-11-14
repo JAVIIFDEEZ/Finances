@@ -5933,18 +5933,28 @@
             "type": "string",
             "title": "Name"
           },
-          "reason": {
-            "type": "string",
-            "title": "Reason"
+          "missing": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "high",
+                "low",
+                "close",
+                "volume"
+              ]
+            },
+            "type": "array",
+            "title": "Missing",
+            "description": "Price columns the series does not have (a currency pair has no volume)."
           }
         },
         "type": "object",
         "required": [
           "name",
-          "reason"
+          "missing"
         ],
         "title": "UnavailableIndicatorOut",
-        "description": "An indicator the series cannot have, and why."
+        "description": "An indicator the series cannot have, and the price columns it lacks for it."
       },
       "ValidationError": {
         "properties": {

@@ -267,8 +267,8 @@ def test_technical_indicators_of_a_series_of_closes(client: TestClient) -> None:
     body = response.json()
     names = {indicator["name"] for indicator in body["indicators"]}
     assert {"RSI", "MACD_LINE", "BB_UPPER", "SMA"} <= names
-    unavailable = {item["name"]: item["reason"] for item in body["unavailable"]}
-    assert unavailable["ADX"] == "the series has no high, low"  # synthetic closes only
+    unavailable = {item["name"]: item["missing"] for item in body["unavailable"]}
+    assert unavailable["ADX"] == ["high", "low"]  # synthetic closes only
     assert names.isdisjoint(unavailable)
     rsi = next(i for i in body["indicators"] if i["name"] == "RSI")
     assert (rsi["kind"], rsi["parameters"], rsi["threshold"]) == (

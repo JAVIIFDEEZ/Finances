@@ -2001,13 +2001,16 @@ export interface components {
         };
         /**
          * UnavailableIndicatorOut
-         * @description An indicator the series cannot have, and why.
+         * @description An indicator the series cannot have, and the price columns it lacks for it.
          */
         UnavailableIndicatorOut: {
             /** Name */
             name: string;
-            /** Reason */
-            reason: string;
+            /**
+             * Missing
+             * @description Price columns the series does not have (a currency pair has no volume).
+             */
+            missing: ("high" | "low" | "close" | "volume")[];
         };
         /** ValidationError */
         ValidationError: {
