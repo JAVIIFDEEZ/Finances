@@ -106,5 +106,7 @@ se evalúa en una ventana de cinco que termina en cada vela.
 
 * [ADR-0034](0034-technical-indicators-in-numpy.md): los indicadores, con la misma estrategia
   de paridad.
-* La fachada de dominio, la API y la pantalla llegan en la parte siguiente de G2, junto con
-  la estructura (pivotes, soportes y resistencias, divergencias) y la confluencia entre marcos.
+* La fachada de dominio (`domain.patterns`, `price_patterns`), `tk.patterns`, el endpoint
+  `/api/v1/market/patterns` y el panel de patrones de la pantalla de mercados llegaron en la
+  parte siguiente de G2. Quedan la estructura (pivotes, soportes y resistencias,
+  divergencias) y la confluencia entre marcos.

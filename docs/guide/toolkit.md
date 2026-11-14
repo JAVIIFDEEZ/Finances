@@ -5,7 +5,8 @@ sirve para:
 
 * descargar varias series a la vez de todas las fuentes configuradas;
 * leer el flujo de cada vela (`tk.flow`) y el funding de los perpetuos (`tk.holding_rates`);
-* calcular los indicadores técnicos de cualquier instrumento (`tk.technical`);
+* calcular los indicadores técnicos de cualquier instrumento (`tk.technical`) y sus patrones
+  de precio (`tk.patterns`);
 * leer series económicas *point-in-time* (`tk.economic`), como el €STR o el índice de miedo y
   codicia cripto;
 * construir carteras en una divisa base;
@@ -124,6 +125,28 @@ En barras diarias o más largas descarga también historia anterior a `start` (4
 las diarias) para que los indicadores ya estén calentados en esa fecha. Un indicador que
 necesita una columna que la serie no tiene (el volumen de un par de divisas) no se calcula con
 sustitutos: queda en `unavailable` con las columnas que le faltan.
+
+## Patrones de precio
+
+`tk.patterns` busca los 25 patrones del catálogo
+([ADR-0035](../adr/0035-causal-price-patterns.md)) en las velas de cualquier símbolo: velas
+japonesas, huecos de valor (FVG), barridas de liquidez, *order blocks*, CRT, *Power of Three*,
+la ruptura del rango de apertura y las zonas de Fibonacci.
+
+```python
+pat = tk.patterns("SAN.MC", start="2025-01-01")
+pat["SWEEP_LOW"]  # una bandera por vela, en la vela que completa el patrón
+pat.events()  # cada suceso (time, pattern), del más antiguo al más reciente
+pat.last("BULL_ENGULF"), pat.count("BULL_ENGULF")
+pat.active()  # lo que marca la última vela (las zonas en las que está el precio)
+pat.unavailable  # {"ORB_UP": ("intraday",), ...} con velas diarias
+```
+
+Como `tk.technical`, en barras diarias o más largas descarga historia anterior a `start`, así
+que un *order block* o un *swing* que se formó antes cuenta después. La ruptura del rango de
+apertura necesita barras intradía y toma la sesión del mercado (la fecha local de la bolsa, o
+la UTC en los mercados que no cierran). Un patrón que necesita una columna que la serie no
+tiene (la apertura de una serie de cierres) no se calcula con sustitutos.
 
 ## Carteras en varias divisas
 

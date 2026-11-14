@@ -781,6 +781,9 @@ solo tenía la pantalla de CryptoWorld están en `analytics/patterns/` con un so
 sobre 396 velas diarias y 336 horarias (casete nueva `binance/btc_usdt_1h_2026_10`, para el
 ORB): 76 casos con las mismas velas marcadas. El ORB lee la sesión del mercado y no la
 medianoche UTC; los *order blocks* corrigen una guarda de longitud que no era causal.
+Después llegaron la fachada `price_patterns`, `tk.patterns`, `GET /api/v1/market/patterns` y
+el panel de patrones, que los marca sobre el gráfico de precio. Pendiente en G2: estructura,
+confluencia multimarco y ficha de activo.
 
 ### G3 — Backtest, validación, mundos nulos y metodología
 
