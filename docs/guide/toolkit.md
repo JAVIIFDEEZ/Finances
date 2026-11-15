@@ -6,7 +6,8 @@ sirve para:
 * descargar varias series a la vez de todas las fuentes configuradas;
 * leer el flujo de cada vela (`tk.flow`) y el funding de los perpetuos (`tk.holding_rates`);
 * calcular los indicadores técnicos de cualquier instrumento (`tk.technical`), sus patrones
-  de precio (`tk.patterns`) y su estructura (`tk.structure`);
+  de precio (`tk.patterns`), su estructura (`tk.structure`) y la confluencia entre marcos
+  temporales (`tk.confluence`);
 * leer series económicas *point-in-time* (`tk.economic`), como el €STR o el índice de miedo y
   codicia cripto;
 * construir carteras en una divisa base;
@@ -166,6 +167,28 @@ st.basis  # "range" con máximos y mínimos; "close" si la serie solo tiene cier
 
 Un pivote necesita `k` velas posteriores (3 por defecto) para confirmarse, así que cada
 divergencia dice desde qué vela se sabe, no solo que existe.
+
+## Confluencia entre marcos temporales
+
+`tk.confluence` lee en varios marcos el panel de once reglas de manual y la tendencia de
+fondo, y dice si coinciden ([ADR-0038](../adr/0038-signal-panel-and-timeframe-confluence.md)).
+
+```python
+conf = tk.confluence("SAN.MC")  # diario, semanal y mensual, de una sola descarga
+conf.summary.verdict, conf.summary.alignment, conf.summary.agreement
+semanal = conf.frame("1w")
+semanal.trend.direction  # up, down o sideways
+semanal.panel.bullish, semanal.panel.neutral, semanal.panel.bearish
+semanal.panel.trend_score, semanal.panel.reversal_score  # los dos estilos, por separado
+tk.confluence("BTC/USDT", frames=["15m", "1h", "4h", "1d"])  # intradía, si la fuente lo sirve
+```
+
+Las reglas de **tendencia** siguen el movimiento y las de **giro** apuestan por su
+agotamiento: en una tendencia fuerte se contradicen por construcción, y por eso se cuentan
+aparte. Un marco que ninguna fuente sirve, o con menos de 50 velas, se informa con su motivo
+(`issue`) y no cuenta; con menos de dos marcos legibles el veredicto es `insufficient`. Lo
+que dice una regla no es una previsión: si alguna anticipa algo se medirá al validar
+estrategias.
 
 ## Carteras en varias divisas
 

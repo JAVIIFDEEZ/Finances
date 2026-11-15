@@ -10,6 +10,7 @@ curl "http://127.0.0.1:8000/api/v1/market/flow?symbol=BTC/USDT&start=2026-10-01"
 curl "http://127.0.0.1:8000/api/v1/market/holding-rates?symbol=BTC/USDT:USDT&kind=funding"
 curl "http://127.0.0.1:8000/api/v1/market/technical?symbol=EURUSD=X&start=2026-01-01&name=RSI&name=MFI"
 curl "http://127.0.0.1:8000/api/v1/market/patterns?symbol=BTC/USDT&interval=1h&start=2026-11-01"
+curl "http://127.0.0.1:8000/api/v1/market/confluence?symbol=SAN.MC&frame=1d&frame=1w&frame=1mo"
 ```
 
 ## Endpoints
@@ -22,6 +23,7 @@ curl "http://127.0.0.1:8000/api/v1/market/patterns?symbol=BTC/USDT&interval=1h&s
 | GET | `/api/v1/market/bars` | Barras de un instrumento con metadatos, procedencia y estadísticos |
 | GET | `/api/v1/market/flow` | Flujo de las mismas barras: volumen y, si la fuente dice quién agredió, *delta* y CVD |
 | GET | `/api/v1/market/technical` | Indicadores técnicos del catálogo (todos, o los `name` pedidos) sobre las mismas barras, ya calentados en `start`; los que necesitan una columna que la serie no tiene van en `unavailable` con las columnas que faltan |
+| GET | `/api/v1/market/confluence` | Panel de once reglas y tendencia de fondo en cada marco (`frame` repetible: 15m, 30m, 1h, 4h, 1d, 1w, 1mo; diario, semanal y mensual por defecto): recuentos, neto, netos de las reglas de tendencia y de giro por separado, y por qué no se lee un marco; con la alineación ponderada, el acuerdo y el veredicto |
 | GET | `/api/v1/market/structure` | Soportes y resistencias con sus toques, el más cercano de cada lado, divergencias RSI/precio con la vela que las confirmó y el *swing* de Fibonacci, a la última vela; `basis` dice si salen de máximos y mínimos o de los cierres |
 | GET | `/api/v1/market/patterns` | Patrones de precio (velas, liquidez y estructura, sesión, zonas de Fibonacci): de cada uno, familia, dirección de su definición, velas marcadas, la última y si está activo; cada suceso, y los que la serie no admite con lo que les falta (columnas o barras intradía) |
 | GET | `/api/v1/market/holding-rates` | Funding, comisión de préstamo o coste de financiación (`kind`), con su intervalo y lo acumulado |
