@@ -103,6 +103,9 @@ diarias), con dos juegos de parámetros por indicador. El resultado, en
   endpoint `/api/v1/market/technical` y el panel técnico de la pantalla de mercados llegaron
   en la segunda parte de G2. Quedan los patrones de velas, la estructura (pivotes, soportes y
   resistencias, divergencias) y la confluencia entre marcos.
+* Un caso límite añadido después: en una serie que no se ha movido nunca (un valor
+  liquidativo repetido, una divisa fijada) no hay ganancias ni pérdidas y el RSI es 0/0. `ta`
+  da 100; aquí queda sin definir, por el mismo principio de no inventar valores.
 * El umbral de cada oscilador del catálogo es el **rango de búsqueda** de CryptoWorld (RSI
   15-85), no una zona de lectura como 30/70; por eso la web no lo dibuja como líneas de
   sobrecompra y sobreventa.

@@ -36,7 +36,11 @@ def test_rsi_reads_100_without_losses_and_nothing_during_warm_up() -> None:
 
     assert values.iloc[:13].isna().all()
     assert (values.dropna() == 100.0).all()
-    assert (ta.rsi(FLAT, 14).dropna() == 100.0).all()  # ta's convention: no losses, 100
+    assert ta.rsi(FLAT, 14).isna().all()  # never moved: neither gains nor losses, 0/0
+    after_a_move = pd.concat(
+        [RISING.iloc[:20], pd.Series([RISING.iloc[19]] * 20)], ignore_index=True
+    )
+    assert (ta.rsi(after_a_move, 14).iloc[14:] == 100.0).all()  # gains once, never a loss
 
 
 def test_oscillators_on_a_steady_rise() -> None:
