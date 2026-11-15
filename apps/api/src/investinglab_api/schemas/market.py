@@ -20,6 +20,7 @@ __all__ = [
     "CompareRequest",
     "CompareSeriesOut",
     "ComparisonOut",
+    "ConfluenceOut",
     "DivergenceOut",
     "ExchangeOut",
     "FailureOut",
@@ -27,6 +28,7 @@ __all__ = [
     "FlowBarOut",
     "FlowOut",
     "FlowSummaryOut",
+    "FrameOut",
     "IndicatorOut",
     "InstrumentOut",
     "IssueOut",
@@ -38,7 +40,9 @@ __all__ = [
     "RatePointOut",
     "RatesOut",
     "RatesSummaryOut",
+    "RuleOut",
     "SeriesOut",
+    "SkippedRuleOut",
     "SourceOut",
     "StatsOut",
     "StructureLevelOut",
@@ -47,6 +51,7 @@ __all__ = [
     "Symbol",
     "TailRiskOut",
     "TechnicalOut",
+    "TrendOut",
     "UnavailableIndicatorOut",
     "UnavailablePatternOut",
 ]
@@ -451,6 +456,83 @@ class StructureOut(ApiModel):
     divergences: list[DivergenceOut]
     fibonacci: SwingOut | None
     parameters: dict[str, float]
+
+
+class RuleOut(ApiModel):
+    """What one rule of the signal panel says on the last bar (ADR-0038)."""
+
+    name: str = Field(description="RSI, MACD, SMA_20, SMA_50, EMA_12, EMA_26, BOLLINGER...")
+    style: Literal["trend", "reversal"] = Field(
+        description="Whether the rule follows a move or fades it: opposite readings of a trend."
+    )
+    bias: Literal["bullish", "bearish", "neutral"] = Field(
+        description="The way the rule points; what it says, not a forecast."
+    )
+    values: dict[str, float] = Field(description="The figures the rule compared.")
+    parameters: dict[str, float]
+
+
+class SkippedRuleOut(ApiModel):
+    """A rule that could not be read, and what it lacks."""
+
+    name: str
+    missing: list[Literal["high", "low", "undefined"]] = Field(
+        description="Price columns the series does not have, or `undefined` when its bars give "
+        "the rule no value (too few of them, or a price that never moves)."
+    )
+
+
+class TrendOut(ApiModel):
+    """The background trend: the close against a long average and the slope of a medium one."""
+
+    direction: Literal["up", "down", "sideways"]
+    sma_window: int = Field(description="Bars of the long average (200, fewer on a short series).")
+    sma: float
+    price_vs_sma_pct: float
+    ema_window: int = Field(description="Bars of the medium average (50, fewer on a short one).")
+    ema_slope_pct: float = Field(description="Its change over the last ten bars, in percent.")
+
+
+class FrameOut(ApiModel):
+    """One timeframe of the instrument: its signal panel and its trend."""
+
+    frequency: Frequency
+    weight: float = Field(description="Weight in the alignment: coarser frames weigh more.")
+    bars: int
+    last_at: date | datetime | None = Field(
+        description="Its last bar; for a derived frame, a period that may still be in progress."
+    )
+    derived: bool = Field(description="Aggregated from the daily bars of the same source.")
+    issue: Literal["no_data", "too_few_bars"] | None = Field(
+        description="Why the frame could not be read (null if it was)."
+    )
+    score: float | None = Field(description="Net of its rules, in [-1, 1].")
+    verdict: Literal["strong_bullish", "bullish", "neutral", "bearish", "strong_bearish"] | None
+    bullish: int
+    bearish: int
+    neutral: int
+    trend_score: float | None = Field(description="Net of its trend-following rules.")
+    reversal_score: float | None = Field(description="Net of its reversal rules.")
+    trend: TrendOut | None
+    rules: list[RuleOut]
+    skipped: list[SkippedRuleOut]
+
+
+class ConfluenceOut(ApiModel):
+    """The frames of an instrument and whether they agree (ADR-0038)."""
+
+    instrument: InstrumentOut
+    source: SourceOut
+    verdict: Literal["aligned_bullish", "aligned_bearish", "mixed", "neutral", "insufficient"] = (
+        Field(
+            description="Aligned needs a direction and three quarters of the frames sharing it; "
+            "insufficient means fewer than two frames could be read."
+        )
+    )
+    alignment: float | None = Field(description="Weighted mean of the frames' scores, in [-1, 1].")
+    agreement: float | None = Field(description="Share of the frames read pointing that way.")
+    frames_read: int
+    frames: list[FrameOut] = Field(description="Finest first.")
 
 
 class PatternsOut(ApiModel):

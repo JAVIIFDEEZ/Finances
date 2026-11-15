@@ -420,3 +420,67 @@ def test_structure_of_a_series_of_closes(client: TestClient) -> None:
 
     assert body["basis"] == "close"
     assert body["fibonacci"] is not None
+
+
+# ── Confluence across timeframes (SYNTHETIC) ─────────────────────────
+
+
+def test_confluence_reads_daily_and_weekly_and_says_why_not_monthly(client: TestClient) -> None:
+    response = client.get("/api/v1/market/confluence", params={"symbol": "BARS.MC"})
+
+    assert response.status_code == 200
+    body = response.json()
+    daily, weekly, monthly = body["frames"]
+    assert [f["frequency"] for f in body["frames"]] == ["1d", "1w", "1mo"]
+    assert [f["weight"] for f in body["frames"]] == [1.0, 2.0, 3.0]
+    assert (daily["derived"], weekly["derived"], monthly["derived"]) == (False, True, True)
+    assert (monthly["issue"], monthly["score"], monthly["rules"]) == ("too_few_bars", None, [])
+    assert 0 < monthly["bars"] < 50  # 600 synthetic sessions are 28 months
+    for frame in (daily, weekly):
+        assert frame["issue"] is None
+        assert len(frame["rules"]) + len(frame["skipped"]) == 11
+        counts = frame["bullish"] + frame["bearish"] + frame["neutral"]
+        assert counts == len(frame["rules"])
+        assert frame["score"] == pytest.approx((frame["bullish"] - frame["bearish"]) / counts)
+        assert {rule["style"] for rule in frame["rules"]} == {"trend", "reversal"}
+        assert frame["trend"]["direction"] in {"up", "down", "sideways"}
+    assert body["frames_read"] == 2
+    assert body["alignment"] == pytest.approx((daily["score"] + 2 * weekly["score"]) / 3)
+    assert body["verdict"] in {"aligned_bullish", "aligned_bearish", "mixed", "neutral"}
+    assert 0 <= body["agreement"] <= 1
+
+
+def test_confluence_of_closes_skips_the_rules_that_need_highs_and_lows(client: TestClient) -> None:
+    body = client.get("/api/v1/market/confluence", params={"symbol": "AAA.MC"}).json()
+
+    skipped = {item["name"]: item["missing"] for item in body["frames"][0]["skipped"]}
+    assert skipped == {name: ["high", "low"] for name in ("ADX", "CCI", "WILLR")}
+    assert len(body["frames"][0]["rules"]) == 8
+
+
+def test_one_readable_frame_is_not_a_consensus(client: TestClient) -> None:
+    body = client.get(
+        "/api/v1/market/confluence",
+        params=[("symbol", "SESSION.MC"), ("frame", "1h"), ("frame", "1d"), ("end", "2024-03-29")],
+    ).json()
+
+    hourly, daily = body["frames"]
+    assert (hourly["frequency"], hourly["issue"], hourly["derived"]) == ("1h", None, False)
+    assert (daily["issue"], daily["bars"], daily["last_at"]) == ("no_data", 0, None)
+    assert (body["verdict"], body["frames_read"], body["agreement"]) == ("insufficient", 1, None)
+    assert body["alignment"] == hourly["score"]
+
+
+def test_confluence_refuses_frames_it_cannot_read(client: TestClient) -> None:
+    yearly = client.get(
+        "/api/v1/market/confluence", params=[("symbol", "BARS.MC"), ("frame", "1y")]
+    )
+    bogus = client.get(
+        "/api/v1/market/confluence", params=[("symbol", "BARS.MC"), ("frame", "soon")]
+    )
+    unknown = client.get("/api/v1/market/confluence", params={"symbol": "NOPE.MC"})
+
+    assert yearly.status_code == 422
+    assert "cannot be read" in yearly.json()["detail"]
+    assert bogus.status_code == 422
+    assert unknown.status_code == 404

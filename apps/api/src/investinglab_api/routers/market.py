@@ -14,6 +14,7 @@ from investinglab_api import use_cases
 from investinglab_api.dependencies import SettingsDep, ToolkitDep, at_most
 from investinglab_api.mappers import (
     comparison_out,
+    confluence_out,
     flow_out,
     patterns_out,
     quality_out,
@@ -27,6 +28,7 @@ from investinglab_api.routers import problems
 from investinglab_api.schemas.market import (
     CompareRequest,
     ComparisonOut,
+    ConfluenceOut,
     FlowOut,
     PatternsOut,
     QualityOut,
@@ -159,6 +161,38 @@ async def structure(
     """
     found = await toolkit.structure(symbol, start=start, end=end, frequency=interval)
     return await asyncio.to_thread(structure_out, found)
+
+
+@router.get(
+    "/market/confluence",
+    summary="Signal panel and trend of an instrument across timeframes",
+    response_model=ConfluenceOut,
+    responses=problems(404, 422, 503),
+)
+async def confluence(
+    toolkit: ToolkitDep,
+    symbol: SymbolQuery,
+    *,
+    frames: Annotated[
+        list[Frequency] | None,
+        Query(
+            alias="frame",
+            description=(
+                "Frames to read (repeat it), among 15m, 30m, 1h, 4h, 1d, 1w and 1mo; daily, "
+                "weekly and monthly by default."
+            ),
+        ),
+    ] = None,
+    end: End = None,
+) -> ConfluenceOut:
+    """Eleven conventional rules and the trend on each frame, and whether they agree (ADR-0038).
+
+    Daily, weekly and monthly frames come from one download of daily bars. A frame nobody
+    serves, or with too few bars, is reported with its ``issue`` and does not count. The
+    rules describe; they are not advice.
+    """
+    found = await toolkit.confluence(symbol, frames=frames, end=end)
+    return await asyncio.to_thread(confluence_out, found)
 
 
 @router.get(

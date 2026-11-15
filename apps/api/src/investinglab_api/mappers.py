@@ -37,6 +37,7 @@ from investinglab_api.schemas.market import (
     BarOut,
     CompareSeriesOut,
     ComparisonOut,
+    ConfluenceOut,
     DivergenceOut,
     ExchangeOut,
     FailureOut,
@@ -44,6 +45,7 @@ from investinglab_api.schemas.market import (
     FlowBarOut,
     FlowOut,
     FlowSummaryOut,
+    FrameOut,
     IndicatorOut,
     InstrumentOut,
     IssueOut,
@@ -55,7 +57,9 @@ from investinglab_api.schemas.market import (
     RatePointOut,
     RatesOut,
     RatesSummaryOut,
+    RuleOut,
     SeriesOut,
+    SkippedRuleOut,
     SourceOut,
     StatsOut,
     StructureLevelOut,
@@ -63,6 +67,7 @@ from investinglab_api.schemas.market import (
     SwingOut,
     TailRiskOut,
     TechnicalOut,
+    TrendOut,
     UnavailableIndicatorOut,
     UnavailablePatternOut,
 )
@@ -90,6 +95,7 @@ if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
     from datetime import date, datetime
 
+    from investinglab.domain.confluence import FrameReading, TimeframeConfluence
     from investinglab.domain.economic import EconomicSeries
     from investinglab.domain.flow import FlowSeries
     from investinglab.domain.instruments import Instrument
@@ -447,6 +453,67 @@ def structure_out(structure: PriceStructure) -> StructureOut:
             nearest=swing.nearest,
         ),
         parameters=dict(structure.parameters),
+    )
+
+
+def _frame_out(frame: FrameReading) -> FrameOut:
+    panel, trend = frame.panel, frame.trend
+    return FrameOut(
+        frequency=frame.frequency,
+        weight=frame.weight,
+        bars=frame.bars,
+        last_at=None if frame.last_at is None else _time(frame.last_at),
+        derived=frame.derived,
+        issue=None if frame.issue is None else frame.issue.value,
+        score=frame.score,
+        verdict=None if panel is None or panel.verdict is None else panel.verdict.value,
+        bullish=0 if panel is None else panel.bullish,
+        bearish=0 if panel is None else panel.bearish,
+        neutral=0 if panel is None else panel.neutral,
+        trend_score=None if panel is None else panel.trend_score,
+        reversal_score=None if panel is None else panel.reversal_score,
+        trend=None
+        if trend is None
+        else TrendOut(
+            direction=trend.direction.value,
+            sma_window=trend.sma_window,
+            sma=trend.sma,
+            price_vs_sma_pct=trend.price_vs_sma_pct,
+            ema_window=trend.ema_window,
+            ema_slope_pct=trend.ema_slope_pct,
+        ),
+        rules=[]
+        if panel is None
+        else [
+            RuleOut(
+                name=rule.name,
+                style=rule.style.value,
+                bias=rule.bias.value,
+                values=dict(rule.values),
+                parameters=dict(rule.parameters),
+            )
+            for rule in panel.rules
+        ],
+        skipped=[]
+        if panel is None
+        else [
+            SkippedRuleOut(name=name, missing=list(missing))  # type: ignore[arg-type]
+            for name, missing in panel.skipped.items()
+        ],
+    )
+
+
+def confluence_out(confluence: TimeframeConfluence) -> ConfluenceOut:
+    """Every frame with its panel and trend, and whether they agree."""
+    summary = confluence.summary
+    return ConfluenceOut(
+        instrument=instrument_out(confluence.instrument),
+        source=_source_out(confluence.source),
+        verdict=summary.verdict.value,
+        alignment=summary.alignment,
+        agreement=summary.agreement,
+        frames_read=summary.frames,
+        frames=[_frame_out(frame) for frame in confluence.frames],
     )
 
 
