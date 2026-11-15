@@ -14,7 +14,9 @@ range and the middle):
   only looks at the last five bars, so it is run on a window of five ending at each bar;
 * its price structure (``price_structure``: support and resistance levels and RSI
   divergences) and the Fibonacci levels of its confluence card, on both. They describe the
-  series as of its last bar, so they are run on many cuts of it.
+  series as of its last bar, so they are run on many cuts of it;
+* its signals dashboard (``calculate_signals_dashboard``: eleven rules and their net) and
+  the trend of its confluence card (``classify_trend``), on cuts of both as well.
 
 It needs CryptoWorld's pinned versions, in a throwaway environment that never touches the
 project's (they are not dependencies of InvestingLab)::
@@ -25,8 +27,8 @@ project's (they are not dependencies of InvestingLab)::
 pinned packages).
 
 The outputs, ``tests/fixtures/parity/cryptoworld_indicators.json``,
-``cryptoworld_patterns.json`` and ``cryptoworld_structure.json``, are committed and never
-edited by hand.
+``cryptoworld_patterns.json``, ``cryptoworld_structure.json`` and
+``cryptoworld_signals.json``, are committed and never edited by hand.
 """
 
 from __future__ import annotations
@@ -53,6 +55,12 @@ LEVEL_CUTS = 20
 DIVERGENCE_CUTS = 3
 """Bars between two cuts for the divergences (they only look at the last pivots)."""
 FIRST_CUT = 60
+SIGNALS_OUTPUT = FIXTURES / "parity" / "cryptoworld_signals.json"
+PANEL_CUTS = 6
+"""Bars between two cuts of a series for the signals dashboard and the trend."""
+FIRST_PANEL_CUT = 50
+"""The dashboard's longest window: from here every one of its rules has a value."""
+FIRST_TREND_CUT = 20
 SCREEN = (
     "Inverted Hammer",
     "Morning Star",
@@ -172,8 +180,33 @@ def _structure(name: str) -> dict[str, Any]:
     }
 
 
+def _signals(name: str) -> dict[str, Any]:
+    """CryptoWorld's signals dashboard and trend classification on cuts of one cassette."""
+    dashboard = importlib.import_module("core.domain.services.technical_analysis_service")
+    card = importlib.import_module("core.domain.services.confluence_service")
+    candles = _candles(name)
+
+    def upto(end: int) -> Any:  # noqa: ANN401 - a pandas DataFrame
+        return candles.iloc[:end].reset_index(drop=True)
+
+    panels = []
+    for end in range(FIRST_PANEL_CUT, len(candles) + 1, PANEL_CUTS):
+        found = dashboard.calculate_signals_dashboard(upto(end))
+        panels.append({"end": end, "rules": found["indicators"], "summary": found["summary"]})
+    trends = [
+        {"end": end, **card.classify_trend(upto(end))}
+        for end in range(FIRST_TREND_CUT, len(candles) + 1, PANEL_CUTS)
+    ]
+    return {
+        "candles": name,
+        "open_times": [int(t) for t in candles["open_time"]],
+        "panels": panels,
+        "trends": trends,
+    }
+
+
 def main(source: Path) -> int:
-    """Evaluate CryptoWorld's indicators, patterns and structure and write the fixtures."""
+    """Evaluate CryptoWorld's indicators, patterns, structure and signals: the fixtures."""
     sys.path.insert(0, str(source))
     spec = importlib.import_module("core.domain.services.strategy_spec")
     registry: dict[str, dict[str, Any]] = spec._ALL  # noqa: SLF001 - CryptoWorld's registry
@@ -228,6 +261,20 @@ def main(source: Path) -> int:
     STRUCTURE_OUTPUT.write_text(json.dumps(structure, separators=(",", ":")) + "\n", "utf-8")
     cuts = sum(len(s["levels"]) + len(s["divergences"]) + len(s["fibonacci"]) for s in shapes)
     print(f"{cuts} structure cases over {len(shapes)} series -> {STRUCTURE_OUTPUT}")  # noqa: T201
+    read = [_signals(CANDLES), _signals(HOURLY)]
+    signals = {
+        "purpose": "CryptoWorld's signals dashboard and trend as of many cuts, for parity.",
+        "source": [
+            "core.domain.services.technical_analysis_service.calculate_signals_dashboard",
+            "core.domain.services.confluence_service.classify_trend",
+        ],
+        "cryptoworld": fixture["cryptoworld"],
+        "versions": fixture["versions"],
+        "series": read,
+    }
+    SIGNALS_OUTPUT.write_text(json.dumps(signals, separators=(",", ":")) + "\n", "utf-8")
+    cuts = sum(len(s["panels"]) + len(s["trends"]) for s in read)
+    print(f"{cuts} signal cases over {len(read)} series -> {SIGNALS_OUTPUT}")  # noqa: T201
     return 0
 
 
