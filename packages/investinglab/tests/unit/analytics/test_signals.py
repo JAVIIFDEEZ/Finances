@@ -130,6 +130,9 @@ def test_the_verdict_is_the_net_of_the_rules(
     assert panel.count(Bias.BULLISH, Style.TREND) == bullish
     assert panel.count(Bias.BULLISH, Style.REVERSAL) == 0
     assert panel.score_of(Style.REVERSAL) == (-1.0 if bearish else None)
+    assert (panel.bullish, panel.bearish, panel.neutral) == (bullish, bearish, neutral)
+    assert panel.reversal_score == panel.score_of(Style.REVERSAL)
+    assert panel.trend_score == pytest.approx(bullish / (bullish + neutral))
 
 
 # ── The trend ────────────────────────────────────────────────────────

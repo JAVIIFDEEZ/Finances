@@ -180,6 +180,21 @@ class SignalPanel:
         """Rules read."""
         return len(self.rules)
 
+    @property
+    def bullish(self) -> int:
+        """Rules pointing up."""
+        return self.count(Bias.BULLISH)
+
+    @property
+    def bearish(self) -> int:
+        """Rules pointing down."""
+        return self.count(Bias.BEARISH)
+
+    @property
+    def neutral(self) -> int:
+        """Rules pointing nowhere."""
+        return self.count(Bias.NEUTRAL)
+
     def score_of(self, style: Style | None = None) -> float | None:
         """Mean of the rules (+1 bullish, -1 bearish, 0 neutral); ``None`` without rules."""
         rules = [rule for rule in self.rules if style is None or rule.style is style]
@@ -195,6 +210,16 @@ class SignalPanel:
     def score(self) -> float | None:
         """Net score of the whole panel, in [-1, 1]."""
         return self.score_of()
+
+    @property
+    def trend_score(self) -> float | None:
+        """Net score of the trend-following rules."""
+        return self.score_of(Style.TREND)
+
+    @property
+    def reversal_score(self) -> float | None:
+        """Net score of the reversal rules."""
+        return self.score_of(Style.REVERSAL)
 
     @property
     def verdict(self) -> PanelVerdict | None:
