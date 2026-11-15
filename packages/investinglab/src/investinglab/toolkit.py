@@ -22,7 +22,7 @@ from __future__ import annotations
 import asyncio
 import threading
 from dataclasses import replace
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import TYPE_CHECKING, Any, Final, Self, Unpack
 
 import pandas as pd
@@ -41,6 +41,7 @@ from investinglab.adapters.providers.yahoo import YahooFinanceProvider
 from investinglab.adapters.storage import ParquetSeriesStore
 from investinglab.config.logging import get_logger
 from investinglab.config.settings import Settings, get_settings
+from investinglab.domain.confluence import timeframe_confluence
 from investinglab.domain.errors import DomainError, InvestingLabError
 from investinglab.domain.metrics import DEFAULT_CONFIDENCE_LEVELS
 from investinglab.domain.money import Currency
@@ -61,10 +62,10 @@ from investinglab.services.risk_free import RiskFreeRateService
 if TYPE_CHECKING:
     from collections.abc import Callable, Coroutine, Iterable, Mapping, Sequence
     from concurrent.futures import Future
-    from datetime import datetime
     from pathlib import Path
     from types import TracebackType
 
+    from investinglab.domain.confluence import TimeframeConfluence
     from investinglab.domain.economic import EconomicSeries
     from investinglab.domain.flow import FlowSeries
     from investinglab.domain.metrics import RiskMetrics
@@ -100,6 +101,24 @@ type RemoteProvider = (
 def _as_date(value: DateLike) -> date | None:
     return None if value is None else pd.Timestamp(value).date()
 
+
+CONFLUENCE_FRAMES: Final = (Frequency.DAY_1, Frequency.WEEK_1, Frequency.MONTH_1)
+"""Frames read by default: every source serves daily bars, and the other two derive from them."""
+
+CONFLUENCE_HISTORY: Final[dict[Frequency, timedelta]] = {
+    Frequency.MINUTE_15: timedelta(days=21),
+    Frequency.MINUTE_30: timedelta(days=40),
+    Frequency.HOUR_1: timedelta(days=75),
+    Frequency.HOUR_4: timedelta(days=300),
+    Frequency.DAY_1: timedelta(days=450),
+    Frequency.WEEK_1: timedelta(days=6 * 366),
+    Frequency.MONTH_1: timedelta(days=12 * 366),
+}
+"""Frames the confluence can read, with the history fetched for each.
+
+About 300 bars of an exchange with a short session (more of a market that never closes), so
+that the panel's averages have settled; within what the sources keep of each frequency.
+"""
 
 WARMUP: Final[dict[Frequency, timedelta]] = {
     Frequency.DAY_1: timedelta(days=400),
@@ -361,6 +380,70 @@ class AsyncToolkit:
         """
         series = await self.series(symbol, start=start, end=end, frequency=Frequency(frequency))
         return price_structure(series)
+
+    async def confluence(
+        self,
+        symbol: str,
+        *,
+        frames: Iterable[Frequency | str] | None = None,
+        end: DateLike = None,
+    ) -> TimeframeConfluence:
+        """The signal panel and the trend of a symbol on several timeframes (ADR-0038).
+
+        The daily, weekly and monthly frames come from one download of daily bars (the
+        coarser two are aggregated from it, so the three share source and adjustment); each
+        intraday frame is asked of the sources. A frame nobody serves is reported as such
+        and the rest are still read.
+
+        Args:
+            symbol: Any symbol (``SAN.MC``, ``^GSPC``, ``EURUSD=X``, ``BTC/USDT``).
+            frames: Frames to read, among those of :data:`CONFLUENCE_HISTORY`; daily, weekly
+                and monthly by default.
+            end: Last date read (today by default).
+
+        Raises:
+            DataUnavailableError: If no provider could deliver the bars of any frame.
+            DomainError: A frame that cannot be read, or none at all.
+        """
+        wanted = sorted(
+            {Frequency(frame) for frame in (CONFLUENCE_FRAMES if frames is None else frames)},
+            key=lambda frame: frame.rank,
+        )
+        unknown = [frame.value for frame in wanted if frame not in CONFLUENCE_HISTORY]
+        if unknown or not wanted:
+            allowed = [frame.value for frame in CONFLUENCE_HISTORY]
+            raise DomainError(f"Frames {unknown} cannot be read; choose among {allowed}")
+        last = _as_date(end) or datetime.now(UTC).date()
+        coarse = [frame for frame in wanted if not frame.is_intraday]
+        history = {frame: CONFLUENCE_HISTORY[frame] for frame in wanted if frame.is_intraday}
+        if coarse:
+            history[Frequency.DAY_1] = max(CONFLUENCE_HISTORY[frame] for frame in coarse)
+
+        async def fetch(frequency: Frequency) -> PriceSeries | DataUnavailableError:
+            try:
+                return await self.series(
+                    symbol, start=last - history[frequency], end=end, frequency=frequency
+                )
+            except DataUnavailableError as error:
+                return error
+
+        answers = dict(
+            zip(history, await asyncio.gather(*(fetch(f) for f in history)), strict=True)
+        )
+        failures = [a for a in answers.values() if isinstance(a, DataUnavailableError)]
+        if len(failures) == len(answers):
+            raise failures[0]
+        found: dict[Frequency, PriceSeries | None] = {}
+        for frame in wanted:
+            base = answers[frame if frame.is_intraday else Frequency.DAY_1]
+            if isinstance(base, DataUnavailableError):
+                found[frame] = None
+            elif frame.is_intraday or frame is Frequency.DAY_1:
+                found[frame] = base
+            else:
+                found[frame] = base.resample(frame)
+        derived = [frame for frame in coarse if frame is not Frequency.DAY_1]
+        return timeframe_confluence(found, derived=derived)
 
     async def _with_history(
         self, symbol: str, start: DateLike, end: DateLike, frequency: Frequency | str
@@ -754,6 +837,16 @@ class Toolkit:
     ) -> PriceStructure:
         """Price structure of a symbol (see :meth:`AsyncToolkit.structure`)."""
         return self._run(self._inner.structure(symbol, start=start, end=end, frequency=frequency))
+
+    def confluence(
+        self,
+        symbol: str,
+        *,
+        frames: Iterable[Frequency | str] | None = None,
+        end: DateLike = None,
+    ) -> TimeframeConfluence:
+        """Confluence across timeframes (see :meth:`AsyncToolkit.confluence`)."""
+        return self._run(self._inner.confluence(symbol, frames=frames, end=end))
 
     def flow(
         self,
