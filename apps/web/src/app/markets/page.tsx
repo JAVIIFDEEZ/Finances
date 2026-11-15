@@ -14,6 +14,7 @@ import { rangeStart, type RangeKey } from "@/lib/util/dates";
 import { perpetualOf } from "@/lib/util/instruments";
 import { byFamily, occurrences, recentEvents, type Direction } from "@/lib/util/patterns";
 import { availableOverlays, groupUnavailable, indicatorLabel, OVERLAYS, type Overlay } from "@/lib/util/technical";
+import { ConfluenceCard } from "@/components/markets/confluence";
 import { StructureCard } from "@/components/markets/structure";
 import { TechnicalCard, TechnicalSummary } from "@/components/markets/technical";
 import type { PriceLevel, PriceOverlay } from "@/components/charts/charts";
@@ -292,6 +293,8 @@ function InstrumentView({ symbol }: { symbol: string }) {
       </div>
 
       <TechnicalSummary query={technical} />
+
+      <ConfluenceCard symbol={symbol} digits={digits} />
 
       <TechnicalCard query={technical} digits={digits} />
 

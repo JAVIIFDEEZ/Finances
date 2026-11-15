@@ -34,14 +34,14 @@ export function indicatorLabel(name: string, parameters: Record<string, number>)
 /** What an indicator or a pattern can lack: a price column, or intraday bars. */
 export type Column = "open" | "high" | "low" | "close" | "volume" | "intraday";
 
-export interface Unavailable {
+export interface Unavailable<T extends string = Column> {
   name: string;
-  missing: readonly Column[];
+  missing: readonly T[];
 }
 
-/** Indicators the series cannot have, grouped by the columns they miss (in their order). */
-export function groupUnavailable(items: readonly Unavailable[]): { missing: Column[]; names: string[] }[] {
-  const groups = new Map<string, { missing: Column[]; names: string[] }>();
+/** Indicators the series cannot have, grouped by what they miss (in their order). */
+export function groupUnavailable<T extends string>(items: readonly Unavailable<T>[]): { missing: T[]; names: string[] }[] {
+  const groups = new Map<string, { missing: T[]; names: string[] }>();
   for (const item of items) {
     const key = item.missing.join(",");
     const group = groups.get(key) ?? { missing: [...item.missing], names: [] };
