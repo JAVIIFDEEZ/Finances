@@ -42,7 +42,7 @@ from investinglab.adapters.storage import ParquetSeriesStore
 from investinglab.config.logging import get_logger
 from investinglab.config.settings import Settings, get_settings
 from investinglab.domain.confluence import timeframe_confluence
-from investinglab.domain.errors import DomainError, InvestingLabError
+from investinglab.domain.errors import DomainError, InvalidSeriesError, InvestingLabError
 from investinglab.domain.metrics import DEFAULT_CONFIDENCE_LEVELS
 from investinglab.domain.money import Currency
 from investinglab.domain.patterns import price_patterns
@@ -392,8 +392,8 @@ class AsyncToolkit:
 
         The daily, weekly and monthly frames come from one download of daily bars (the
         coarser two are aggregated from it, so the three share source and adjustment); each
-        intraday frame is asked of the sources. A frame nobody serves is reported as such
-        and the rest are still read.
+        intraday frame is asked of the sources. A frame nobody serves, or without bars in
+        the dates read, is reported as such and the rest are still read.
 
         Args:
             symbol: Any symbol (``SAN.MC``, ``^GSPC``, ``EURUSD=X``, ``BTC/USDT``).
@@ -419,24 +419,25 @@ class AsyncToolkit:
         if coarse:
             history[Frequency.DAY_1] = max(CONFLUENCE_HISTORY[frame] for frame in coarse)
 
-        async def fetch(frequency: Frequency) -> PriceSeries | DataUnavailableError:
+        async def fetch(frequency: Frequency) -> PriceSeries | InvestingLabError:
             try:
                 return await self.series(
                     symbol, start=last - history[frequency], end=end, frequency=frequency
                 )
-            except DataUnavailableError as error:
-                return error
+            except (DataUnavailableError, InvalidSeriesError) as error:
+                return error  # nobody serves it, or it has no bars in these dates
 
         answers = dict(
             zip(history, await asyncio.gather(*(fetch(f) for f in history)), strict=True)
         )
-        failures = [a for a in answers.values() if isinstance(a, DataUnavailableError)]
+        failures = [a for a in answers.values() if isinstance(a, InvestingLabError)]
         if len(failures) == len(answers):
-            raise failures[0]
+            unavailable = (f for f in failures if isinstance(f, DataUnavailableError))
+            raise next(unavailable, failures[0])
         found: dict[Frequency, PriceSeries | None] = {}
         for frame in wanted:
             base = answers[frame if frame.is_intraday else Frequency.DAY_1]
-            if isinstance(base, DataUnavailableError):
+            if isinstance(base, InvestingLabError):
                 found[frame] = None
             elif frame.is_intraday or frame is Frequency.DAY_1:
                 found[frame] = base

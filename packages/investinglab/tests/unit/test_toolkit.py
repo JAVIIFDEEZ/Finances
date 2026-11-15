@@ -502,6 +502,22 @@ def test_a_frame_nobody_serves_is_reported_and_the_rest_are_read(toolkit: Toolki
     assert found.summary.frames == 2
 
 
+def test_a_frame_without_bars_in_the_dates_read_is_a_frame_without_data(tmp_path: Path) -> None:
+    hours = pd.date_range("2024-03-04 08:00", periods=80, freq="1h", tz="UTC")
+    old_hours = make_series(
+        gbm_prices(80, seed=9), symbol="BARS.MC", index=hours, frequency=Frequency.HOUR_1
+    )
+    daily = FakeBarsProvider("daily", {"BARS.MC": BARS})
+    hourly = FakeBarsProvider("hourly", {"BARS.MC": old_hours})
+    with Toolkit.from_settings(_settings(tmp_path), providers=[daily, hourly], cache=False) as tk:
+        found = tk.confluence("BARS.MC", frames=["1h", "1d", "1w"], end=INDEX[-1])
+        with pytest.raises(DomainError, match="needs at least 3 observations"):
+            tk.confluence("BARS.MC", frames=["1h"], end=INDEX[-1])  # nothing at all to read
+
+    assert found.frame(Frequency.HOUR_1).issue is FrameIssue.NO_DATA  # its bars ended in 2024
+    assert found.summary.frames == 2
+
+
 def test_the_confluence_refuses_what_it_cannot_read(toolkit: Toolkit) -> None:
     with pytest.raises(DomainError, match=r"Frames \['1y'\] cannot be read"):
         toolkit.confluence("BARS.MC", frames=["1d", "1y"])
