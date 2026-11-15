@@ -675,6 +675,11 @@ export interface components {
             /** Frames Read */
             frames_read: number;
             /**
+             * Min Bars
+             * @description Bars a frame needs to be read.
+             */
+            min_bars: number;
+            /**
              * Frames
              * @description Finest first.
              */

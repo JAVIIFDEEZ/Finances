@@ -435,7 +435,7 @@ def test_confluence_reads_daily_and_weekly_and_says_why_not_monthly(client: Test
     assert [f["weight"] for f in body["frames"]] == [1.0, 2.0, 3.0]
     assert (daily["derived"], weekly["derived"], monthly["derived"]) == (False, True, True)
     assert (monthly["issue"], monthly["score"], monthly["rules"]) == ("too_few_bars", None, [])
-    assert 0 < monthly["bars"] < 50  # 600 synthetic sessions are 28 months
+    assert 0 < monthly["bars"] < body["min_bars"] == 50  # 600 synthetic sessions: 28 months
     for frame in (daily, weekly):
         assert frame["issue"] is None
         assert len(frame["rules"]) + len(frame["skipped"]) == 11

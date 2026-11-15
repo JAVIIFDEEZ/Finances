@@ -3050,6 +3050,11 @@
             "type": "integer",
             "title": "Frames Read"
           },
+          "min_bars": {
+            "type": "integer",
+            "title": "Min Bars",
+            "description": "Bars a frame needs to be read."
+          },
           "frames": {
             "items": {
               "$ref": "#/components/schemas/FrameOut"
@@ -3067,6 +3072,7 @@
           "alignment",
           "agreement",
           "frames_read",
+          "min_bars",
           "frames"
         ],
         "title": "ConfluenceOut",

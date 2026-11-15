@@ -532,6 +532,7 @@ class ConfluenceOut(ApiModel):
     alignment: float | None = Field(description="Weighted mean of the frames' scores, in [-1, 1].")
     agreement: float | None = Field(description="Share of the frames read pointing that way.")
     frames_read: int
+    min_bars: int = Field(description="Bars a frame needs to be read.")
     frames: list[FrameOut] = Field(description="Finest first.")
 
 

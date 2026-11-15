@@ -13,6 +13,7 @@ import numpy as np
 import pandas as pd
 
 from investinglab import __version__ as core_version
+from investinglab.domain.confluence import MIN_BARS
 from investinglab.domain.flow import FlowField
 from investinglab.domain.series import PriceField
 from investinglab.ports import PortfolioSpec
@@ -513,6 +514,7 @@ def confluence_out(confluence: TimeframeConfluence) -> ConfluenceOut:
         alignment=summary.alignment,
         agreement=summary.agreement,
         frames_read=summary.frames,
+        min_bars=MIN_BARS,
         frames=[_frame_out(frame) for frame in confluence.frames],
     )
 
