@@ -144,6 +144,10 @@ bash). Lo que necesite más lógica va a un script de Python en `scripts/`, tipa
 - Gráficos de la web: ECharts con la paleta validada de `src/lib/theme/tokens.ts`; colores
   ligados a la entidad, una tabla o lista de cifras junto a cada gráfico, nunca NaN en
   pantalla («—»).
+- Gráfico de precio ([ADR-0039](docs/adr/0039-price-chart-workspace.md)): lo que se calcula
+  sobre las mismas velas va en un panel de `PriceChart`, no en un gráfico aparte; el eje
+  temporal tiene un hueco por vela (un mercado cerrado no ocupa sitio). Lo que decide marcas,
+  escalas y distribución son funciones puras de `src/lib/util/chart.ts`, con su test de Vitest.
 - Los datos sintéticos (p. ej. GBM con semilla) van en una carpeta aparte y se nombran como
   sintéticos. Nunca se presentan como datos de mercado reales.
 - Factorías y estrategias de Hypothesis en `tests/support/` (importables como `support.*`):

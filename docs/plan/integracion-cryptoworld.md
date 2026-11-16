@@ -799,6 +799,11 @@ precio y superposiciones sobre el gráfico (medias, bandas, Ichimoku, SAR, nivel
 ([ADR-0038](../adr/0038-signal-panel-and-timeframe-confluence.md)), con paridad del panel y de la
 tendencia sobre 222 cortes de las casetes reales; `tk.confluence` (diario, semanal y mensual de
 una sola descarga), `GET /api/v1/market/confluence` y su panel en la pantalla de mercados.
+**Avance (16-11-2026, espacio de gráficos):** el precio, el volumen y los osciladores se leen
+en un solo gráfico de paneles apilados con un cursor, eje de precios a la derecha con el último
+precio, lectura de la vela bajo el cursor, escala logarítmica, barra de rango y zoom que se
+conserva ([ADR-0039](../adr/0039-price-chart-workspace.md)). Volumen por vela en barras, mayor
+caída nombrada en su punto y diagonal de la correlación fuera de la escala de color.
 Pendiente en G2: ficha de activo con pilares por clase de activo.
 
 ### G3 — Backtest, validación, mundos nulos y metodología
