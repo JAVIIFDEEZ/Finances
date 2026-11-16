@@ -26,4 +26,11 @@ describe("formatter", () => {
     expect(en.date("2024-03-01")).toContain("Mar");
     expect(en.date("2024-03-01")).toContain("01");
   });
+
+  it("names the marks of a time axis: the year, the month and the day", () => {
+    expect(es.year("2026-01-02")).toBe("2026");
+    expect(es.month("2026-11-02")).toBe("nov");
+    expect(en.month("2026-11-02")).toBe("Nov");
+    expect(en.day("2026-11-02")).toBe("2");
+  });
 });
