@@ -89,6 +89,23 @@ export function useTechnical(symbol: string, interval: Interval, start: string |
   });
 }
 
+/** The signal panel and the trend of ``symbol`` on several timeframes (ADR-0038). */
+export function useConfluence(symbol: string, frames: readonly Schemas["FrameOut"]["frequency"][]) {
+  return useQuery({
+    queryKey: ["confluence", symbol, frames.join(",")],
+    queryFn: async () =>
+      unwrap(
+        await api.GET("/api/v1/market/confluence", {
+          params: { query: { symbol, frame: [...frames] } },
+        }),
+      ),
+    enabled: symbol.length > 0,
+    placeholderData: keepPreviousData,
+    staleTime: 5 * MINUTE,
+    retry: (count, error) => !isNotFound(error) && count < 2,
+  });
+}
+
 /** Support and resistance, divergences and Fibonacci levels of ``symbol`` (ADR-0036). */
 export function useStructure(symbol: string, interval: Interval, start: string | null) {
   return useQuery({

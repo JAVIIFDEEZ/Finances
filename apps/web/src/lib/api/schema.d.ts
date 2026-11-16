@@ -198,6 +198,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/market/confluence": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Signal panel and trend of an instrument across timeframes
+         * @description Eleven conventional rules and the trend on each frame, and whether they agree (ADR-0038).
+         *
+         *     Daily, weekly and monthly frames come from one download of daily bars. A frame nobody
+         *     serves, or with too few bars, is reported with its ``issue`` and does not count. The
+         *     rules describe; they are not advice.
+         */
+        get: operations["confluence_api_v1_market_confluence_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/market/flow": {
         parameters: {
             query?: never;
@@ -626,6 +650,42 @@ export interface components {
             failed: components["schemas"]["FailureOut"][];
         };
         /**
+         * ConfluenceOut
+         * @description The frames of an instrument and whether they agree (ADR-0038).
+         */
+        ConfluenceOut: {
+            instrument: components["schemas"]["InstrumentOut"];
+            source: components["schemas"]["SourceOut"];
+            /**
+             * Verdict
+             * @description Aligned needs a direction and three quarters of the frames sharing it; insufficient means fewer than two frames could be read.
+             * @enum {string}
+             */
+            verdict: "aligned_bullish" | "aligned_bearish" | "mixed" | "neutral" | "insufficient";
+            /**
+             * Alignment
+             * @description Weighted mean of the frames' scores, in [-1, 1].
+             */
+            alignment: number | null;
+            /**
+             * Agreement
+             * @description Share of the frames read pointing that way.
+             */
+            agreement: number | null;
+            /** Frames Read */
+            frames_read: number;
+            /**
+             * Min Bars
+             * @description Bars a frame needs to be read.
+             */
+            min_bars: number;
+            /**
+             * Frames
+             * @description Finest first.
+             */
+            frames: components["schemas"]["FrameOut"][];
+        };
+        /**
          * CovarianceEstimator
          * @description Estimator of the historical covariance.
          * @enum {string}
@@ -915,6 +975,63 @@ export interface components {
              * @description Share of all the volume bought by aggressors.
              */
             buy_ratio: number | null;
+        };
+        /**
+         * FrameOut
+         * @description One timeframe of the instrument: its signal panel and its trend.
+         */
+        FrameOut: {
+            frequency: components["schemas"]["Frequency"];
+            /**
+             * Weight
+             * @description Weight in the alignment: coarser frames weigh more.
+             */
+            weight: number;
+            /** Bars */
+            bars: number;
+            /**
+             * Last At
+             * @description Its last bar; for a derived frame, a period that may still be in progress.
+             */
+            last_at: string | null;
+            /**
+             * Derived
+             * @description Aggregated from the daily bars of the same source.
+             */
+            derived: boolean;
+            /**
+             * Issue
+             * @description Why the frame could not be read (null if it was).
+             */
+            issue: ("no_data" | "too_few_bars") | null;
+            /**
+             * Score
+             * @description Net of its rules, in [-1, 1].
+             */
+            score: number | null;
+            /** Verdict */
+            verdict: ("strong_bullish" | "bullish" | "neutral" | "bearish" | "strong_bearish") | null;
+            /** Bullish */
+            bullish: number;
+            /** Bearish */
+            bearish: number;
+            /** Neutral */
+            neutral: number;
+            /**
+             * Trend Score
+             * @description Net of its trend-following rules.
+             */
+            trend_score: number | null;
+            /**
+             * Reversal Score
+             * @description Net of its reversal rules.
+             */
+            reversal_score: number | null;
+            trend: components["schemas"]["TrendOut"] | null;
+            /** Rules */
+            rules: components["schemas"]["RuleOut"][];
+            /** Skipped */
+            skipped: components["schemas"]["SkippedRuleOut"][];
         };
         /**
          * Frequency
@@ -1918,6 +2035,40 @@ export interface components {
             rates: components["schemas"]["Point"][];
         };
         /**
+         * RuleOut
+         * @description What one rule of the signal panel says on the last bar (ADR-0038).
+         */
+        RuleOut: {
+            /**
+             * Name
+             * @description RSI, MACD, SMA_20, SMA_50, EMA_12, EMA_26, BOLLINGER...
+             */
+            name: string;
+            /**
+             * Style
+             * @description Whether the rule follows a move or fades it: opposite readings of a trend.
+             * @enum {string}
+             */
+            style: "trend" | "reversal";
+            /**
+             * Bias
+             * @description The way the rule points; what it says, not a forecast.
+             * @enum {string}
+             */
+            bias: "bullish" | "bearish" | "neutral";
+            /**
+             * Values
+             * @description The figures the rule compared.
+             */
+            values: {
+                [key: string]: number;
+            };
+            /** Parameters */
+            parameters: {
+                [key: string]: number;
+            };
+        };
+        /**
          * SavedPortfolioOut
          * @description A portfolio saved by its owner.
          */
@@ -2109,6 +2260,19 @@ export interface components {
             calibration: components["schemas"]["CalibrationOut"];
         };
         /**
+         * SkippedRuleOut
+         * @description A rule that could not be read, and what it lacks.
+         */
+        SkippedRuleOut: {
+            /** Name */
+            name: string;
+            /**
+             * Missing
+             * @description Price columns the series does not have, or `undefined` when its bars give the rule no value (too few of them, or a price that never moves).
+             */
+            missing: ("high" | "low" | "undefined")[];
+        };
+        /**
          * SourceOut
          * @description Provenance of the data.
          */
@@ -2271,6 +2435,36 @@ export interface components {
             indicators: components["schemas"]["IndicatorOut"][];
             /** Unavailable */
             unavailable: components["schemas"]["UnavailableIndicatorOut"][];
+        };
+        /**
+         * TrendOut
+         * @description The background trend: the close against a long average and the slope of a medium one.
+         */
+        TrendOut: {
+            /**
+             * Direction
+             * @enum {string}
+             */
+            direction: "up" | "down" | "sideways";
+            /**
+             * Sma Window
+             * @description Bars of the long average (200, fewer on a short series).
+             */
+            sma_window: number;
+            /** Sma */
+            sma: number;
+            /** Price Vs Sma Pct */
+            price_vs_sma_pct: number;
+            /**
+             * Ema Window
+             * @description Bars of the medium average (50, fewer on a short one).
+             */
+            ema_window: number;
+            /**
+             * Ema Slope Pct
+             * @description Its change over the last ten bars, in percent.
+             */
+            ema_slope_pct: number;
         };
         /**
          * UnavailableIndicatorOut
@@ -2695,6 +2889,63 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StructureOut"];
+                };
+            };
+            /** @description No provider has the requested data. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The request breaks the schema, a limit or a domain rule. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Every provider able to serve the data failed; retry later. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    confluence_api_v1_market_confluence_get: {
+        parameters: {
+            query: {
+                /** @description Instrument symbol: Yahoo style (SAN.MC, ^GSPC), a venue's pair (BTC/USDT) or a perpetual swap (BTC/USDT:USDT). */
+                symbol: string;
+                /** @description Frames to read (repeat it), among 15m, 30m, 1h, 4h, 1d, 1w and 1mo; daily, weekly and monthly by default. */
+                frame?: components["schemas"]["Frequency"][] | null;
+                /** @description Last session (inclusive). */
+                end?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfluenceOut"];
                 };
             };
             /** @description No provider has the requested data. */

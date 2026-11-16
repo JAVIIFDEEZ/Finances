@@ -35,7 +35,8 @@ def rsi(close: pd.Series, window: int = 14) -> pd.Series:
     """Relative strength index (0-100) with Wilder's smoothing of gains and losses.
 
     Gains and losses are smoothed with ``alpha = 1 / window`` from the first change. A
-    window without losses reads 100, as in ``ta``.
+    series without losses reads 100, as in ``ta``; one that has never moved at all has
+    neither gains nor losses, and its RSI is undefined (``ta`` reads 100 there too).
 
     Raises:
         ValueError: If ``window`` is below 1.
@@ -48,7 +49,7 @@ def rsi(close: pd.Series, window: int = 14) -> pd.Series:
     down = losses.ewm(alpha=1 / window, min_periods=window, adjust=False).mean()
     with np.errstate(divide="ignore", invalid="ignore"):
         value = np.where(down == 0, 100.0, 100.0 - 100.0 / (1.0 + up / down))
-    return pd.Series(value, index=close.index).where(down.notna())
+    return pd.Series(value, index=close.index).where(down.notna() & ((up > 0) | (down > 0)))
 
 
 def stoch_rsi(close: pd.Series, window: int = 14) -> pd.Series:

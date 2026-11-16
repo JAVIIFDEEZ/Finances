@@ -5,6 +5,7 @@ import threading
 import time
 from concurrent.futures import Future
 from dataclasses import dataclass, field
+from datetime import timedelta
 from typing import TYPE_CHECKING
 
 import pandas as pd
@@ -17,6 +18,7 @@ from investinglab.domain import (
     OVERNIGHT_ACT_360,
     USD,
     DomainError,
+    FrameIssue,
     Frequency,
     Portfolio,
     PriceSeries,
@@ -467,6 +469,62 @@ def test_the_structure_of_the_bars_shown(toolkit: Toolkit) -> None:
     assert structure.last_at == INDEX[-1]
     assert all(t >= INDEX[100] for level in structure.levels for t in level.touched_at)
     assert toolkit.structure("A.MC").basis == "close"
+
+
+def test_the_confluence_reads_daily_weekly_and_monthly_from_one_download(tmp_path: Path) -> None:
+    bars = FakeBarsProvider("fake", {"BARS.MC": BARS})
+    with Toolkit.from_settings(_settings(tmp_path), providers=[bars], cache=False) as tk:
+        found = tk.confluence("BARS.MC", end=INDEX[-1])
+
+    assert [(call.symbol, call.frequency) for call in bars.calls] == [("BARS.MC", Frequency.DAY_1)]
+    assert bars.calls[0].start == INDEX[-1].date() - timedelta(days=12 * 366)  # the monthly need
+    daily, weekly, monthly = found.frames
+    assert (daily.frequency, daily.bars, daily.derived, daily.issue) == (
+        Frequency.DAY_1,
+        300,
+        False,
+        None,
+    )
+    assert (weekly.frequency, weekly.derived, weekly.issue) == (Frequency.WEEK_1, True, None)
+    assert weekly.bars == len(BARS.resample("1w").bars)
+    assert (monthly.issue, monthly.bars) == (
+        FrameIssue.TOO_FEW_BARS,
+        len(BARS.resample("1mo").bars),
+    )
+    assert found.summary.frames == 2  # 300 sessions are 14 months: too few for the monthly panel
+
+
+def test_a_frame_nobody_serves_is_reported_and_the_rest_are_read(toolkit: Toolkit) -> None:
+    found = toolkit.confluence("BARS.MC", frames=["1h", "1d", "1w"], end=INDEX[-1])
+
+    assert found.frame(Frequency.HOUR_1).issue is FrameIssue.NO_DATA
+    assert found.frame(Frequency.DAY_1).panel is not None
+    assert found.summary.frames == 2
+
+
+def test_a_frame_without_bars_in_the_dates_read_is_a_frame_without_data(tmp_path: Path) -> None:
+    hours = pd.date_range("2024-03-04 08:00", periods=80, freq="1h", tz="UTC")
+    old_hours = make_series(
+        gbm_prices(80, seed=9), symbol="BARS.MC", index=hours, frequency=Frequency.HOUR_1
+    )
+    daily = FakeBarsProvider("daily", {"BARS.MC": BARS})
+    hourly = FakeBarsProvider("hourly", {"BARS.MC": old_hours})
+    with Toolkit.from_settings(_settings(tmp_path), providers=[daily, hourly], cache=False) as tk:
+        found = tk.confluence("BARS.MC", frames=["1h", "1d", "1w"], end=INDEX[-1])
+        with pytest.raises(DomainError, match="needs at least 3 observations"):
+            tk.confluence("BARS.MC", frames=["1h"], end=INDEX[-1])  # nothing at all to read
+
+    assert found.frame(Frequency.HOUR_1).issue is FrameIssue.NO_DATA  # its bars ended in 2024
+    assert found.summary.frames == 2
+
+
+def test_the_confluence_refuses_what_it_cannot_read(toolkit: Toolkit) -> None:
+    with pytest.raises(DomainError, match=r"Frames \['1y'\] cannot be read"):
+        toolkit.confluence("BARS.MC", frames=["1d", "1y"])
+    with pytest.raises(DomainError, match="cannot be read"):
+        toolkit.confluence("BARS.MC", frames=[])
+    with pytest.raises(DataUnavailableError):
+        toolkit.confluence("MISSING")
 
 
 def test_technical_indicators_without_a_start_show_their_warm_up(toolkit: Toolkit) -> None:

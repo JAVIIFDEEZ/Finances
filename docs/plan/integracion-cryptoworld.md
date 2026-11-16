@@ -793,7 +793,13 @@ momento de confirmación, `tk.structure` y `GET /api/v1/market/structure`.
 convencional ([ADR-0037](../adr/0037-conventional-indicator-readings.md)); la pantalla de
 mercados tiene resumen técnico, osciladores con sus zonas, indicadores por familia, estructura de
 precio y superposiciones sobre el gráfico (medias, bandas, Ichimoku, SAR, niveles y Fibonacci).
-Pendiente en G2: confluencia multimarco y ficha de activo.
+
+**Avance (15-11-2026, confluencia entre marcos):** panel de once reglas etiquetadas por estilo
+(tendencia o giro), tendencia de fondo y confluencia entre marcos
+([ADR-0038](../adr/0038-signal-panel-and-timeframe-confluence.md)), con paridad del panel y de la
+tendencia sobre 222 cortes de las casetes reales; `tk.confluence` (diario, semanal y mensual de
+una sola descarga), `GET /api/v1/market/confluence` y su panel en la pantalla de mercados.
+Pendiente en G2: ficha de activo con pilares por clase de activo.
 
 ### G3 — Backtest, validación, mundos nulos y metodología
 

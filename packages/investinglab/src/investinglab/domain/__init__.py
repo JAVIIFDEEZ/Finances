@@ -5,6 +5,12 @@ The domain may use the numerical kernel (:mod:`investinglab.analytics`) but neve
 frameworks, plotting or configuration (enforced by import-linter).
 """
 
+from investinglab.domain.confluence import (
+    FrameIssue,
+    FrameReading,
+    TimeframeConfluence,
+    timeframe_confluence,
+)
 from investinglab.domain.economic import EconomicSeries
 from investinglab.domain.errors import (
     DomainError,
@@ -147,6 +153,8 @@ __all__ = [
     "FibonacciSwing",
     "FlowField",
     "FlowSeries",
+    "FrameIssue",
+    "FrameReading",
     "Frequency",
     "FxRates",
     "Holding",
@@ -196,6 +204,7 @@ __all__ = [
     "Survivorship",
     "TailRisk",
     "TechnicalIndicators",
+    "TimeframeConfluence",
     "Universe",
     "UnknownCurrencyError",
     "View",
@@ -207,5 +216,6 @@ __all__ = [
     "price_patterns",
     "price_structure",
     "technical_indicators",
+    "timeframe_confluence",
     "weight_problems",
 ]

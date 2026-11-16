@@ -791,6 +791,136 @@
         }
       }
     },
+    "/api/v1/market/confluence": {
+      "get": {
+        "tags": [
+          "market"
+        ],
+        "summary": "Signal panel and trend of an instrument across timeframes",
+        "description": "Eleven conventional rules and the trend on each frame, and whether they agree (ADR-0038).\n\nDaily, weekly and monthly frames come from one download of daily bars. A frame nobody\nserves, or with too few bars, is reported with its ``issue`` and does not count. The\nrules describe; they are not advice.",
+        "operationId": "confluence_api_v1_market_confluence_get",
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 32,
+              "pattern": "^[A-Za-z0-9.^=\\-_/:]+$",
+              "description": "Instrument symbol: Yahoo style (SAN.MC, ^GSPC), a venue's pair (BTC/USDT) or a perpetual swap (BTC/USDT:USDT).",
+              "examples": [
+                "SAN.MC",
+                "^GSPC",
+                "EURUSD=X",
+                "BTC/USDT",
+                "BTC/USDT:USDT"
+              ],
+              "title": "Symbol"
+            },
+            "description": "Instrument symbol: Yahoo style (SAN.MC, ^GSPC), a venue's pair (BTC/USDT) or a perpetual swap (BTC/USDT:USDT)."
+          },
+          {
+            "name": "frame",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Frequency"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Frames to read (repeat it), among 15m, 30m, 1h, 4h, 1d, 1w and 1mo; daily, weekly and monthly by default.",
+              "title": "Frame"
+            },
+            "description": "Frames to read (repeat it), among 15m, 30m, 1h, 4h, 1d, 1w and 1mo; daily, weekly and monthly by default."
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last session (inclusive).",
+              "title": "End"
+            },
+            "description": "Last session (inclusive)."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfluenceOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No provider has the requested data.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request breaks the schema, a limit or a domain rule.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Every provider able to serve the data failed; retry later.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/market/flow": {
       "get": {
         "tags": [
@@ -2872,6 +3002,82 @@
         "title": "ComparisonOut",
         "description": "Rebased performance, drawdowns, metrics and correlation of several instruments."
       },
+      "ConfluenceOut": {
+        "properties": {
+          "instrument": {
+            "$ref": "#/components/schemas/InstrumentOut"
+          },
+          "source": {
+            "$ref": "#/components/schemas/SourceOut"
+          },
+          "verdict": {
+            "type": "string",
+            "enum": [
+              "aligned_bullish",
+              "aligned_bearish",
+              "mixed",
+              "neutral",
+              "insufficient"
+            ],
+            "title": "Verdict",
+            "description": "Aligned needs a direction and three quarters of the frames sharing it; insufficient means fewer than two frames could be read."
+          },
+          "alignment": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alignment",
+            "description": "Weighted mean of the frames' scores, in [-1, 1]."
+          },
+          "agreement": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agreement",
+            "description": "Share of the frames read pointing that way."
+          },
+          "frames_read": {
+            "type": "integer",
+            "title": "Frames Read"
+          },
+          "min_bars": {
+            "type": "integer",
+            "title": "Min Bars",
+            "description": "Bars a frame needs to be read."
+          },
+          "frames": {
+            "items": {
+              "$ref": "#/components/schemas/FrameOut"
+            },
+            "type": "array",
+            "title": "Frames",
+            "description": "Finest first."
+          }
+        },
+        "type": "object",
+        "required": [
+          "instrument",
+          "source",
+          "verdict",
+          "alignment",
+          "agreement",
+          "frames_read",
+          "min_bars",
+          "frames"
+        ],
+        "title": "ConfluenceOut",
+        "description": "The frames of an instrument and whether they agree (ADR-0038)."
+      },
       "CovarianceEstimator": {
         "type": "string",
         "enum": [
@@ -3548,6 +3754,171 @@
         ],
         "title": "FlowSummaryOut",
         "description": "Totals over the whole range."
+      },
+      "FrameOut": {
+        "properties": {
+          "frequency": {
+            "$ref": "#/components/schemas/Frequency"
+          },
+          "weight": {
+            "type": "number",
+            "title": "Weight",
+            "description": "Weight in the alignment: coarser frames weigh more."
+          },
+          "bars": {
+            "type": "integer",
+            "title": "Bars"
+          },
+          "last_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last At",
+            "description": "Its last bar; for a derived frame, a period that may still be in progress."
+          },
+          "derived": {
+            "type": "boolean",
+            "title": "Derived",
+            "description": "Aggregated from the daily bars of the same source."
+          },
+          "issue": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "no_data",
+                  "too_few_bars"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Issue",
+            "description": "Why the frame could not be read (null if it was)."
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score",
+            "description": "Net of its rules, in [-1, 1]."
+          },
+          "verdict": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "strong_bullish",
+                  "bullish",
+                  "neutral",
+                  "bearish",
+                  "strong_bearish"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verdict"
+          },
+          "bullish": {
+            "type": "integer",
+            "title": "Bullish"
+          },
+          "bearish": {
+            "type": "integer",
+            "title": "Bearish"
+          },
+          "neutral": {
+            "type": "integer",
+            "title": "Neutral"
+          },
+          "trend_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trend Score",
+            "description": "Net of its trend-following rules."
+          },
+          "reversal_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reversal Score",
+            "description": "Net of its reversal rules."
+          },
+          "trend": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TrendOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "rules": {
+            "items": {
+              "$ref": "#/components/schemas/RuleOut"
+            },
+            "type": "array",
+            "title": "Rules"
+          },
+          "skipped": {
+            "items": {
+              "$ref": "#/components/schemas/SkippedRuleOut"
+            },
+            "type": "array",
+            "title": "Skipped"
+          }
+        },
+        "type": "object",
+        "required": [
+          "frequency",
+          "weight",
+          "bars",
+          "last_at",
+          "derived",
+          "issue",
+          "score",
+          "verdict",
+          "bullish",
+          "bearish",
+          "neutral",
+          "trend_score",
+          "reversal_score",
+          "trend",
+          "rules",
+          "skipped"
+        ],
+        "title": "FrameOut",
+        "description": "One timeframe of the instrument: its signal panel and its trend."
       },
       "Frequency": {
         "type": "string",
@@ -5902,6 +6273,59 @@
         "title": "RiskFreeOut",
         "description": "Effective annual risk-free rate known at each business day."
       },
+      "RuleOut": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "RSI, MACD, SMA_20, SMA_50, EMA_12, EMA_26, BOLLINGER..."
+          },
+          "style": {
+            "type": "string",
+            "enum": [
+              "trend",
+              "reversal"
+            ],
+            "title": "Style",
+            "description": "Whether the rule follows a move or fades it: opposite readings of a trend."
+          },
+          "bias": {
+            "type": "string",
+            "enum": [
+              "bullish",
+              "bearish",
+              "neutral"
+            ],
+            "title": "Bias",
+            "description": "The way the rule points; what it says, not a forecast."
+          },
+          "values": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Values",
+            "description": "The figures the rule compared."
+          },
+          "parameters": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Parameters"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "style",
+          "bias",
+          "values",
+          "parameters"
+        ],
+        "title": "RuleOut",
+        "description": "What one rule of the signal panel says on the last bar (ADR-0038)."
+      },
       "SavedPortfolioOut": {
         "properties": {
           "id": {
@@ -6294,6 +6718,34 @@
         ],
         "title": "SimulationOut",
         "description": "Fan chart, terminal distribution and tail risk of the simulated value."
+      },
+      "SkippedRuleOut": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "missing": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "high",
+                "low",
+                "undefined"
+              ]
+            },
+            "type": "array",
+            "title": "Missing",
+            "description": "Price columns the series does not have, or `undefined` when its bars give the rule no value (too few of them, or a price that never moves)."
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "missing"
+        ],
+        "title": "SkippedRuleOut",
+        "description": "A rule that could not be read, and what it lacks."
       },
       "SourceOut": {
         "properties": {
@@ -6797,6 +7249,53 @@
         ],
         "title": "TechnicalOut",
         "description": "Technical indicators of an instrument, for any asset class."
+      },
+      "TrendOut": {
+        "properties": {
+          "direction": {
+            "type": "string",
+            "enum": [
+              "up",
+              "down",
+              "sideways"
+            ],
+            "title": "Direction"
+          },
+          "sma_window": {
+            "type": "integer",
+            "title": "Sma Window",
+            "description": "Bars of the long average (200, fewer on a short series)."
+          },
+          "sma": {
+            "type": "number",
+            "title": "Sma"
+          },
+          "price_vs_sma_pct": {
+            "type": "number",
+            "title": "Price Vs Sma Pct"
+          },
+          "ema_window": {
+            "type": "integer",
+            "title": "Ema Window",
+            "description": "Bars of the medium average (50, fewer on a short one)."
+          },
+          "ema_slope_pct": {
+            "type": "number",
+            "title": "Ema Slope Pct",
+            "description": "Its change over the last ten bars, in percent."
+          }
+        },
+        "type": "object",
+        "required": [
+          "direction",
+          "sma_window",
+          "sma",
+          "price_vs_sma_pct",
+          "ema_window",
+          "ema_slope_pct"
+        ],
+        "title": "TrendOut",
+        "description": "The background trend: the close against a long average and the slope of a medium one."
       },
       "UnavailableIndicatorOut": {
         "properties": {

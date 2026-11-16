@@ -125,6 +125,30 @@ test("overlays and the price structure over the price chart", async ({ page }) =
   expect(errors).toEqual([]);
 });
 
+test("the confluence across timeframes, frame by frame", async ({ page }) => {
+  const errors = trackErrors(page);
+  await page.goto("/markets?symbol=SAN.MC"); // 1 600 synthetic sessions: daily, weekly and monthly
+
+  const confluence = page.getByRole("region", { name: "Confluencia entre marcos" });
+  await expect(confluence.getByText(/Marcos alineados al alza|Marcos alineados a la baja|Marcos en conflicto|Sin dirección clara/)).toBeVisible();
+  const daily = confluence.getByRole("button", { name: "Diario: Ver sus reglas" });
+  const monthly = confluence.getByRole("button", { name: "Mensual: Ver sus reglas" });
+  await expect(daily).toHaveAttribute("aria-pressed", "true");
+  await expect(confluence.getByRole("heading", { name: "Reglas del marco diario" })).toBeVisible();
+  await expect(confluence.getByRole("table", { name: /^Siguen la tendencia/ })).toBeVisible();
+  await expect(confluence.getByRole("table", { name: /^Buscan el giro/ })).toBeVisible();
+  await monthly.click();
+  await expect(monthly).toHaveAttribute("aria-pressed", "true");
+  await expect(confluence.getByRole("heading", { name: "Reglas del marco mensual" })).toBeVisible();
+  await expect(confluence.getByText("agregado de las velas diarias", { exact: false })).toBeVisible();
+
+  // The synthetic files are daily: no source serves intraday frames, and one frame is no consensus.
+  await confluence.getByRole("radio", { name: "Intradía" }).click();
+  await expect(confluence.getByText("Sin datos en este marco").first()).toBeVisible();
+  await expect(confluence.getByText("Sin marcos suficientes")).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
 test("every instrument shows its flow, or why it has none", async ({ page }) => {
   const errors = trackErrors(page);
   await page.goto("/markets?symbol=ITX.MC");
