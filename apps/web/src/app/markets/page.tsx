@@ -4,36 +4,25 @@ import { Plus, X } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useMemo, useState, type FormEvent } from "react";
 
-import { CorrelationHeatmap, PriceChart, TimeSeriesChart } from "@/components/charts/charts";
+import { CorrelationHeatmap, TimeSeriesChart } from "@/components/charts/charts";
 import { useI18n, useTheme } from "@/components/providers";
 import { Badge, Button, Card, Input, PageHeader, ProblemAlert, Refreshing, Segmented, Skeleton, Stat } from "@/components/ui";
 import type { Schemas } from "@/lib/api/client";
 import { isNotFound, useBars, useComparison, useFlow, useFunding, usePatterns, useQuality, useStructure, useTechnical, type Interval } from "@/lib/api/queries";
 import { isMessageKey } from "@/lib/i18n/messages";
+import { trough } from "@/lib/util/chart";
 import { rangeStart, type RangeKey } from "@/lib/util/dates";
 import { perpetualOf } from "@/lib/util/instruments";
 import { byFamily, occurrences, recentEvents, type Direction } from "@/lib/util/patterns";
-import { availableOverlays, groupUnavailable, indicatorLabel, OVERLAYS, type Overlay } from "@/lib/util/technical";
+import { groupUnavailable } from "@/lib/util/technical";
 import { ConfluenceCard } from "@/components/markets/confluence";
 import { StructureCard } from "@/components/markets/structure";
 import { TechnicalCard, TechnicalSummary } from "@/components/markets/technical";
-import type { PriceLevel, PriceOverlay } from "@/components/charts/charts";
+import { PriceWorkspace } from "@/components/markets/workspace";
 import { seriesColor } from "@/lib/theme/tokens";
 
 const RANGES: readonly RangeKey[] = ["1m", "6m", "ytd", "1y", "5y", "max"];
 const INTERVALS: readonly Interval[] = ["1d", "1w", "1mo"];
-
-/** What can be drawn over the prices: indicator lines, the structure's levels, Fibonacci. */
-type OverlayChoice = Overlay | "levels" | "fibonacci";
-
-/** The palette slot of each line of each overlay (fixed: a colour always means the same line). */
-const OVERLAY_COLOURS: Record<Overlay, readonly number[]> = {
-  averages: [1, 2],
-  bollinger: [3, 3],
-  keltner: [5, 5],
-  ichimoku: [4, 6],
-  sar: [0],
-};
 
 function useRangeOptions() {
   const { t } = useI18n();
@@ -65,12 +54,18 @@ function InstrumentView({ symbol }: { symbol: string }) {
   const quality = useQuality(symbol, start);
   const series = bars.data;
   const metrics = comparison.data?.series[0]?.metrics;
-  const drawdown = comparison.data?.series[0]?.drawdown ?? [];
+  const drawdown = comparison.data?.series[0]?.drawdown;
+  const drawdownPoints = useMemo(() => (drawdown ?? []).map((p) => ({ time: String(p.time), value: p.value })), [drawdown]);
   const lastClose = series?.bars[series.bars.length - 1]?.close;
   const digits = priceDigits(lastClose);
   const color = seriesColor(tokens, 0);
-  const priceFormat = useMemo(() => (v: number) => fmt.number(v, digits), [fmt, digits]);
+  const chartBars = useMemo(() => series?.bars.map((b) => ({ ...b, time: String(b.time) })), [series]);
   const percentFormat = useMemo(() => (v: number) => fmt.percent(v, 0), [fmt]);
+  // The deepest point of the fall, named on the chart: the figure the eye looks for.
+  const deepest = useMemo(() => {
+    const low = trough(drawdownPoints);
+    return low && low.value < 0 ? [{ time: low.time, value: low.value, label: `${fmt.percent(low.value, 1)} · ${fmt.date(low.time)}` }] : [];
+  }, [drawdownPoints, fmt]);
   const rangeOptions = useRangeOptions();
   const intervalOptions = useIntervalOptions();
   const swap = perpetualOf(symbol);
@@ -78,63 +73,6 @@ function InstrumentView({ symbol }: { symbol: string }) {
   const technical = useTechnical(symbol, interval, start);
   const structure = useStructure(symbol, interval, start);
   const patternLabel = usePatternLabel();
-  const [shownOverlays, setShownOverlays] = useState<ReadonlySet<OverlayChoice>>(() => new Set(["averages"]));
-  const toggleOverlay = (choice: OverlayChoice) =>
-    setShownOverlays((shown) => {
-      const next = new Set(shown);
-      if (next.has(choice)) next.delete(choice);
-      else next.add(choice);
-      return next;
-    });
-  const overlayChoices = useMemo<OverlayChoice[]>(() => {
-    const lines = availableOverlays(technical.data?.indicators.map((i) => i.name) ?? []);
-    const levels: OverlayChoice[] = (structure.data?.levels.length ?? 0) > 0 ? ["levels"] : [];
-    const fibonacci: OverlayChoice[] = (structure.data?.fibonacci?.levels.length ?? 0) > 0 ? ["fibonacci"] : [];
-    return [...lines, ...levels, ...fibonacci];
-  }, [technical.data, structure.data]);
-  const overlayColor = useCallback(
-    (overlay: Overlay, index: number) => tokens.series[OVERLAY_COLOURS[overlay][index] ?? 0] ?? tokens.text,
-    [tokens],
-  );
-  const priceOverlays = useMemo<PriceOverlay[]>(() => {
-    const byName = new Map(technical.data?.indicators.map((i) => [i.name, i]) ?? []);
-    return availableOverlays([...byName.keys()])
-      .filter((overlay) => shownOverlays.has(overlay))
-      .flatMap((overlay) =>
-        OVERLAYS[overlay].lines.flatMap((line, index) => {
-          const indicator = byName.get(line);
-          if (!indicator) return [];
-          return [
-            {
-              name: indicatorLabel(line, indicator.parameters),
-              color: overlayColor(overlay, index),
-              style: OVERLAYS[overlay].style,
-              values: new Map(indicator.values.map((p) => [String(p.time), p.value])),
-            },
-          ];
-        }),
-      );
-  }, [technical.data, shownOverlays, overlayColor]);
-  const priceLevels = useMemo<PriceLevel[]>(() => {
-    const found: PriceLevel[] = [];
-    if (shownOverlays.has("levels")) {
-      // Only the nearest support and resistance are labelled: eight labels would overlap.
-      const nearest = new Set([structure.data?.nearest_support, structure.data?.nearest_resistance]);
-      for (const level of structure.data?.levels ?? []) {
-        found.push({
-          price: level.price,
-          color: level.kind === "support" ? tokens.up : tokens.down,
-          label: nearest.has(level.price) ? `${t(level.kind === "support" ? "markets.supportShort" : "markets.resistanceShort")} ${fmt.number(level.price, digits)}` : "",
-        });
-      }
-    }
-    if (shownOverlays.has("fibonacci")) {
-      for (const level of structure.data?.fibonacci?.levels ?? []) {
-        found.push({ price: level.price, color: tokens.muted, label: fmt.percent(level.ratio, 1) });
-      }
-    }
-    return found;
-  }, [structure.data, shownOverlays, tokens, t, fmt, digits]);
   const [shown, setShown] = useState<string | null>(null);
   const shownPattern = patterns.data?.patterns.find((p) => p.name === shown);
   const priceEvents = useMemo(
@@ -182,61 +120,20 @@ function InstrumentView({ symbol }: { symbol: string }) {
       </div>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(300px,1fr)]">
-        <Card
-          title={t("markets.price")}
+        <PriceWorkspace
+          symbol={symbol}
           subtitle={series ? `${series.instrument.currency} · ${t("markets.adjustment")} ${t(`adjustment.${series.adjustment}` as "adjustment.raw")}` : undefined}
-          actions={
-            overlayChoices.length > 0 ? (
-              <div role="group" aria-label={t("markets.overlays")} className="flex flex-wrap items-center gap-1">
-                {overlayChoices.map((choice) => (
-                  <Button
-                    key={choice}
-                    size="sm"
-                    variant="ghost"
-                    aria-pressed={shownOverlays.has(choice)}
-                    onClick={() => toggleOverlay(choice)}
-                    className="gap-1.5 border hairline aria-pressed:bg-accent-wash aria-pressed:text-text"
-                  >
-                    <span
-                      aria-hidden="true"
-                      className="inline-block h-0.5 w-3 rounded-full"
-                      style={{
-                        background:
-                          choice === "levels" ? `linear-gradient(90deg, ${tokens.up} 50%, ${tokens.down} 50%)` : choice === "fibonacci" ? tokens.muted : overlayColor(choice, 0),
-                      }}
-                    />
-                    {t(`overlay.${choice}`)}
-                  </Button>
-                ))}
-              </div>
-            ) : undefined
-          }
+          bars={chartBars}
+          fetching={bars.isFetching}
+          zoomKey={`${symbol}|${interval}|${range}`}
+          technical={technical}
+          structure={structure}
+          events={priceEvents}
+          digits={digits}
+          color={color}
         >
-          {series ? (
-            <Refreshing active={bars.isFetching}>
-              <PriceChart
-                bars={series.bars.map((b) => ({ ...b, time: String(b.time) }))}
-                format={priceFormat}
-                color={color}
-                label={`${t("markets.price")} ${series.instrument.symbol}`}
-                labels={{
-                  price: t("markets.price"),
-                  volume: t("markets.volume"),
-                  open: t("markets.open"),
-                  high: t("markets.high"),
-                  low: t("markets.low"),
-                  close: t("markets.close"),
-                }}
-                events={priceEvents}
-                overlays={priceOverlays}
-                levels={priceLevels}
-              />
-            </Refreshing>
-          ) : (
-            <Skeleton className="h-[380px]" />
-          )}
           {shownPattern ? (
-            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-text-2">
+            <div className="flex flex-wrap items-center gap-2 text-xs text-text-2">
               <span>
                 {t("markets.onChart")}: <strong className="font-medium text-text">{patternLabel(shownPattern.name)}</strong> ({fmt.number(priceEvents.length, 0)})
               </span>
@@ -246,7 +143,7 @@ function InstrumentView({ symbol }: { symbol: string }) {
               </Button>
             </div>
           ) : null}
-        </Card>
+        </PriceWorkspace>
 
         <Card title={t("markets.stats")}>
           {series ? (
@@ -276,13 +173,14 @@ function InstrumentView({ symbol }: { symbol: string }) {
         <Card title={t("markets.drawdown")}>
           {comparison.isError ? (
             <ProblemAlert error={comparison.error} onRetry={() => void comparison.refetch()} />
-          ) : drawdown.length > 0 ? (
+          ) : drawdownPoints.length > 0 ? (
             <Refreshing active={comparison.isFetching}>
               <TimeSeriesChart
                 height={220}
                 label={t("markets.drawdown")}
                 format={percentFormat}
-                lines={[{ name: symbol, color, area: true, points: drawdown.map((p) => ({ time: String(p.time), value: p.value })) }]}
+                marks={deepest}
+                lines={[{ name: symbol, color, area: true, points: drawdownPoints }]}
               />
             </Refreshing>
           ) : (
@@ -475,7 +373,7 @@ function FlowCard({ symbol, interval, start, color }: { symbol: string; interval
                 {
                   name: aggressor ? "CVD" : t("markets.volume"),
                   color,
-                  area: !aggressor,
+                  kind: aggressor ? "line" : "bars",
                   points: data.bars.map((bar) => ({ time: String(bar.time), value: aggressor ? (bar.cvd ?? null) : bar.volume })),
                 },
               ]}

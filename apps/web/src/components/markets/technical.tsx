@@ -2,28 +2,17 @@
 
 /**
  * The technical analysis of an instrument (ADR-0034, ADR-0037): a summary of trend, momentum,
- * volatility and volume; the oscillators with their conventional zones; and every indicator by
- * family with how it reads on the last bar.
+ * volatility and volume, and every indicator by family with how it reads on the last bar. The
+ * oscillators are drawn under the prices, in the chart workspace.
  */
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 
-import { TimeSeriesChart } from "@/components/charts/charts";
 import { useI18n, useTheme } from "@/components/providers";
-import { Card, ProblemAlert, Refreshing, Segmented, Skeleton } from "@/components/ui";
+import { Card, ProblemAlert, Refreshing, Skeleton } from "@/components/ui";
 import type { useTechnical } from "@/lib/api/queries";
 import { fill, isMessageKey } from "@/lib/i18n/messages";
-import {
-  availableCharts,
-  byIndicatorFamily,
-  CHART_LINES,
-  groupUnavailable,
-  indicatorLabel,
-  pair,
-  readingKey,
-  readingSide,
-  type Chart,
-} from "@/lib/util/technical";
+import { byIndicatorFamily, groupUnavailable, indicatorLabel, readingKey, readingSide } from "@/lib/util/technical";
 
 type TechnicalQuery = ReturnType<typeof useTechnical>;
 type Indicator = NonNullable<TechnicalQuery["data"]>["indicators"][number];
@@ -144,19 +133,12 @@ export function TechnicalSummary({ query }: { query: TechnicalQuery }) {
   );
 }
 
-/** The oscillators with their conventional zones, and every indicator by family with its reading. */
+/** Every indicator of the catalogue by family, with its value and how it reads on the last bar. */
 export function TechnicalCard({ query, digits }: { query: TechnicalQuery; digits: number }) {
-  const { t, fmt, locale } = useI18n();
-  const { tokens } = useTheme();
+  const { t, locale } = useI18n();
   const name = useIndicatorName();
   const format = useValueFormat(digits);
   const data = query.data;
-  const charts = availableCharts(data?.indicators.map((indicator) => indicator.name) ?? []);
-  const [picked, setPicked] = useState<Chart>("RSI");
-  const chart = charts.includes(picked) ? picked : charts[0];
-  const byName = new Map(data?.indicators.map((indicator) => [indicator.name, indicator]) ?? []);
-  const two = useMemo(() => (v: number) => fmt.number(v, 2), [fmt]);
-  const head = chart ? byName.get(CHART_LINES[chart][0] ?? "") : undefined;
   return (
     <Card title={t("markets.technical")} subtitle={t("markets.technicalNote")}>
       {query.isLoading ? (
@@ -165,35 +147,7 @@ export function TechnicalCard({ query, digits }: { query: TechnicalQuery; digits
         <ProblemAlert error={query.error} onRetry={() => void query.refetch()} />
       ) : data ? (
         <div className="flex flex-col gap-6">
-          {chart && head ? (
-            <div className="flex min-w-0 flex-col gap-3">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <Segmented label={t("markets.indicator")} value={chart} options={charts.map((value) => ({ value, label: value }))} onChange={setPicked} />
-                <p className="flex items-center gap-2 text-[13px] text-text-2">
-                  <span>
-                    {name(head.name)} <span className="font-mono text-xs text-muted">{indicatorLabel(head.name, head.parameters)}</span>
-                  </span>
-                  <strong className="tabular font-semibold text-text">{format(head)}</strong>
-                  <ReadingChip indicator={head} />
-                </p>
-              </div>
-              <Refreshing active={query.isFetching}>
-                <TimeSeriesChart
-                  height={260}
-                  label={chart}
-                  format={two}
-                  zone={pair(head.zone)}
-                  reference={head.zone ? undefined : 0}
-                  lines={CHART_LINES[chart].map((line, index) => ({
-                    name: indicatorLabel(line, byName.get(line)?.parameters ?? {}),
-                    color: tokens.series[index] ?? tokens.text,
-                    points: (byName.get(line)?.values ?? []).map((p) => ({ time: String(p.time), value: p.value })),
-                  }))}
-                />
-              </Refreshing>
-            </div>
-          ) : null}
-          <div className="grid grid-cols-1 items-start gap-x-8 gap-y-6 border-t hairline pt-5 lg:grid-cols-2">
+          <div className="grid grid-cols-1 items-start gap-x-8 gap-y-6 lg:grid-cols-2">
             {byIndicatorFamily(data.indicators).map((group) => (
               <table key={group.family} className="w-full text-[13px]">
                 <caption className="mb-1 text-left text-xs font-medium text-text-2">{t(`family.${group.family}`)}</caption>

@@ -10,91 +10,10 @@
 
 import { useMemo } from "react";
 
-import { EChart, escapeHtml, type ChartOption } from "@/components/charts/echart";
+import { EChart, type ChartOption } from "@/components/charts/echart";
+import { base, heading, legend, row, timeAxis, tooltip, valueAxis, type AxisParam, type Format } from "@/components/charts/parts";
 import { useI18n, useTheme } from "@/components/providers";
-import type { ChartTokens } from "@/lib/theme/tokens";
-
-type Format = (value: number) => string;
-
-interface AxisParam {
-  axisValue?: string | number;
-  value: unknown;
-  color: string;
-  seriesName: string;
-  dataIndex: number;
-  seriesIndex: number;
-}
-
-const FONT = '"Inter Variable", system-ui, -apple-system, "Segoe UI", sans-serif';
-
-function base(tokens: ChartTokens): ChartOption {
-  return {
-    backgroundColor: "transparent",
-    textStyle: { fontFamily: FONT, color: tokens.text2, fontSize: 11 },
-    animationDuration: 280,
-    animationDurationUpdate: 200,
-  };
-}
-
-function tooltip(tokens: ChartTokens, extra: Record<string, unknown> = {}) {
-  return {
-    backgroundColor: tokens.surface,
-    borderColor: tokens.grid,
-    borderWidth: 1,
-    padding: [8, 10],
-    textStyle: { color: tokens.text, fontSize: 12, fontFamily: FONT },
-    extraCssText: "box-shadow: 0 10px 28px rgba(0,0,0,.22); border-radius: 6px;",
-    ...extra,
-  };
-}
-
-function valueAxis(tokens: ChartTokens, format: Format, extra: Record<string, unknown> = {}) {
-  return {
-    type: "value",
-    scale: true,
-    axisLine: { show: false },
-    axisTick: { show: false },
-    splitLine: { lineStyle: { color: tokens.grid, width: 1, type: "solid" } },
-    axisLabel: { color: tokens.muted, formatter: (value: number) => format(value) },
-    ...extra,
-  };
-}
-
-function timeAxis(tokens: ChartTokens, extra: Record<string, unknown> = {}) {
-  return {
-    type: "time",
-    axisLine: { lineStyle: { color: tokens.axis } },
-    axisTick: { show: false },
-    splitLine: { show: false },
-    axisLabel: { color: tokens.muted, hideOverlap: true },
-    axisPointer: { lineStyle: { color: tokens.axis, width: 1 } },
-    ...extra,
-  };
-}
-
-function legend(tokens: ChartTokens, names: string[], shape: "line" | "rect" = "line") {
-  return {
-    show: names.length > 1,
-    data: names,
-    top: 0,
-    left: 0,
-    icon: shape === "line" ? "rect" : "roundRect",
-    itemWidth: shape === "line" ? 14 : 10,
-    itemHeight: shape === "line" ? 2 : 10,
-    itemGap: 16,
-    // The 2px surface ring belongs to dots on the plot, not to the legend keys.
-    itemStyle: { borderWidth: 0 },
-    textStyle: { color: tokens.text2, fontSize: 11, fontFamily: FONT },
-  };
-}
-
-function row(color: string, value: string, name: string, muted: string): string {
-  return `<div style="display:flex;align-items:center;gap:8px;line-height:18px"><span style="display:inline-block;width:12px;height:2px;border-radius:1px;background:${color}"></span><strong style="font-variant-numeric:tabular-nums;font-weight:600">${escapeHtml(value)}</strong><span style="color:${muted}">${escapeHtml(name)}</span></div>`;
-}
-
-function heading(text: string, muted: string): string {
-  return `<div style="font-size:11px;color:${muted};margin-bottom:4px">${escapeHtml(text)}</div>`;
-}
+import { extent, spreadLabels } from "@/lib/util/chart";
 
 // ── Time series ──────────────────────────────────────────────────────
 
@@ -103,7 +22,19 @@ export interface TimeLine {
   color: string;
   points: { time: string; value: number | null }[];
   area?: boolean;
+  /** ``bars`` for an amount per period (a volume): a line would join amounts that are not a path. */
+  kind?: "line" | "bars";
 }
+
+/** A point worth naming on the chart (the trough of a drawdown): a ringed dot and its text. */
+export interface TimeMark {
+  time: string;
+  value: number;
+  label: string;
+}
+
+/** How many lines can carry their name at their end before the names crowd each other. */
+const END_LABELS = 4;
 
 /** Lines (and washes) over time, one axis only; ``reference`` draws a baseline (e.g. 100). */
 export function TimeSeriesChart({
@@ -113,6 +44,7 @@ export function TimeSeriesChart({
   height = 300,
   reference,
   zone,
+  marks = NO_MARKS,
 }: {
   lines: TimeLine[];
   format: Format;
@@ -121,14 +53,22 @@ export function TimeSeriesChart({
   reference?: number;
   /** A band to shade with its bounds drawn (an oscillator's conventional zone). */
   zone?: readonly [number, number] | null;
+  marks?: readonly TimeMark[];
 }) {
   const { tokens } = useTheme();
   const { fmt } = useI18n();
   const option = useMemo<ChartOption>(() => {
     const multi = lines.length > 1;
-    // End labels while they cannot collide; with more lines the legend, the tooltip and the
-    // table next to the chart carry identity (labels stacked apart would detach from lines).
-    const endLabels = lines.length === 2;
+    // Each line is named at its end while the names fit (they step apart if two ends meet);
+    // with more lines the legend, the tooltip and the table next to the chart carry identity.
+    const endLabels = multi && lines.length <= END_LABELS;
+    // Where each name would sit, to step apart those that would meet. The plot's height and
+    // scale are estimated from the data (the axis rounds them a little): enough to space names.
+    const lasts = lines.map((line) => line.points.findLast((p) => p.value !== null)?.value ?? null);
+    const range = extent([...lines.flatMap((line) => line.points.map((p) => p.value)), reference]);
+    const plot = height - 64;
+    const places = lasts.map((last) => (range && last !== null && range[1] > range[0] ? ((range[1] - last) / (range[1] - range[0])) * plot : 0));
+    const nudges = endLabels ? spreadLabels(places, 13) : [];
     return {
       ...base(tokens),
       grid: { left: 4, right: endLabels ? 84 : 16, top: multi ? 32 : 12, bottom: 4, containLabel: true },
@@ -152,265 +92,70 @@ export function TimeSeriesChart({
         },
       }),
       xAxis: timeAxis(tokens),
-      yAxis: valueAxis(tokens, format),
+      // A named point has its text under it: the axis leaves room below the lowest value.
+      yAxis: valueAxis(tokens, format, marks.length > 0 ? { boundaryGap: ["16%", 0] } : {}),
       dataZoom: [{ type: "inside", zoomOnMouseWheel: "ctrl", moveOnMouseMove: true }],
-      series: lines.map((line, index) => ({
-        name: line.name,
-        type: "line",
-        showSymbol: false,
-        symbol: "circle",
-        symbolSize: 8,
-        sampling: "lttb",
-        connectNulls: false,
-        lineStyle: { width: 2, color: line.color, cap: "round", join: "round" },
-        itemStyle: { color: line.color, borderColor: tokens.surface, borderWidth: 2 },
-        areaStyle: line.area ? { color: line.color, opacity: 0.1 } : undefined,
-        endLabel: endLabels ? { show: true, formatter: "{a}", color: tokens.text2, fontSize: 11, distance: 6 } : undefined,
-        emphasis: { focus: "none", lineStyle: { width: 2 } },
-        markLine:
-          index === 0 && (reference !== undefined || zone)
-            ? {
-                silent: true,
-                symbol: "none",
-                label: zone ? { show: true, position: "insideEndTop", color: tokens.muted, fontSize: 10, formatter: (p: { value: number }) => format(p.value) } : { show: false },
-                lineStyle: { color: tokens.axis, width: 1, type: zone ? "dashed" : "solid" },
-                data: [...(reference !== undefined ? [{ yAxis: reference }] : []), ...(zone ? zone.map((y) => ({ yAxis: y })) : [])],
-              }
-            : undefined,
-        markArea:
-          index === 0 && zone
-            ? { silent: true, itemStyle: { color: tokens.muted, opacity: 0.1 }, data: [[{ yAxis: zone[0] }, { yAxis: zone[1] }]] }
-            : undefined,
-        data: line.points.map((p) => [p.time, p.value]),
-      })),
-    };
-  }, [lines, format, tokens, fmt, reference, zone]);
-  return <EChart option={option} height={height} label={label} />;
-}
-
-// ── Prices ───────────────────────────────────────────────────────────
-
-export interface PriceBar {
-  time: string;
-  open?: number | null;
-  high?: number | null;
-  low?: number | null;
-  close: number;
-  volume?: number | null;
-}
-
-/** A line drawn over the prices (an average, a band): one value per bar time, gaps as null. */
-export interface PriceOverlay {
-  name: string;
-  color: string;
-  values: ReadonlyMap<string, number | null>;
-  /** ``dashed`` for bands and channels; ``dots`` for a stop such as the parabolic SAR. */
-  style?: "solid" | "dashed" | "dots";
-}
-
-/** A horizontal level over the prices (a support, a resistance, a Fibonacci ratio). */
-export interface PriceLevel {
-  price: number;
-  /** Written at the right end; empty to draw the line alone (labels must not overlap). */
-  label: string;
-  color: string;
-}
-
-/** An event on a bar (a price pattern): drawn as a marker on it and named in the tooltip. */
-export interface PriceEvent {
-  time: string;
-  label: string;
-  direction: "bullish" | "bearish" | "neutral";
-}
-
-/**
- * Candles (hollow up, filled down: direction never by colour alone) or a close line, with volume
- * below. ``events`` are marked on their bars: bullish below the low (an upward triangle), bearish
- * above the high (a downward one), neutral on the close (a diamond); shape and side carry the
- * direction, not the colour alone.
- */
-export function PriceChart({
-  bars,
-  format,
-  label,
-  color,
-  height = 380,
-  labels,
-  events = NO_EVENTS,
-  overlays = NO_OVERLAYS,
-  levels = NO_LEVELS,
-}: {
-  bars: PriceBar[];
-  format: Format;
-  label: string;
-  color: string;
-  height?: number;
-  labels: { price: string; volume: string; open: string; high: string; low: string; close: string };
-  events?: readonly PriceEvent[];
-  overlays?: readonly PriceOverlay[];
-  levels?: readonly PriceLevel[];
-}) {
-  const { tokens } = useTheme();
-  const { fmt } = useI18n();
-  const option = useMemo<ChartOption>(() => {
-    const ohlc = bars.length > 0 && bars.every((b) => b.open != null && b.high != null && b.low != null);
-    const volume = bars.some((b) => (b.volume ?? 0) > 0);
-    const times = bars.map((b) => b.time);
-    const position = new Map(times.map((time, i) => [time, i]));
-    const onBar = new Map<string, PriceEvent[]>();
-    for (const event of events) onBar.set(event.time, [...(onBar.get(event.time) ?? []), event]);
-    const markerColor = (event: PriceEvent) =>
-      event.direction === "bullish" ? tokens.up : event.direction === "bearish" ? tokens.down : tokens.muted;
-    const markers = events.flatMap((event) => {
-      const bar = bars[position.get(event.time) ?? -1];
-      if (!bar) return [];
-      const up = event.direction === "bullish";
-      const down = event.direction === "bearish";
-      return [
-        {
-          coord: [event.time, up ? (bar.low ?? bar.close) : down ? (bar.high ?? bar.close) : bar.close],
-          symbol: up || down ? "triangle" : "diamond",
-          symbolSize: 10,
-          symbolRotate: down ? 180 : 0,
-          symbolOffset: [0, up ? 10 : down ? -10 : 0],
-          itemStyle: { color: markerColor(event), borderColor: tokens.surface, borderWidth: 1 },
-        },
-      ];
-    });
-    const markPoint = markers.length > 0 ? { silent: true, animation: false, label: { show: false }, data: markers } : undefined;
-    const markLine =
-      levels.length > 0
-        ? {
-            silent: true,
-            symbol: "none",
-            animation: false,
-            data: levels.map((level) => ({
-              yAxis: level.price,
-              lineStyle: { color: level.color, width: 1, type: "dashed" },
-              label: { show: level.label !== "", position: "end", formatter: level.label, color: level.color, fontSize: 10 },
-            })),
-          }
-        : undefined;
-    // Labelled levels are written past the right end of the plot, in a margin kept for them.
-    const right = levels.some((level) => level.label !== "") ? 64 : 12;
-    const priceGrid = volume ? { left: 4, right, top: 12, height: "66%", containLabel: true } : { left: 4, right, top: 12, bottom: 4, containLabel: true };
-    const grids = volume ? [priceGrid, { left: 4, right, top: "78%", bottom: 4, containLabel: true }] : [priceGrid];
-    const category = (gridIndex: number, show: boolean) => ({
-      type: "category",
-      gridIndex,
-      data: times,
-      boundaryGap: ohlc,
-      axisLine: { lineStyle: { color: tokens.axis } },
-      axisTick: { show: false },
-      axisLabel: { show, color: tokens.muted, hideOverlap: true, formatter: (value: string) => fmt.monthYear(value) },
-      axisPointer: { lineStyle: { color: tokens.axis } },
-    });
-    const series: unknown[] = [
-      ohlc
-        ? {
-            name: labels.price,
-            type: "candlestick",
-            xAxisIndex: 0,
-            yAxisIndex: 0,
-            barMaxWidth: 12,
-            itemStyle: { color: tokens.surface, color0: tokens.down, borderColor: tokens.up, borderColor0: tokens.down, borderWidth: 1 },
-            markPoint,
-            markLine,
-            data: bars.map((b) => [b.open, b.close, b.low, b.high]),
-          }
-        : {
-            name: labels.price,
-            type: "line",
-            xAxisIndex: 0,
-            yAxisIndex: 0,
-            showSymbol: false,
-            sampling: "lttb",
-            lineStyle: { width: 2, color },
-            areaStyle: { color, opacity: 0.1 },
-            itemStyle: { color },
-            markPoint,
-            markLine,
-            data: bars.map((b) => b.close),
-          },
-      ...overlays.map((overlay) =>
-        overlay.style === "dots"
-          ? {
-              name: overlay.name,
-              type: "scatter",
-              xAxisIndex: 0,
-              yAxisIndex: 0,
-              symbolSize: 3,
-              itemStyle: { color: overlay.color },
-              data: bars.map((b) => overlay.values.get(b.time) ?? null),
-            }
-          : {
-              name: overlay.name,
-              type: "line",
-              xAxisIndex: 0,
-              yAxisIndex: 0,
-              showSymbol: false,
-              connectNulls: false,
-              lineStyle: { width: 1.5, color: overlay.color, type: overlay.style === "dashed" ? "dashed" : "solid" },
-              itemStyle: { color: overlay.color },
-              emphasis: { disabled: true },
-              data: bars.map((b) => overlay.values.get(b.time) ?? null),
-            },
-      ),
-    ];
-    if (volume) {
-      series.push({
-        name: labels.volume,
-        type: "bar",
-        xAxisIndex: 1,
-        yAxisIndex: 1,
-        barMaxWidth: 12,
-        itemStyle: { color: tokens.axis, borderRadius: [2, 2, 0, 0] },
-        data: bars.map((b) => b.volume ?? null),
-      });
-    }
-    return {
-      ...base(tokens),
-      grid: grids,
-      axisPointer: { link: [{ xAxisIndex: "all" }] },
-      tooltip: tooltip(tokens, {
-        trigger: "axis",
-        axisPointer: { type: "line" },
-        formatter: (params: AxisParam[]) => {
-          const first = params[0];
-          if (!first) return "";
-          const bar = bars[first.dataIndex];
-          if (!bar) return "";
-          const lines = ohlc
-            ? [
-                row(tokens.axis, format(bar.open ?? Number.NaN), labels.open, tokens.muted),
-                row(tokens.axis, format(bar.high ?? Number.NaN), labels.high, tokens.muted),
-                row(tokens.axis, format(bar.low ?? Number.NaN), labels.low, tokens.muted),
-                row(bar.close >= (bar.open ?? bar.close) ? tokens.up : tokens.down, format(bar.close), labels.close, tokens.muted),
-              ]
-            : [row(color, format(bar.close), labels.close, tokens.muted)];
-          if (volume && bar.volume != null) lines.push(row(tokens.axis, fmt.compact(bar.volume), labels.volume, tokens.muted));
-          for (const overlay of overlays) {
-            const value = overlay.values.get(bar.time);
-            if (value != null) lines.push(row(overlay.color, format(value), overlay.name, tokens.muted));
-          }
-          for (const event of onBar.get(bar.time) ?? []) lines.push(row(markerColor(event), "", event.label, tokens.muted));
-          return heading(fmt.date(bar.time), tokens.muted) + lines.join("");
-        },
+      series: lines.map((line, index) => {
+        const data = line.points.map((p) => [p.time, p.value]);
+        if (line.kind === "bars") {
+          return {
+            name: line.name,
+            type: "bar",
+            barMaxWidth: 10,
+            barCategoryGap: "25%",
+            itemStyle: { color: line.color, opacity: 0.75, borderRadius: [2, 2, 0, 0] },
+            emphasis: { itemStyle: { opacity: 1 } },
+            data,
+          };
+        }
+        return {
+          name: line.name,
+          type: "line",
+          showSymbol: false,
+          symbol: "circle",
+          symbolSize: 8,
+          sampling: "lttb",
+          connectNulls: false,
+          lineStyle: { width: 2, color: line.color, cap: "round", join: "round" },
+          itemStyle: { color: line.color, borderColor: tokens.surface, borderWidth: 2 },
+          areaStyle: line.area ? { color: line.color, opacity: 0.1 } : undefined,
+          endLabel: endLabels ? { show: true, formatter: "{a}", color: tokens.text2, fontSize: 11, distance: 6, offset: [0, nudges[index] ?? 0] } : undefined,
+          emphasis: { focus: "none", lineStyle: { width: 2 } },
+          markPoint:
+            index === 0 && marks.length > 0
+              ? {
+                  silent: true,
+                  animation: false,
+                  symbol: "circle",
+                  symbolSize: 9,
+                  itemStyle: { color: tokens.surface, borderColor: line.color, borderWidth: 2 },
+                  label: { show: true, position: "bottom", distance: 6, color: tokens.text2, fontSize: 11, textBorderColor: tokens.surface, textBorderWidth: 3, formatter: (p: { name: string }) => p.name },
+                  data: marks.map((mark) => ({ name: mark.label, coord: [mark.time, mark.value] })),
+                }
+              : undefined,
+          markLine:
+            index === 0 && (reference !== undefined || zone)
+              ? {
+                  silent: true,
+                  symbol: "none",
+                  label: zone ? { show: true, position: "insideEndTop", color: tokens.muted, fontSize: 10, formatter: (p: { value: number }) => format(p.value) } : { show: false },
+                  lineStyle: { color: tokens.axis, width: 1, type: zone ? "dashed" : "solid" },
+                  data: [...(reference !== undefined ? [{ yAxis: reference }] : []), ...(zone ? zone.map((y) => ({ yAxis: y })) : [])],
+                }
+              : undefined,
+          markArea:
+            index === 0 && zone
+              ? { silent: true, itemStyle: { color: tokens.muted, opacity: 0.1 }, data: [[{ yAxis: zone[0] }, { yAxis: zone[1] }]] }
+              : undefined,
+          data,
+        };
       }),
-      xAxis: volume ? [category(0, false), category(1, true)] : [category(0, true)],
-      yAxis: volume
-        ? [valueAxis(tokens, format, { gridIndex: 0 }), valueAxis(tokens, (v) => fmt.compact(v), { gridIndex: 1, splitNumber: 2, scale: false })]
-        : [valueAxis(tokens, format, { gridIndex: 0 })],
-      dataZoom: [{ type: "inside", xAxisIndex: volume ? [0, 1] : [0], zoomOnMouseWheel: "ctrl", moveOnMouseMove: true }],
-      series,
     };
-  }, [bars, format, labels, color, tokens, fmt, events, overlays, levels]);
+  }, [lines, format, tokens, fmt, reference, zone, marks, height]);
   return <EChart option={option} height={height} label={label} />;
 }
 
-const NO_EVENTS: readonly PriceEvent[] = [];
-const NO_OVERLAYS: readonly PriceOverlay[] = [];
-const NO_LEVELS: readonly PriceLevel[] = [];
+const NO_MARKS: readonly TimeMark[] = [];
 
 // ── Correlation ──────────────────────────────────────────────────────
 
@@ -430,8 +175,14 @@ export function CorrelationHeatmap({
   const { fmt } = useI18n();
   const size = height ?? Math.max(220, 56 * names.length + 72);
   const option = useMemo<ChartOption>(() => {
-    const data: [number, number, number | null][] = [];
-    values.forEach((rowValues, y) => rowValues.forEach((value, x) => data.push([x, y, value])));
+    // An asset against itself is 1 by definition: left off the colour scale, so that the eye
+    // goes to the pairs, which are the finding.
+    const data: { value: [number, number, number | null]; visualMap?: false; itemStyle?: { color: string }; label?: { color: string } }[] = [];
+    values.forEach((rowValues, y) =>
+      rowValues.forEach((value, x) =>
+        data.push(x === y ? { value: [x, y, value], visualMap: false, itemStyle: { color: tokens.surface }, label: { color: tokens.muted } } : { value: [x, y, value] }),
+      ),
+    );
     const axis = (inverse: boolean) => ({
       type: "category",
       data: names,
