@@ -7,6 +7,7 @@ they only run on Linux, like the CI; Windows takes the ``taskkill`` branch inste
 from __future__ import annotations
 
 import importlib.util
+import os
 import socket
 import subprocess
 import sys
@@ -101,6 +102,7 @@ def launcher(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> dict[str, list[
     monkeypatch.setattr(dev, "pnpm", lambda: ["pnpm"])
     monkeypatch.setattr(dev, "listening", lambda port, host="127.0.0.1": False)
     monkeypatch.setattr(dev, "database_configured", lambda: False)
+    monkeypatch.setattr(dev, "bind_to_launcher", lambda: False)
     monkeypatch.setattr(subprocess, "run", step)
 
     def run(servers: list[Any]) -> int:
@@ -275,11 +277,12 @@ def _holder_with(
 def test_the_holder_is_named_with_the_way_to_free_the_port(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    kill = "Stop-Process -Id" if sys.platform == "win32" else "kill"
+    kill = "taskkill /PID" if sys.platform == "win32" else "kill"
 
     ours = _holder_with(monkeypatch, ours=True, found=(4321, "python.exe"))
     assert ours.who.startswith("an InvestingLab API that is still running (PID 4321)")
-    assert ours.stop == f"Ctrl+C in its terminal, or `{kill} 4321`"
+    tree = " /T /F" if sys.platform == "win32" else ""  # with what the server started
+    assert ours.stop == f"Ctrl+C in its terminal, or `{kill} 4321{tree}`"
     assert _holder_with(monkeypatch, ours=True).stop == "Ctrl+C in its terminal"
 
     backend = _holder_with(
@@ -295,7 +298,7 @@ def test_the_holder_is_named_with_the_way_to_free_the_port(
     assert "docker ps" in forwarded.stop
 
     other = _holder_with(monkeypatch, found=(77, "node.exe"))
-    assert other == dev.Holder("node.exe (PID 77)", f"`{kill} 77`")
+    assert other == dev.Holder("node.exe (PID 77)", f"`{kill} 77{tree}`")
     assert _holder_with(monkeypatch) == dev.Holder("another program")
 
 
@@ -364,6 +367,212 @@ def test_an_investinglab_api_is_told_from_another_server() -> None:
             server.shutdown()
             server.server_close()
     assert not dev.investinglab_api(ours_port)  # nothing answers any more
+
+
+def test_the_web_app_is_told_by_its_manifest() -> None:
+    ours, ours_port = _serve(b'{"name": "InvestingLab", "short_name": "InvestingLab"}')
+    other, other_port = _serve(b'{"name": "CryptoWorld"}')
+    try:
+        assert dev.investinglab_web(ours_port)
+        assert not dev.investinglab_web(other_port)
+    finally:
+        for server in (ours, other):
+            server.shutdown()
+            server.server_close()
+    assert not dev.investinglab_web(ours_port)
+
+
+# ── Servers an earlier run left behind ─────────────────────────────────────
+
+
+def _leftover(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    held: bool = True,
+    ours: bool = True,
+    pid: int | None = 4321,
+    orphan: bool = True,
+    stops: bool = True,
+    port: int = 8001,
+    role: str = "API",
+) -> tuple[str | None, list[int]]:
+    ended: list[int] = []
+    monkeypatch.setattr(dev, "listening", lambda port, host="127.0.0.1": held and not ended)
+    if not stops:
+        monkeypatch.setattr(dev, "listening", lambda port, host="127.0.0.1": held)
+    # Each server is told by its own check: the other one says no.
+    monkeypatch.setattr(dev, "investinglab_api", lambda port: ours and role == "API")
+    monkeypatch.setattr(dev, "investinglab_web", lambda port: ours and role == "web app")
+    monkeypatch.setattr(dev, "process", lambda port: None if pid is None else (pid, "python.exe"))
+    monkeypatch.setattr(dev, "orphaned", lambda found: orphan)
+    monkeypatch.setattr(dev, "end_tree", ended.append)
+    return dev.stop_leftover(port, role, timeout=0.3), ended
+
+
+def test_an_api_whose_launcher_is_gone_is_stopped(monkeypatch: pytest.MonkeyPatch) -> None:
+    said, ended = _leftover(monkeypatch)
+
+    assert ended == [4321]
+    assert said == "Stopped the InvestingLab API an earlier run left on port 8001 (PID 4321)."
+
+
+@pytest.mark.parametrize(
+    ("case", "kwargs"),
+    [
+        ("the port is free", {"held": False}),
+        ("another program holds it", {"ours": False}),
+        ("the system does not say which process", {"pid": None}),
+        ("its launcher still runs (`just api` elsewhere)", {"orphan": False}),
+    ],
+)
+def test_anything_else_on_the_port_is_left_alone(
+    monkeypatch: pytest.MonkeyPatch, case: str, kwargs: dict[str, Any]
+) -> None:
+    said, ended = _leftover(monkeypatch, **kwargs)
+
+    assert (said, ended) == (None, []), case
+
+
+def test_a_leftover_that_will_not_stop_is_reported_as_busy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    said, ended = _leftover(monkeypatch, stops=False)
+
+    assert ended == [4321]
+    assert said is None  # busy_ports then says how to stop it by hand
+
+
+def test_the_web_app_left_behind_is_told_by_its_own_check(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    said, ended = _leftover(monkeypatch, port=3000, role="web app")
+
+    assert ended == [4321]
+    assert said == "Stopped the InvestingLab web app an earlier run left on port 3000 (PID 4321)."
+
+
+def _table(*rows: tuple[int, int, str] | tuple[int, int, str, str]) -> dict[int, Any]:
+    return {row[0]: dev.Process(*row) for row in rows}
+
+
+# A `just dev` on Windows: just → uv → the venv's python.exe (a launcher) → the real python
+# running dev.py → the API's launcher python.exe → uvicorn's reloader, listening on the port.
+LIVE_WINDOWS = _table(
+    (100, 4, "explorer.exe", "20261116080000"),
+    (200, 100, "WindowsTerminal.exe", "20261116090000"),
+    (300, 200, "pwsh.exe", "20261116090001"),
+    (400, 300, "just.exe", "20261116100000"),
+    (500, 400, "uv.exe", "20261116100001"),
+    (600, 500, "python.exe", "20261116100002"),
+    (700, 600, "python.exe", "20261116100003"),
+    (800, 700, "python.exe", "20261116100004"),
+    (900, 800, "python.exe", "20261116100005"),
+)
+
+
+def test_a_server_whose_launcher_still_runs_is_not_a_leftover() -> None:
+    assert not dev.orphaned(900, LIVE_WINDOWS)  # it climbs to just.exe, which still runs
+
+
+def test_a_server_whose_launcher_ended_is_a_leftover() -> None:
+    gone = {pid: row for pid, row in LIVE_WINDOWS.items() if pid not in {400, 500, 600, 700}}
+
+    assert dev.orphaned(900, gone)  # its python.exe launcher waits for it; dev.py is gone
+    reused = {**gone, 700: dev.Process(700, 1, "chrome.exe", "20261116120000")}
+    assert dev.orphaned(900, reused)  # PID 700 now belongs to a younger, unrelated process
+
+
+def test_an_orphan_is_told_by_who_adopted_it() -> None:
+    adopted = _table((1, 0, "process_api"), (650, 1, "uv"), (654, 650, "investinglab-ap"))
+    by_systemd = _table((1, 0, "systemd"), (40, 1, "systemd"), (654, 40, "python3.14"))
+    in_a_shell = _table(
+        (1, 0, "process_api"), (20, 1, "bash"), (650, 20, "uv"), (654, 650, "python3")
+    )
+    first = _table((1, 0, "python3"), (654, 1, "python3"))  # `just dev` is the container's PID 1
+
+    assert dev.orphaned(654, adopted)
+    assert dev.orphaned(654, by_systemd)
+    assert not dev.orphaned(654, in_a_shell)  # someone's `uv run investinglab-api` in a terminal
+    assert not dev.orphaned(654, first)
+
+
+def test_in_doubt_a_server_is_not_a_leftover() -> None:
+    looped = _table((5, 6, "python"), (6, 5, "python"))
+
+    assert not dev.orphaned(42, LIVE_WINDOWS)  # not in the table
+    assert not dev.orphaned(5, looped)
+    assert not dev.orphaned(100, LIVE_WINDOWS)  # explorer.exe lost its parent at logon: no server
+
+
+def test_process_listings_are_read() -> None:
+    ps = "    1     0 /sbin/init\n  654   650 investinglab-ap\n  700   654 /usr/bin/python3.14\n"
+    cim = (
+        '"ProcessId","ParentProcessId","Name","Started"\r\n'
+        '"4","0","System",""\r\n'
+        '"35196","9000","python.exe","20261116100005"\r\n'
+    )
+
+    assert dev.ps_processes(ps)[700] == dev.Process(700, 654, "/usr/bin/python3.14")
+    assert set(dev.ps_processes(ps)) == {1, 654, 700}
+    assert dev.cim_processes(cim)[35196] == dev.Process(35196, 9000, "python.exe", "20261116100005")
+    assert dev.cim_processes(cim)[4].started == ""
+    assert dev.ps_processes("") == {}
+    assert dev.cim_processes("") == {}
+
+
+@linux_only
+def test_the_processes_of_this_machine_are_listed(tmp_path: Path) -> None:
+    pid_file = tmp_path / "pid"
+    child = subprocess.Popen(_sleeper(pid_file))  # noqa: S603
+    try:
+        _wait_for(pid_file)
+        table = dev.processes()
+        assert table[child.pid].parent == os.getpid()
+        assert not dev.orphaned(child.pid, table)  # pytest started it and still runs
+    finally:
+        child.kill()
+        child.wait()
+
+
+@linux_only
+def test_a_leftover_is_ended_with_what_it_started(tmp_path: Path) -> None:
+    pid_file = tmp_path / "grandchild"
+    tree = _python(
+        "import pathlib, subprocess, sys, time\n"
+        "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])\n"
+        f"pathlib.Path({str(pid_file)!r}).write_text(str(child.pid))\n"
+        "time.sleep(60)\n"
+    )
+    leader = dev.start(dev.Server("leftover", tree, tmp_path))  # leads its group, as servers do
+    grandchild = int(_wait_for(pid_file))
+
+    dev.end_tree(leader.pid)
+    leader.wait(timeout=5)
+
+    deadline = time.monotonic() + 5
+    while _alive(grandchild) and time.monotonic() < deadline:
+        time.sleep(0.05)
+    assert not _alive(grandchild)
+    dev.end_tree(leader.pid)  # already gone: nothing to do, no error
+
+
+def test_the_launcher_joins_a_job_only_on_windows() -> None:
+    if sys.platform != "win32":
+        assert dev.bind_to_launcher() is False
+
+
+def test_dev_stops_what_an_earlier_run_left_and_goes_on(
+    launcher: dict[str, list[Any]],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    said = {8000: "Stopped the InvestingLab API an earlier run left on port 8000 (PID 1)."}
+    monkeypatch.setattr(dev, "stop_leftover", lambda port, role: said.get(port))
+
+    assert dev.main([]) == 0
+
+    assert said[8000] in capsys.readouterr().out
+    assert [server.name for server in launcher["servers"]] == ["API", "web"]
 
 
 def test_listening_tells_whether_a_program_holds_a_port() -> None:
