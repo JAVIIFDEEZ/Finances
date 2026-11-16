@@ -43,6 +43,7 @@ actualiza el estado del antiguo.
 | [0036](0036-price-structure-with-confirmation-times.md) | Estructura de precio con su momento de confirmación | Aceptado |
 | [0037](0037-conventional-indicator-readings.md) | Lecturas convencionales de los indicadores | Aceptado |
 | [0038](0038-signal-panel-and-timeframe-confluence.md) | Panel de reglas por estilo y confluencia entre marcos temporales | Aceptado |
+| [0039](0039-price-chart-workspace.md) | Espacio de gráficos de precio: paneles sobre las mismas velas | Aceptado |
 
 ## Cómo añadir un ADR
 

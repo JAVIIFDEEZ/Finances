@@ -66,18 +66,59 @@ test("the technical indicators of any instrument, and those its data cannot have
   await page.goto("/markets?symbol=ITX.MC");
 
   await expect(page.getByRole("heading", { name: "Análisis técnico" })).toBeVisible();
-  await expect(page.getByRole("radio", { name: "RSI" })).toHaveAttribute("aria-checked", "true");
-  await expect(page.getByRole("img", { name: "RSI" })).toBeVisible();
+  // The oscillators are panes under the prices, on the same bars.
+  const price = page.getByRole("region", { name: "Precio", exact: true });
+  const panes = price.getByRole("group", { name: "Paneles" });
+  await expect(panes.getByRole("button", { name: "RSI" })).toHaveAttribute("aria-pressed", "true");
+  await expect(price.getByText("RSI (14)", { exact: true })).toBeVisible();
   await expect(page.getByRole("rowheader", { name: /^Fuerza relativa\s*RSI \(14\)$/ })).toBeVisible();
   const summary = page.getByRole("region", { name: "Resumen técnico" });
   await expect(summary.getByText(/^RSI \d/)).toBeVisible();
   await expect(summary.getByText(/^Precio (sobre|bajo) la media de 50$/)).toBeVisible();
-  await page.getByRole("radio", { name: "MACD" }).click();
-  await expect(page.getByRole("img", { name: "MACD" })).toBeVisible();
+  await panes.getByRole("button", { name: "MACD" }).click();
+  await expect(price.getByText("MACD (12, 26, 9)", { exact: true })).toBeVisible();
+  await expect(price.getByText("Histograma")).toBeVisible();
+  // Closes only: no pane needs highs and lows, and there are no candles to choose.
+  await expect(panes.getByRole("button", { name: "ADX" })).toHaveCount(0);
+  await expect(price.getByRole("radiogroup", { name: "Tipo de gráfico" })).toHaveCount(0);
   // The synthetic file of ITX.MC holds closes and volumes only: indicators of highs and lows say so.
   const technical = page.getByRole("region", { name: "Análisis técnico" });
   await expect(technical.getByText("No disponibles para esta serie")).toBeVisible();
   await expect(technical.getByText(/^Necesitan máximos y mínimos: .*ADX/)).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test("the price workspace: candles or line, a log scale and the bar under the cursor", async ({ page }) => {
+  const errors = trackErrors(page);
+  await page.goto("/markets?symbol=SAN.MC"); // synthetic opens, highs and lows
+
+  const price = page.getByRole("region", { name: "Precio", exact: true });
+  const chart = price.getByRole("img", { name: "Precio SAN.MC" });
+  const readout = price.getByTestId("price-readout");
+  // Without a cursor the readout is the last bar: its four prices, its change and the averages drawn.
+  await expect(readout).toContainText(/A [\d.,]+\s*Máx [\d.,]+\s*Mín [\d.,]+\s*C [\d.,]+/);
+  await expect(readout).toContainText("SMA (50)");
+  await expect(price.getByText("Volumen", { exact: true }).last()).toBeVisible();
+  const last = await readout.textContent();
+
+  await chart.scrollIntoViewIfNeeded();
+  const box = await chart.boundingBox();
+  if (!box) throw new Error("the price chart has no box");
+  await page.mouse.move(box.x + box.width * 0.3, box.y + 120);
+  await expect(readout).not.toHaveText(last ?? "");
+  await page.mouse.move(0, 0);
+
+  const scale = price.getByRole("radiogroup", { name: "Escala de precios" });
+  await scale.getByRole("radio", { name: "Log" }).click();
+  await expect(scale.getByRole("radio", { name: "Log" })).toHaveAttribute("aria-checked", "true");
+  const kind = price.getByRole("radiogroup", { name: "Tipo de gráfico" });
+  await kind.getByRole("radio", { name: "Línea" }).click();
+  await expect(kind.getByRole("radio", { name: "Línea" })).toHaveAttribute("aria-checked", "true");
+  await expect(chart).toBeVisible();
+  // A pane is taken off and put back.
+  const panes = price.getByRole("group", { name: "Paneles" });
+  await panes.getByRole("button", { name: "RSI" }).click();
+  await expect(price.getByText("RSI (14)", { exact: true })).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 

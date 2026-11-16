@@ -5,7 +5,7 @@
 
 import type { Schemas } from "@/lib/api/client";
 
-/** Oscillators offered in the chart, in order; MACD charts its line and signal together. */
+/** Oscillators offered as panes under the prices, in order; MACD draws its line and signal together. */
 export const CHARTS = ["RSI", "MACD", "STOCH", "ADX", "CCI", "MFI"] as const;
 export type Chart = (typeof CHARTS)[number];
 
@@ -18,6 +18,9 @@ export const CHART_LINES: Record<Chart, readonly string[]> = {
   CCI: ["CCI"],
   MFI: ["MFI"],
 };
+
+/** Oscillators bounded by construction: their pane keeps the whole scale, so a level always sits at the same height. */
+export const CHART_RANGE: Partial<Record<Chart, readonly [number, number]>> = { RSI: [0, 100], STOCH: [0, 100], MFI: [0, 100] };
 
 /** The charts whose lines the series has, in the order of {@link CHARTS}. */
 export function availableCharts(names: Iterable<string>): Chart[] {

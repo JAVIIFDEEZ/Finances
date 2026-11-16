@@ -19,6 +19,10 @@ export interface Formatter {
   date(value: string | Date | null | undefined): string;
   /** A short date for axes (`mar 24`). */
   monthYear(value: string | Date): string;
+  /** The marks of a time axis: the year (`2026`), the short month (`nov`) and the day (`13`). */
+  year(value: string | Date): string;
+  month(value: string | Date): string;
+  day(value: string | Date): string;
 }
 
 const DASH = "—";
@@ -46,6 +50,9 @@ export function formatter(locale: Locale): Formatter {
   };
   const dateFormat = new Intl.DateTimeFormat(tag, { year: "numeric", month: "short", day: "2-digit" });
   const monthFormat = new Intl.DateTimeFormat(tag, { month: "short", year: "2-digit" });
+  const yearOnly = new Intl.DateTimeFormat(tag, { year: "numeric" });
+  const monthOnly = new Intl.DateTimeFormat(tag, { month: "short" });
+  const dayOnly = new Intl.DateTimeFormat(tag, { day: "numeric" });
 
   return {
     percent(value, digits = 1) {
@@ -91,6 +98,15 @@ export function formatter(locale: Locale): Formatter {
     },
     monthYear(value) {
       return monthFormat.format(asDate(value));
+    },
+    year(value) {
+      return yearOnly.format(asDate(value));
+    },
+    month(value) {
+      return monthOnly.format(asDate(value));
+    },
+    day(value) {
+      return dayOnly.format(asDate(value));
     },
   };
 }
