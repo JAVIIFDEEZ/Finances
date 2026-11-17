@@ -17,6 +17,8 @@ from investinglab.domain import (
     Frequency,
     Instrument,
     InvalidSeriesError,
+    PositioningField,
+    PositioningSeries,
     PriceSeries,
     RateKind,
     RateSeries,
@@ -26,6 +28,7 @@ from investinglab.ports import (
     BarsRequest,
     CachedBars,
     EconomicRequest,
+    PositioningRequest,
     ProviderUnavailableError,
     RatesRequest,
     UnsupportedRequestError,
@@ -54,6 +57,7 @@ from support.fakes import (
     FakeBarsProvider,
     FakeEconomicProvider,
     FakeFlowProvider,
+    FakePositioningProvider,
     FakeRatesProvider,
     InMemoryStore,
 )
@@ -64,7 +68,11 @@ QQQ = make_series([50.0, 51.0, 52.0, 53.0, 54.0], symbol="QQQ")
 
 
 def _service(
-    *providers: FakeBarsProvider | FakeEconomicProvider | FakeFlowProvider | FakeRatesProvider,
+    *providers: FakeBarsProvider
+    | FakeEconomicProvider
+    | FakeFlowProvider
+    | FakeRatesProvider
+    | FakePositioningProvider,
     store: InMemoryStore | None = None,
     max_concurrency: int = 8,
 ) -> MarketDataService:
@@ -613,7 +621,8 @@ class _Clock:
 
 
 def _remembering(
-    *providers: FakeFlowProvider | FakeRatesProvider, entries: int = 256
+    *providers: FakeFlowProvider | FakeRatesProvider | FakePositioningProvider,
+    entries: int = 256,
 ) -> tuple[MarketDataService, _Clock]:
     registry = ProviderRegistry()
     for provider in providers:
@@ -693,3 +702,46 @@ async def test_no_memory_with_no_entries() -> None:
     await service.get_flow(BarsRequest("BTC/USDT"))
 
     assert len(venue.calls) == 2
+
+
+def _positioning(
+    instrument: Instrument = SWAP, venue: str = "okx", frequency: Frequency = Frequency.HOUR_1
+) -> PositioningSeries:
+    instants = pd.date_range("2026-11-16", periods=3, freq="1h", tz="UTC")
+    frame = pd.DataFrame({PositioningField.OPEN_INTEREST.value: [100.0, 101.0, 99.0]}, instants)
+    return PositioningSeries(instrument, venue, SYNTHETIC_SOURCE, frequency, frame)
+
+
+async def test_positioning_falls_back_and_must_answer_the_request() -> None:
+    down = FakePositioningProvider(
+        "okx", errors={"BTC/USDT:USDT": ProviderUnavailableError("okx", "x")}
+    )
+    binance = FakePositioningProvider("binance", {"BTC/USDT:USDT": _positioning(venue="binance")})
+
+    found = await _service(down, binance).get_positioning(PositioningRequest("BTC/USDT:USDT"))
+
+    assert found.venue == "binance"
+    liar = FakePositioningProvider("okx", {"BTC/USDT:USDT": _positioning(venue="bybit")})
+    daily = FakePositioningProvider(
+        "okx", {"BTC/USDT:USDT": _positioning(frequency=Frequency.DAY_1)}
+    )
+    for provider, message in ((liar, "BTC/USDT:USDT@bybit"), (daily, "returned 1d positioning")):
+        with pytest.raises(DataUnavailableError, match=message):
+            await _service(provider).get_positioning(
+                PositioningRequest("BTC/USDT:USDT", venue="okx")
+            )
+
+
+async def test_positioning_is_remembered_for_its_own_time_to_live() -> None:
+    okx = FakePositioningProvider("okx", {"BTC/USDT:USDT": _positioning()})
+    service, clock = _remembering(okx)
+    request = PositioningRequest("BTC/USDT:USDT")
+
+    await service.get_positioning(request)
+    clock.now += CachePolicy().positioning_ttl - timedelta(seconds=1)
+    await service.get_positioning(request)
+    clock.now += timedelta(seconds=1)
+    await service.get_positioning(request)
+    await service.get_positioning(request, refresh=True)
+
+    assert len(okx.calls) == 3

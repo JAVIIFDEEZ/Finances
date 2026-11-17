@@ -10,6 +10,7 @@ from investinglab.ports import (
     BarsRequest,
     Dataset,
     EconomicRequest,
+    PositioningRequest,
     ProviderCapabilities,
     RatesRequest,
 )
@@ -21,6 +22,7 @@ from support.fakes import (
     FakeBarsProvider,
     FakeEconomicProvider,
     FakeFlowProvider,
+    FakePositioningProvider,
     FakeRatesProvider,
 )
 
@@ -242,3 +244,19 @@ def test_preferences_may_name_flow_only_providers() -> None:
     assert not registry.bars_candidates(BarsRequest("SPY"), TODAY)
     with pytest.raises(DomainError, match="Unknown"):
         registry.prefer(["nobody"])
+
+
+def test_positioning_follows_its_preference_and_a_named_venue_wins() -> None:
+    registry = ProviderRegistry()
+    for name in ("history", "fresh"):
+        registry.register(FakePositioningProvider(name))
+    registry.register(FakeBarsProvider("bars"))
+
+    request = PositioningRequest("BTC/USDT:USDT")
+    assert [p.name for p in registry.positioning_candidates(request)] == ["history", "fresh"]
+    registry.prefer_positioning(["fresh"])
+    assert [p.name for p in registry.positioning_candidates(request)] == ["fresh", "history"]
+    named = PositioningRequest("BTC/USDT:USDT", venue="history")
+    assert [p.name for p in registry.positioning_candidates(named)] == ["history"]
+    with pytest.raises(DomainError, match="Unknown positioning providers"):
+        registry.prefer_positioning(["bars"])

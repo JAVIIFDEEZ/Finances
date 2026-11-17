@@ -37,6 +37,7 @@ import pandas as pd
 from investinglab.config.logging import get_logger
 from investinglab.domain.errors import DomainError, InvestingLabError
 from investinglab.domain.flow import FlowSeries
+from investinglab.domain.positioning import PositioningSeries
 from investinglab.domain.rate_series import RateSeries
 from investinglab.domain.series import MIN_OBSERVATIONS, PriceField
 from investinglab.domain.time import Frequency
@@ -53,6 +54,8 @@ if TYPE_CHECKING:
         EconomicRequest,
         HoldingRatesProvider,
         MarketDataProvider,
+        PositioningProvider,
+        PositioningRequest,
         RatesRequest,
         TradeFlowProvider,
     )
@@ -98,6 +101,7 @@ class CachePolicy:
         periodic_ttl: Weekly and lower frequencies.
         economic_ttl: Economic series are published at most daily.
         rates_ttl: Holding rates settle every few hours.
+        positioning_ttl: Positioning snapshots are published every 5 minutes or more.
         memory_entries: Most flow and rates answers kept in memory (least recently used
             go first).
     """
@@ -107,6 +111,7 @@ class CachePolicy:
     periodic_ttl: timedelta = timedelta(hours=24)
     economic_ttl: timedelta = timedelta(hours=24)
     rates_ttl: timedelta = timedelta(hours=1)
+    positioning_ttl: timedelta = timedelta(minutes=15)
     memory_entries: int = 256
 
     def ttl_for(self, frequency: Frequency) -> timedelta:
@@ -416,6 +421,45 @@ class MarketDataService:
         rates = await _first_answer("rates", request.symbol, str(request), candidates, fetch)
         self._memory.put(key, now, rates)
         return rates
+
+    async def get_positioning(
+        self, request: PositioningRequest, *, refresh: bool = False
+    ) -> PositioningSeries:
+        """Positioning of ``request``, from the first provider able to serve it.
+
+        The answer is remembered in memory for ``CachePolicy.positioning_ttl``.
+
+        Args:
+            request: The snapshots wanted.
+            refresh: Download again even if a recent answer is remembered.
+
+        Raises:
+            DataUnavailableError: If no provider could deliver them.
+        """
+        now = self._clock()
+        key = ("positioning", request)
+        if not refresh and isinstance(
+            remembered := self._memory.get(key, now, self._cache_policy.positioning_ttl),
+            PositioningSeries,
+        ):
+            return remembered
+        candidates = self._registry.positioning_candidates(request)
+
+        async def fetch(provider: PositioningProvider) -> PositioningSeries:
+            series = await provider.fetch_positioning(request)
+            wanted = (request.symbol, request.venue or series.venue, request.frequency)
+            if (series.symbol, series.venue, series.frequency) != wanted:
+                raise ProviderDataError(
+                    provider.name,
+                    f"returned {series.frequency.value} positioning of "
+                    f"{series.symbol}@{series.venue} for {request.frequency.value} of "
+                    f"{request.symbol}@{request.venue or 'any venue'}",
+                )
+            return series
+
+        series = await _first_answer("positioning", request.symbol, str(request), candidates, fetch)
+        self._memory.put(key, now, series)
+        return series
 
     # ── Internals ────────────────────────────────────────────────────
 
