@@ -200,6 +200,31 @@ with Toolkit.from_settings() as tk:
   (sus volcados se publicaron hasta junio de 2026). Un contrato que Binance no tiene da
   `SymbolNotFoundError`; un rango sin ficheros dice cuál es el último mes publicado.
 
+## Posicionamiento: interés abierto y ratios largo/corto
+
+```python
+with Toolkit.from_settings() as tk:
+    tk.venues("BTC/USDT:USDT", "positioning")  # ("okx", "binance"): quién lo sirve
+    pos = tk.positioning("BTC/USDT:USDT", start="2026-11-01", frequency="1h")
+    pos.fields  # lo que publica ese venue
+    pos.column("open_interest")  # en bitcoins; "open_interest_value", en pos.value_currency
+    tk.positioning("BTC/USDT:USDT", venue="binance", start="2024-01-01", frequency="1d")
+```
+
+* **Un vocabulario común** ([ADR-0042](../adr/0042-positioning-as-a-dataset.md)): interés
+  abierto en el activo base y su valor, ratio de cuentas largas/cortas, de cuentas y de
+  posiciones de los *top traders*, y comprador/vendedor del agresor. Cada *venue* da los que
+  publica; los demás no existen.
+* **Periodos**: cada fila es la última instantánea de su periodo, etiquetada por su inicio;
+  el periodo en curso no aparece. De 5 minutos a un día.
+* **OKX**, al día: 5 minutos durante unos tres días, horas durante un mes y días más atrás. Sus
+  días empiezan a las 16:00 UTC (medianoche en Hong Kong), no a las 00:00. El valor, en dólares.
+* **Binance**, desde sus volcados diarios verificados: instantáneas cada 5 minutos desde 2021;
+  cada día se publica a la mañana siguiente. Hace falta una fecha de inicio. En los inversos
+  (`BTC/USD:BTC`) el interés va en el activo base y sin valor en dólares.
+* **Sin `venue`**, se pregunta primero a OKX; si el rango empieza antes de lo que OKX guarda,
+  OKX lo dice y responde Binance.
+
 ## alternative.me: miedo y codicia cripto
 
 ```python

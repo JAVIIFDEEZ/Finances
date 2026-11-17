@@ -59,9 +59,12 @@ docs/            Zensical: guide/, adr/, architecture/, plan/, reference/, modul
    `ddl.owner_isolation()` en su migración (o se declara en `GLOBAL_TABLES`), todo método de
    repositorio recibe el propietario y lo ajeno responde 404. Lo que no debe reescribirse
    (experimentos, ejecución, auditoría) va al `AuditLog`, en la misma transacción que el cambio.
-6. Nuevo proveedor = nuevo adaptador en `adapters/providers/<nombre>/` que implementa
-   `MarketDataProvider` y/o `EconomicDataProvider`, declara sus `ProviderCapabilities`, usa
-   `HttpClient` para la red y se registra en `ProviderRegistry`. Nada más cambia.
+6. Nuevo proveedor = nuevo adaptador en `adapters/providers/<nombre>/` que implementa los
+   puertos que sirva (`MarketDataProvider`, `TradeFlowProvider`, `HoldingRatesProvider`,
+   `PositioningProvider`, `EconomicDataProvider`), declara sus `ProviderCapabilities`, usa
+   `HttpClient` para la red, se registra en `ProviderRegistry` y entra como un caso más en el
+   contrato de su dato (`tests/contract/`). Nada más cambia: la lista de comprobación está en
+   [Añadir una fuente de datos](docs/guide/adding-a-source.md).
 7. Nuevo bloque del máster = nuevo paquete en `modules/` que se registra con su `ModuleInfo`:
    requisitos redactados por nosotros → código → tests (un test exige que todo exista; la
    matriz de `docs/modules/` se regenera con `just traceability`). Lo reutilizable va al
