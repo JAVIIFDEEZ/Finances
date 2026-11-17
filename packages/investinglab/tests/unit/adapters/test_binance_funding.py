@@ -21,7 +21,7 @@ import respx
 
 from investinglab.adapters.http import HttpClient
 from investinglab.adapters.providers.binance import BinanceProvider, dumps
-from investinglab.adapters.providers.binance.funding import contract
+from investinglab.adapters.providers.binance.contracts import contract
 from investinglab.domain import AssetClass, RateKind
 from investinglab.ports import (
     ProviderDataError,

@@ -1,4 +1,4 @@
-"""Binance: spot bars and trade flow (ADR-0032), and the funding of its perpetual swaps (ADR-0041).
+"""Binance: spot bars and flow (ADR-0032); funding (ADR-0041) and positioning (ADR-0042) of swaps.
 
 Binance publishes its spot market data without an API key. The adapter reads it from
 ``data-api.binance.vision``, the mirror of the ``/api/v3`` market endpoints that answers
@@ -37,10 +37,13 @@ import pandas as pd
 from investinglab.adapters.http import HttpClient, retry_after
 from investinglab.adapters.providers import venues
 from investinglab.adapters.providers.binance import dumps as _dumps
-from investinglab.adapters.providers.binance.funding import PERPETUAL, fetch_funding
+from investinglab.adapters.providers.binance import positioning
+from investinglab.adapters.providers.binance.contracts import PERPETUAL
+from investinglab.adapters.providers.binance.funding import fetch_funding
 from investinglab.domain.errors import DomainError
 from investinglab.domain.flow import FlowField
 from investinglab.domain.instruments import AssetClass
+from investinglab.domain.positioning import POSITIONING_FREQUENCIES
 from investinglab.domain.rate_series import RateKind
 from investinglab.domain.series import DataSource, PriceField
 from investinglab.domain.time import Frequency
@@ -60,10 +63,11 @@ if TYPE_CHECKING:
 
     from investinglab.adapters.http import RetryPolicy
     from investinglab.domain.flow import FlowSeries
+    from investinglab.domain.positioning import PositioningSeries
     from investinglab.domain.rate_series import RateSeries
     from investinglab.domain.series import PriceSeries
     from investinglab.ports.errors import ProviderError
-    from investinglab.ports.market_data import BarsRequest, RatesRequest
+    from investinglab.ports.market_data import BarsRequest, PositioningRequest, RatesRequest
 
 __all__ = [
     "BASE_URL",
@@ -229,14 +233,19 @@ class BinanceProvider:
     @property
     def capabilities(self) -> ProviderCapabilities:
         """Bars and flow of pairs (``BASE/QUOTE``); funding of swaps (``BASE/QUOTE:SETTLE``)."""
+        swaps = {Dataset.HOLDING_RATES: PERPETUAL, Dataset.POSITIONING: PERPETUAL}
         return ProviderCapabilities(
-            datasets=frozenset({Dataset.BARS, Dataset.FLOW, Dataset.HOLDING_RATES}),
+            datasets=frozenset(
+                {Dataset.BARS, Dataset.FLOW, Dataset.HOLDING_RATES, Dataset.POSITIONING}
+            ),
             asset_classes=frozenset({AssetClass.CRYPTO}),
             frequencies=frozenset(Frequency),
             rate_limits=RATE_LIMITS,
             identifiers=PAIR,
-            identifiers_by_dataset={Dataset.HOLDING_RATES: PERPETUAL},
+            identifiers_by_dataset=swaps,
+            frequencies_by_dataset={Dataset.POSITIONING: frozenset(POSITIONING_FREQUENCIES)},
             rate_kinds=frozenset({RateKind.FUNDING}),
+            positioning_fields=positioning.FIELDS,
         )
 
     async def fetch_bars(self, request: BarsRequest) -> PriceSeries:
@@ -291,6 +300,24 @@ class BinanceProvider:
             start=request.start,
             end=request.end,
             now=self._clock(),
+        )
+
+    async def fetch_positioning(self, request: PositioningRequest) -> PositioningSeries:
+        """Read the open interest and long/short ratios of a swap (see :mod:`.positioning`).
+
+        Raises:
+            UnsupportedRequestError: If the request is not for a swap Binance could list, has
+                no start, or spans more days than are read at once.
+            SymbolNotFoundError: If Binance publishes no metrics of the swap.
+            ProviderDataError: If nothing is published in the range (today is published
+                tomorrow), or a file is damaged.
+        """
+        if request.venue not in {None, NAME}:
+            raise UnsupportedRequestError(
+                NAME, f"Binance serves its own positioning, not {request.venue}'s"
+            )
+        return await positioning.fetch_positioning(
+            NAME, self._listing, self._dumps, request, now=self._clock()
         )
 
     async def aclose(self) -> None:

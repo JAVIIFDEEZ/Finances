@@ -48,12 +48,18 @@ from investinglab.adapters.providers.binance import dumps as binance_dumps
 from investinglab.config import LogLevel, configure_logging
 from investinglab.domain.rate_series import RateKind
 from investinglab.domain.time import Frequency
-from investinglab.ports import BarsRequest, EconomicRequest, ProviderError, RatesRequest
+from investinglab.ports import (
+    BarsRequest,
+    EconomicRequest,
+    PositioningRequest,
+    ProviderError,
+    RatesRequest,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-type Request = BarsRequest | EconomicRequest | RatesRequest
+type Request = BarsRequest | EconomicRequest | RatesRequest | PositioningRequest
 type Provider = (
     yahoo.YahooFinanceProvider
     | ecb.EcbProvider
@@ -290,6 +296,46 @@ def _recordings(today: date) -> list[Recording]:
             "A swap Binance does not list: its folder of dumps is empty.",
         ),
         Recording(
+            "binance/btc_usdt_positioning",
+            PositioningRequest("BTC/USDT:USDT", start=date(2026, 11, 14), end=date(2026, 11, 15)),
+            "Linear swap: two daily metrics files of 5-minute snapshots, read hourly.",
+        ),
+        Recording(
+            "binance/btc_usd_inverse_positioning",
+            PositioningRequest("BTC/USD:BTC", start=date(2026, 11, 15), end=date(2026, 11, 15)),
+            "Inverse swap: open interest in contracts and in bitcoins, no taker ratio.",
+        ),
+        Recording(
+            "binance/positioning_not_published_live",
+            PositioningRequest("BTC/USDT:USDT", start=today),
+            "Today: its metrics are published tomorrow morning.",
+        ),
+        Recording(
+            "binance/positioning_not_found",
+            PositioningRequest("NOPE/USDT:USDT", start=date(2026, 11, 14), end=date(2026, 11, 14)),
+            "A swap Binance does not list: its folder of metrics is empty.",
+        ),
+        Recording(
+            "okx/btc_usdt_positioning",
+            PositioningRequest("BTC/USDT:USDT", start=date(2026, 11, 15), end=date(2026, 11, 16)),
+            "Hourly open interest and long/short ratios, one call per statistic.",
+        ),
+        Recording(
+            "okx/btc_usdt_positioning_1d",
+            PositioningRequest(
+                "BTC/USDT:USDT",
+                start=date(2026, 11, 1),
+                end=date(2026, 11, 10),
+                frequency=Frequency.DAY_1,
+            ),
+            "Daily rows, stamped at the start of OKX's day (16:00 UTC).",
+        ),
+        Recording(
+            "okx/positioning_not_found",
+            PositioningRequest("NOPE/USDT:USDT", start=date(2026, 11, 15), end=date(2026, 11, 16)),
+            "Unknown swap: HTTP 200 with OKX's error code 51001.",
+        ),
+        Recording(
             "okx/btc_usdt_swap_funding",
             RatesRequest(
                 "BTC/USDT:USDT", RateKind.FUNDING, start=date(2026, 10, 1), end=date(2026, 10, 10)
@@ -423,6 +469,14 @@ def _describe(request: Request) -> dict[str, str | None]:
             "venue": request.venue,
             **bounds,
         }
+    if isinstance(request, PositioningRequest):
+        return {
+            "dataset": "positioning",
+            "symbol": request.symbol,
+            "venue": request.venue,
+            "frequency": request.frequency.value,
+            **bounds,
+        }
     return {"series_id": request.series_id, "mode": request.mode.value, **bounds}
 
 
@@ -437,6 +491,11 @@ async def _outcome(provider: Provider, request: Request) -> str:
         | coinbase.CoinbaseProvider,
     ):
         return f"{len(await provider.fetch_bars(request))} bars"
+    if isinstance(request, PositioningRequest) and isinstance(
+        provider, okx.OkxProvider | binance.BinanceProvider
+    ):
+        snapshots = await provider.fetch_positioning(request)
+        return f"{len(snapshots)} snapshots of {len(snapshots.fields)} fields"
     if isinstance(request, RatesRequest) and isinstance(
         provider, okx.OkxProvider | binance.BinanceProvider
     ):

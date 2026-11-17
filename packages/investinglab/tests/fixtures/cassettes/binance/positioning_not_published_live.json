@@ -1,0 +1,39 @@
+{
+ "provider": "binance",
+ "purpose": "Today: its metrics are published tomorrow morning.",
+ "recorded_at": "2026-11-17T22:42:07+00:00",
+ "request": {
+  "dataset": "positioning",
+  "symbol": "BTC/USDT:USDT",
+  "venue": null,
+  "frequency": "1h",
+  "start": "2026-11-17",
+  "end": null
+ },
+ "outcome": "ProviderDataError: [binance] BTC/USDT:USDT: no positioning published between 2026-11-17 and now; Binance publishes each day the next morning",
+ "exchanges": [
+  {
+   "method": "GET",
+   "url": "https://s3-ap-northeast-1.amazonaws.com/data.binance.vision",
+   "params": {
+    "prefix": "data/futures/um/daily/metrics/BTCUSDT/",
+    "max-keys": "1000",
+    "marker": "data/futures/um/daily/metrics/BTCUSDT/BTCUSDT-metrics-2026-11-16.zip.CHECKSUM"
+   },
+   "status": 200,
+   "content_type": "application/xml",
+   "text": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<ListBucketResult xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\"><Name>data.binance.vision</Name><Prefix>data/futures/um/daily/metrics/BTCUSDT/</Prefix><Marker>data/futures/um/daily/metrics/BTCUSDT/BTCUSDT-metrics-2026-11-16.zip.CHECKSUM</Marker><MaxKeys>1000</MaxKeys><IsTruncated>false</IsTruncated></ListBucketResult>"
+  },
+  {
+   "method": "GET",
+   "url": "https://s3-ap-northeast-1.amazonaws.com/data.binance.vision",
+   "params": {
+    "prefix": "data/futures/um/daily/metrics/BTCUSDT/",
+    "max-keys": "2"
+   },
+   "status": 200,
+   "content_type": "application/xml",
+   "text": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<ListBucketResult xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\"><Name>data.binance.vision</Name><Prefix>data/futures/um/daily/metrics/BTCUSDT/</Prefix><Marker></Marker><MaxKeys>2</MaxKeys><IsTruncated>true</IsTruncated><Contents><Key>data/futures/um/daily/metrics/BTCUSDT/BTCUSDT-metrics-2020-09-01.zip</Key><LastModified>2026-03-18T12:30:27.000Z</LastModified><ETag>&quot;0cf8731977069acdc940e87ee1d20db7&quot;</ETag><ChecksumAlgorithm>CRC64NVME</ChecksumAlgorithm><ChecksumType>FULL_OBJECT</ChecksumType><Size>12191</Size><StorageClass>STANDARD</StorageClass></Contents><Contents><Key>data/futures/um/daily/metrics/BTCUSDT/BTCUSDT-metrics-2020-09-01.zip.CHECKSUM</Key><LastModified>2026-03-18T12:30:27.000Z</LastModified><ETag>&quot;5d2b8311d21a03c22c786751f0194bbc&quot;</ETag><ChecksumAlgorithm>CRC64NVME</ChecksumAlgorithm><ChecksumType>FULL_OBJECT</ChecksumType><Size>97</Size><StorageClass>STANDARD</StorageClass></Contents></ListBucketResult>"
+  }
+ ]
+}

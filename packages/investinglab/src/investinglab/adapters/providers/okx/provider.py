@@ -1,4 +1,4 @@
-"""OKX perpetual swaps: funding-rate history from the public API (ADR-0032).
+"""OKX perpetual swaps: funding (ADR-0032) and positioning (ADR-0042) from the public API.
 
 OKX publishes the funding settled on each perpetual swap without an API key, at
 ``/api/v5/public/funding-rate-history``. The adapter reads it through the shared
@@ -18,7 +18,6 @@ OKX publishes the funding settled on each perpetual swap without an API key, at
 
 from __future__ import annotations
 
-import re
 from datetime import UTC, date, datetime, timedelta
 from typing import TYPE_CHECKING, Any, Final, Self
 
@@ -26,15 +25,22 @@ import pandas as pd
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from investinglab.adapters.http import HttpClient
+from investinglab.adapters.providers.okx import positioning
+from investinglab.adapters.providers.okx.swaps import (
+    INSTRUMENT_NOT_FOUND,
+    NAME,
+    OK,
+    PERPETUAL,
+    known_error,
+    swap_id,
+    swap_instrument,
+)
 from investinglab.domain.errors import DomainError
-from investinglab.domain.instruments import EXCHANGES, AssetClass, Instrument
-from investinglab.domain.money import Currency
+from investinglab.domain.instruments import AssetClass
 from investinglab.domain.rate_series import RateKind, RateSeries
 from investinglab.domain.series import DataSource
 from investinglab.ports.errors import (
     ProviderDataError,
-    RateLimitedError,
-    SymbolNotFoundError,
     UnsupportedRequestError,
 )
 from investinglab.ports.market_data import Dataset, ProviderCapabilities, RateLimit
@@ -46,8 +52,9 @@ if TYPE_CHECKING:
     import httpx
 
     from investinglab.adapters.http import RetryPolicy
+    from investinglab.domain.positioning import PositioningSeries
     from investinglab.ports.errors import ProviderError
-    from investinglab.ports.market_data import RatesRequest
+    from investinglab.ports.market_data import PositioningRequest, RatesRequest
 
 __all__ = [
     "BASE_URL",
@@ -60,14 +67,11 @@ __all__ = [
     "explain_error",
     "http_client",
     "swap_id",
+    "swap_instrument",
 ]
 
-NAME: Final = "okx"
 BASE_URL: Final = "https://www.okx.com"
 DATASET: Final = "api/v5/public/funding-rate-history"
-
-PERPETUAL: Final = r"[A-Z0-9]{2,15}/[A-Z0-9]{2,10}:[A-Z0-9]{2,10}"
-"""A perpetual swap: ``BASE/QUOTE:SETTLE`` (``BTC/USDT:USDT``)."""
 
 PAGE_SIZE: Final = 100
 """Most payments OKX returns per call."""
@@ -78,41 +82,13 @@ MAX_PAGES: Final = 40
 RATE_LIMITS: Final = (RateLimit(4, 1.0),)
 """Self-imposed quota: OKX allows 10 calls every 2 seconds per address on this endpoint."""
 
-OK: Final = "0"
-INSTRUMENT_NOT_FOUND: Final = "51001"
-RATE_LIMITED: Final = "50011"
 
-_PERPETUAL = re.compile(PERPETUAL)
-_INVERSE_QUOTE: Final = "USD"
 """OKX settles its swaps quoted in US dollars in the base asset (inverse swaps)."""
 _DAY: Final = timedelta(days=1)
 
 
 def _utc_now() -> datetime:
     return datetime.now(UTC)
-
-
-def swap_id(symbol: str) -> str:
-    """OKX's identifier of the perpetual swap ``symbol`` (``BTC/USDT:USDT`` → ``BTC-USDT-SWAP``).
-
-    Raises:
-        UnsupportedRequestError: If the symbol is not a perpetual swap or OKX does not settle
-            that pair in that currency.
-    """
-    if not _PERPETUAL.fullmatch(symbol):
-        raise UnsupportedRequestError(
-            NAME,
-            f"{symbol!r} is not a perpetual swap written BASE/QUOTE:SETTLE in capitals "
-            "(e.g. BTC/USDT:USDT)",
-        )
-    pair, settle = symbol.split(":")
-    base, quote = pair.split("/")
-    expected = base if quote == _INVERSE_QUOTE else quote
-    if settle != expected:
-        raise UnsupportedRequestError(
-            NAME, f"{symbol}: OKX settles its {base}/{quote} swap in {expected}, not {settle}"
-        )
-    return f"{base}-{quote}-SWAP"
 
 
 def explain_error(response: httpx.Response, path: str) -> ProviderError | None:
@@ -127,15 +103,7 @@ def explain_error(response: httpx.Response, path: str) -> ProviderError | None:
         return None
     if not isinstance(body, dict) or str(body.get("code")) != INSTRUMENT_NOT_FOUND:
         return None
-    return _error(INSTRUMENT_NOT_FOUND, str(body.get("msg") or "no detail"), path)
-
-
-def _error(code: str, message: str, where: str) -> ProviderError | None:
-    if code == INSTRUMENT_NOT_FOUND:
-        return SymbolNotFoundError(NAME, f"{where}: {message}")
-    if code == RATE_LIMITED:
-        return RateLimitedError(NAME, f"{where}: {message}")
-    return None
+    return known_error(INSTRUMENT_NOT_FOUND, str(body.get("msg") or "no detail"), path)
 
 
 def http_client(
@@ -212,14 +180,31 @@ class OkxProvider:
 
     @property
     def capabilities(self) -> ProviderCapabilities:
-        """Funding of perpetual swaps (``BASE/QUOTE:SETTLE``)."""
+        """Funding and positioning of perpetual swaps (``BASE/QUOTE:SETTLE``)."""
         return ProviderCapabilities(
-            datasets=frozenset({Dataset.HOLDING_RATES}),
+            datasets=frozenset({Dataset.HOLDING_RATES, Dataset.POSITIONING}),
             asset_classes=frozenset({AssetClass.CRYPTO}),
             rate_limits=RATE_LIMITS,
             identifiers=PERPETUAL,
+            frequencies_by_dataset={Dataset.POSITIONING: frozenset(positioning.NATIVE)},
             rate_kinds=frozenset({RateKind.FUNDING}),
+            positioning_fields=positioning.FIELDS,
         )
+
+    async def fetch_positioning(self, request: PositioningRequest) -> PositioningSeries:
+        """Read the open interest and long/short ratios of a swap (see :mod:`.positioning`).
+
+        Raises:
+            UnsupportedRequestError: If the request is not for a swap OKX lists, at a frequency
+                positioning is read at, or needs too many calls.
+            SymbolNotFoundError: If OKX does not list the swap.
+            ProviderDataError: If OKX keeps nothing in the range, or a payload is malformed.
+        """
+        if request.venue not in {None, NAME}:
+            raise UnsupportedRequestError(
+                NAME, f"OKX serves its own positioning, not {request.venue}'s"
+            )
+        return await positioning.fetch_positioning(self._client, request, now=self._clock())
 
     async def fetch_rates(self, request: RatesRequest) -> RateSeries:
         """Download the funding settled between ``request.start`` and ``end`` (UTC dates).
@@ -235,7 +220,7 @@ class OkxProvider:
             raise UnsupportedRequestError(NAME, f"OKX serves funding, not {request.kind.value}")
         if request.venue not in {None, NAME}:
             raise UnsupportedRequestError(NAME, f"OKX serves its own rates, not {request.venue}'s")
-        instrument = _instrument(request.symbol)
+        instrument = swap_instrument(request.symbol)
         now = self._clock()
         first = _midnight(request.start) if request.start else None
         last = min(_midnight(request.end) + _DAY, now) if request.end else now
@@ -314,25 +299,6 @@ def _milliseconds(moment: datetime) -> int:
     return int(moment.timestamp() * 1000)
 
 
-def _instrument(symbol: str) -> Instrument:
-    swap = swap_id(symbol)
-    pair, settle = symbol.split(":")
-    base, quote = pair.split("/")
-    try:
-        currency = Currency(quote)
-    except DomainError as error:
-        raise UnsupportedRequestError(
-            NAME, f"{symbol}: prices quoted in {quote} cannot be represented ({error})"
-        ) from error
-    return Instrument(
-        symbol=symbol,
-        name=f"{base}/{quote} perpetual swap settled in {settle} (OKX {swap})",
-        asset_class=AssetClass.CRYPTO,
-        currency=currency,
-        exchange=EXCHANGES["CRYPTO"],
-    )
-
-
 def _page(raw: Any, swap: str) -> list[_Payment]:  # noqa: ANN401 - decoded JSON
     try:
         response = _Response.model_validate(raw)
@@ -341,7 +307,7 @@ def _page(raw: Any, swap: str) -> list[_Payment]:  # noqa: ANN401 - decoded JSON
             NAME, f"{swap}: unexpected funding payload ({error.error_count()} problems)"
         ) from None
     if response.code != OK:
-        known = _error(response.code, response.msg or "no detail", f"/{DATASET}")
+        known = known_error(response.code, response.msg or "no detail", f"/{DATASET}")
         raise known or ProviderDataError(
             NAME, f"{swap}: OKX error {response.code} ({response.msg})"
         )
