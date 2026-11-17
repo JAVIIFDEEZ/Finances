@@ -20,6 +20,7 @@ where adapters are instantiated (ADR-0002).
 from __future__ import annotations
 
 import asyncio
+import re
 import threading
 from dataclasses import replace
 from datetime import UTC, date, datetime, timedelta
@@ -41,6 +42,7 @@ from investinglab.adapters.providers.yahoo import YahooFinanceProvider
 from investinglab.adapters.storage import ParquetSeriesStore
 from investinglab.config.logging import get_logger
 from investinglab.config.settings import Settings, get_settings
+from investinglab.domain.card import Pillar, asset_card, pillars_for
 from investinglab.domain.confluence import timeframe_confluence
 from investinglab.domain.errors import DomainError, InvalidSeriesError, InvestingLabError
 from investinglab.domain.metrics import DEFAULT_CONFIDENCE_LEVELS
@@ -65,6 +67,7 @@ if TYPE_CHECKING:
     from pathlib import Path
     from types import TracebackType
 
+    from investinglab.domain.card import AssetCard
     from investinglab.domain.confluence import TimeframeConfluence
     from investinglab.domain.economic import EconomicSeries
     from investinglab.domain.flow import FlowSeries
@@ -119,6 +122,25 @@ CONFLUENCE_HISTORY: Final[dict[Frequency, timedelta]] = {
 About 300 bars of an exchange with a short session (more of a market that never closes), so
 that the panel's averages have settled; within what the sources keep of each frequency.
 """
+
+CARD_HISTORY: Final = timedelta(days=3 * 366)
+"""Daily bars a card reads its risk, structure and data quality from: three years."""
+
+CARD_FUNDING: Final = timedelta(days=90)
+"""Funding payments a card reads: a quarter."""
+
+_SPOT_PAIR: Final = re.compile(r"^([A-Z0-9]{2,15})/([A-Z0-9]{2,10})$")
+
+
+def _perpetual_of(symbol: str) -> str | None:
+    """The linear perpetual swap of a venue's spot pair (``BTC/USDT`` → ``BTC/USDT:USDT``).
+
+    ``None`` for any other notation: a symbol that does not name its quote asset does not
+    say which swap is its own.
+    """
+    pair = _SPOT_PAIR.match(symbol)
+    return None if pair is None else f"{pair[1]}/{pair[2]}:{pair[2]}"
+
 
 WARMUP: Final[dict[Frequency, timedelta]] = {
     Frequency.DAY_1: timedelta(days=400),
@@ -445,6 +467,49 @@ class AsyncToolkit:
                 found[frame] = base.resample(frame)
         derived = [frame for frame in coarse if frame is not Frequency.DAY_1]
         return timeframe_confluence(found, derived=derived)
+
+    async def card(self, symbol: str, *, end: DateLike = None) -> AssetCard:
+        """The card of a symbol: what each pillar of its asset class says (ADR-0040).
+
+        Every instrument has a technical reading (its timeframes and price structure), a
+        risk profile and the quality of its data, over three years of daily bars; a crypto
+        pair also has the funding of its perpetual swap. A pillar whose data no source
+        serves is reported as unread and the rest are still read.
+
+        Args:
+            symbol: Any symbol (``SAN.MC``, ``^GSPC``, ``EURUSD=X``, ``BTC/USDT``).
+            end: Last date read (today by default).
+
+        Raises:
+            DataUnavailableError: If no provider could deliver its daily bars.
+        """
+        last = _as_date(end) or datetime.now(UTC).date()
+        series = await self.series(symbol, start=last - CARD_HISTORY, end=end)
+
+        async def frames() -> TimeframeConfluence | None:
+            try:
+                return await self.confluence(symbol, end=end)
+            except (DataUnavailableError, DomainError):
+                return None
+
+        async def funding() -> RateSeries | None:
+            swap = _perpetual_of(series.symbol)
+            wanted = {spec.pillar for spec in pillars_for(series.asset_class)}
+            if swap is None or Pillar.DERIVATIVES not in wanted:
+                return None
+            try:
+                return await self.holding_rates(swap, start=last - CARD_FUNDING, end=end)
+            except (DataUnavailableError, InvalidSeriesError):
+                return None
+
+        confluence, rates = await asyncio.gather(frames(), funding())
+        return asset_card(
+            series,
+            confluence=confluence,
+            structure=price_structure(series),
+            quality=self.quality(series),
+            funding=rates,
+        )
 
     async def _with_history(
         self, symbol: str, start: DateLike, end: DateLike, frequency: Frequency | str
@@ -848,6 +913,10 @@ class Toolkit:
     ) -> TimeframeConfluence:
         """Confluence across timeframes (see :meth:`AsyncToolkit.confluence`)."""
         return self._run(self._inner.confluence(symbol, frames=frames, end=end))
+
+    def card(self, symbol: str, *, end: DateLike = None) -> AssetCard:
+        """The card of a symbol (see :meth:`AsyncToolkit.card`)."""
+        return self._run(self._inner.card(symbol, end=end))
 
     def flow(
         self,
