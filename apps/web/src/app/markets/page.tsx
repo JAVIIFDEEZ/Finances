@@ -15,6 +15,7 @@ import { rangeStart, type RangeKey } from "@/lib/util/dates";
 import { perpetualOf } from "@/lib/util/instruments";
 import { byFamily, occurrences, recentEvents, type Direction } from "@/lib/util/patterns";
 import { groupUnavailable } from "@/lib/util/technical";
+import { InstrumentCard } from "@/components/markets/card";
 import { ConfluenceCard } from "@/components/markets/confluence";
 import { StructureCard } from "@/components/markets/structure";
 import { TechnicalCard, TechnicalSummary } from "@/components/markets/technical";
@@ -168,6 +169,8 @@ function InstrumentView({ symbol }: { symbol: string }) {
           )}
         </Card>
       </div>
+
+      <InstrumentCard symbol={symbol} />
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(300px,1fr)]">
         <Card title={t("markets.drawdown")}>

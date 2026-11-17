@@ -57,7 +57,7 @@ test("an instrument is found with the search and explored", async ({ page }) => 
   await expect(page).toHaveURL(/symbol=ITX\.MC/);
   await expect(page.getByRole("main").getByText("ITX.MC", { exact: true }).first()).toBeVisible();
   await expect(page.getByRole("img", { name: "Precio ITX.MC" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Calidad de datos" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 2, name: "Calidad de datos" })).toBeVisible();
   expect(errors).toEqual([]);
 });
 
@@ -119,6 +119,29 @@ test("the price workspace: candles or line, a log scale and the bar under the cu
   const panes = price.getByRole("group", { name: "Paneles" });
   await panes.getByRole("button", { name: "RSI" }).click();
   await expect(price.getByText("RSI (14)", { exact: true })).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test("the card of an instrument: the pillars its asset class has", async ({ page }) => {
+  const errors = trackErrors(page);
+  await page.goto("/markets?symbol=SAN.MC");
+
+  const card = page.getByRole("region", { name: "Ficha del activo", exact: true });
+  const technical = card.getByRole("region", { name: "Técnico", exact: true });
+  await expect(technical.getByText(/Marcos alineados al alza|Marcos alineados a la baja|Marcos en conflicto|Sin dirección clara/)).toBeVisible();
+  await expect(technical.getByRole("meter", { name: "Dirección" })).toHaveAttribute("aria-valuetext", /^[+-]?\d,\d\d$/);
+  await expect(technical.getByText("Tendencia de fondo")).toBeVisible();
+  const risk = card.getByRole("region", { name: "Riesgo", exact: true });
+  await expect(risk.getByText("Volatilidad anualizada")).toBeVisible();
+  await expect(risk.getByText("Describe", { exact: true })).toBeVisible(); // it points nowhere
+  await expect(card.getByRole("region", { name: "Calidad de datos", exact: true }).getByText("Observaciones")).toBeVisible();
+  // A share has no perpetual swap: the card says which pillar it has not.
+  await expect(card.getByText("Pilares que esta clase de activo no tiene: Derivados")).toBeVisible();
+
+  await page.goto("/markets?symbol=BTC-USD"); // crypto: it has the pillar, but no source serves it offline
+  const derivatives = card.getByRole("region", { name: "Derivados", exact: true });
+  await expect(derivatives.getByText("Ninguna fuente sirve el funding de su perpetuo.")).toBeVisible();
+  await expect(card.getByText(/Pilares que esta clase de activo no tiene/)).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 

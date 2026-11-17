@@ -89,6 +89,18 @@ export function useTechnical(symbol: string, interval: Interval, start: string |
   });
 }
 
+/** The card of ``symbol``: what each pillar of its asset class says (ADR-0040). */
+export function useCard(symbol: string) {
+  return useQuery({
+    queryKey: ["card", symbol],
+    queryFn: async () => unwrap(await api.GET("/api/v1/market/card", { params: { query: { symbol } } })),
+    enabled: symbol.length > 0,
+    placeholderData: keepPreviousData,
+    staleTime: 5 * MINUTE,
+    retry: (count, error) => !isNotFound(error) && count < 2,
+  });
+}
+
 /** The signal panel and the trend of ``symbol`` on several timeframes (ADR-0038). */
 export function useConfluence(symbol: string, frames: readonly Schemas["FrameOut"]["frequency"][]) {
   return useQuery({
