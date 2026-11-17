@@ -20,6 +20,7 @@ where adapters are instantiated (ADR-0002).
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import re
 import threading
 from dataclasses import replace
@@ -166,8 +167,9 @@ def _remote_providers(config: Settings, registry: ProviderRegistry) -> list[Remo
     its own notation (``SAN.MC``, ``^GSPC``, ``BTC-USD``...). The venues serve theirs:
     the spot pairs written ``BASE/QUOTE`` come from Binance, with their trade flow, and fall
     back on Kraken (its last 720 bars) and Coinbase, which also list the pairs in dollars and
-    euros; OKX serves the funding of perpetual swaps written ``BASE/QUOTE:SETTLE``
-    (ADR-0032). alternative.me
+    euros. The funding of perpetual swaps written ``BASE/QUOTE:SETTLE`` comes from OKX's
+    API, up to date, and from Binance's monthly dumps, which keep the whole history
+    (ADR-0032, ADR-0041); ``venue`` picks one. alternative.me
     publishes the crypto Fear & Greed Index (``FNG``).
     """
     retry = RetryPolicy(max_attempts=config.http_max_attempts)
@@ -182,6 +184,19 @@ def _remote_providers(config: Settings, registry: ProviderRegistry) -> list[Remo
         "alternative_me": lambda: AlternativeMeProvider(timeout=timeout, retry=retry),
     }
     return [build() for name, build in factories.items() if name not in registry]
+
+
+FUNDING_ORDER: Final = ("okx", "binance")
+"""Venues asked for funding when none is named: OKX's API is up to date, and Binance's
+monthly dumps (published once each month ends) add the history OKX does not keep."""
+
+
+def _prefer_fresh_funding(registry: ProviderRegistry) -> None:
+    """Ask the up-to-date source of funding first, among those registered."""
+    registered = set(registry.names)
+    order = [name for name in FUNDING_ORDER if name in registered]
+    with contextlib.suppress(DomainError):  # a caller's provider of that name may serve no rates
+        registry.prefer_rates(order, kind=RateKind.FUNDING)
 
 
 class AsyncToolkit:
@@ -238,6 +253,7 @@ class AsyncToolkit:
         remote = [] if config.offline else _remote_providers(config, registry)
         for provider in remote:
             registry.register(provider)
+        _prefer_fresh_funding(registry)
         store = ParquetSeriesStore(config.effective_cache_dir) if cache else None
         market_data = MarketDataService(
             registry, store=store, max_concurrency=config.max_concurrency

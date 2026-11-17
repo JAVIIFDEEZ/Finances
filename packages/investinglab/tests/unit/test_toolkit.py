@@ -29,9 +29,9 @@ from investinglab.domain import (
     RateSeries,
     price_patterns,
 )
-from investinglab.ports import ProviderCapabilities
-from investinglab.services import DataUnavailableError
-from investinglab.toolkit import AsyncToolkit, Toolkit, _EventLoopThread
+from investinglab.ports import ProviderCapabilities, RatesRequest
+from investinglab.services import DataUnavailableError, ProviderRegistry
+from investinglab.toolkit import AsyncToolkit, Toolkit, _EventLoopThread, _prefer_fresh_funding
 from support.cassettes import load_cassette
 from support.factories import (
     SYNTHETIC_SOURCE,
@@ -257,6 +257,21 @@ def test_series_are_downloaded_from_yahoo(tmp_path: Path) -> None:
 
     assert series.source.provider == "yahoo"
     assert len(series) == len(again) == 22
+
+
+def test_funding_is_asked_of_the_up_to_date_venue_first() -> None:
+    registry = ProviderRegistry()
+    for name in ("binance", "okx", "broker"):
+        registry.register(FakeRatesProvider(name))
+
+    _prefer_fresh_funding(registry)
+
+    funding = RatesRequest("BTC/USDT:USDT", RateKind.FUNDING)
+    assert [p.name for p in registry.rates_candidates(funding)] == ["okx", "binance", "broker"]
+    alone = ProviderRegistry()
+    alone.register(FakeBarsProvider("okx"))  # a caller's provider of that name, without rates
+    _prefer_fresh_funding(alone)  # nothing to order, and no error
+    assert alone.names == ("okx",)
 
 
 def test_euro_fixings_and_rates_come_from_the_ecb(tmp_path: Path) -> None:
