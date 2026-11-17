@@ -8,6 +8,8 @@ uv run just api                      # http://127.0.0.1:8000/docs (Swagger) y /r
 curl "http://127.0.0.1:8000/api/v1/market/bars?symbol=SAN.MC&start=2024-01-01"
 curl "http://127.0.0.1:8000/api/v1/market/flow?symbol=BTC/USDT&start=2026-10-01"
 curl "http://127.0.0.1:8000/api/v1/market/holding-rates?symbol=BTC/USDT:USDT&kind=funding"
+curl "http://127.0.0.1:8000/api/v1/market/positioning?symbol=BTC/USDT:USDT&interval=4h"
+curl "http://127.0.0.1:8000/api/v1/market/venues?symbol=BTC/USDT:USDT&dataset=positioning"
 curl "http://127.0.0.1:8000/api/v1/market/technical?symbol=EURUSD=X&start=2026-01-01&name=RSI&name=MFI"
 curl "http://127.0.0.1:8000/api/v1/market/patterns?symbol=BTC/USDT&interval=1h&start=2026-11-01"
 curl "http://127.0.0.1:8000/api/v1/market/confluence?symbol=SAN.MC&frame=1d&frame=1w&frame=1mo"
@@ -28,6 +30,8 @@ curl "http://127.0.0.1:8000/api/v1/market/confluence?symbol=SAN.MC&frame=1d&fram
 | GET | `/api/v1/market/structure` | Soportes y resistencias con sus toques, el más cercano de cada lado, divergencias RSI/precio con la vela que las confirmó y el *swing* de Fibonacci, a la última vela; `basis` dice si salen de máximos y mínimos o de los cierres |
 | GET | `/api/v1/market/patterns` | Patrones de precio (velas, liquidez y estructura, sesión, zonas de Fibonacci): de cada uno, familia, dirección de su definición, velas marcadas, la última y si está activo; cada suceso, y los que la serie no admite con lo que les falta (columnas o barras intradía) |
 | GET | `/api/v1/market/holding-rates` | Funding, comisión de préstamo o coste de financiación (`kind`), con su intervalo y lo acumulado |
+| GET | `/api/v1/market/positioning` | Interés abierto y ratios long/short de un perpetuo en una venue ([ADR-0042](../adr/0042-positioning-as-a-dataset.md)), de 5 minutos a un día (`interval`; 30 días por defecto): una lista de instantes (inicio de cada periodo) y una columna por campo que la venue publica, con su primer y último valor, mínimo y máximo; el periodo en curso no se incluye y una foto que falta es `null` |
+| GET | `/api/v1/market/venues` | Venues que sirven el funding (`dataset=holding_rates`) o el posicionamiento (`positioning`) de un instrumento, en el orden en que se preguntan: las interfaces las listan de aquí, así una venue nueva aparece sola |
 | POST | `/api/v1/market/compare` | Rendimiento base 100, caídas, métricas y correlación de varios |
 | GET | `/api/v1/market/quality` | Diagnóstico de calidad frente al calendario oficial |
 | GET | `/api/v1/rates/risk-free` | Tipo libre de riesgo conocido cada día hábil |

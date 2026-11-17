@@ -254,6 +254,75 @@ def test_rates_requests_are_checked(
     assert client.get("/api/v1/market/holding-rates", params=params).status_code == status
 
 
+def test_positioning_comes_by_field_aligned_on_its_instants(client: TestClient) -> None:
+    response = client.get(
+        "/api/v1/market/positioning", params={"symbol": "SYN/USDT:USDT", "start": "2024-03-01"}
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert (body["venue"], body["frequency"], body["value_currency"]) == (
+        "synthetic-oi",
+        "1h",
+        "USD",
+    )
+    assert body["times"][0] == "2024-03-01T00:00:00Z"
+    assert len(body["times"]) == 48
+    columns = {column["field"]: column for column in body["columns"]}
+    assert list(columns) == ["open_interest", "open_interest_value", "long_short_accounts"]
+    assert (columns["open_interest"]["kind"], columns["long_short_accounts"]["kind"]) == (
+        "amount",
+        "ratio",
+    )
+    contracts = columns["open_interest"]["values"]
+    assert len(contracts) == 48
+    assert columns["open_interest"]["first"] == contracts[0]
+    assert columns["open_interest"]["latest"] == contracts[-1]
+    assert columns["open_interest"]["minimum"] == min(contracts)
+    ratio = columns["long_short_accounts"]["values"]
+    assert ratio[5] is None  # a skipped snapshot stays missing, never filled in
+    assert columns["long_short_accounts"]["maximum"] == max(v for v in ratio if v is not None)
+
+
+@pytest.mark.parametrize(
+    ("params", "status"),
+    [
+        ({"symbol": "SYN/USDT:USDT", "venue": "other"}, 404),
+        ({"symbol": "SYN/USDT:USDT", "interval": "1w"}, 422),
+        ({"symbol": "SYN/USDT:USDT", "venue": "Not A Venue"}, 422),
+        ({"symbol": "NOPE/USDT:USDT"}, 404),
+    ],
+    ids=["other-venue", "unread-interval", "bad-venue", "unknown-swap"],
+)
+def test_positioning_requests_are_checked(
+    client: TestClient, params: dict[str, str], status: int
+) -> None:
+    assert client.get("/api/v1/market/positioning", params=params).status_code == status
+
+
+@pytest.mark.parametrize(
+    ("dataset", "venues"),
+    [("holding_rates", ["synthetic-venue"]), ("positioning", ["synthetic-oi"])],
+)
+def test_the_venues_of_a_dataset_are_those_registered(
+    client: TestClient, dataset: str, venues: list[str]
+) -> None:
+    response = client.get(
+        "/api/v1/market/venues", params={"symbol": "SYN/USDT:USDT", "dataset": dataset}
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"symbol": "SYN/USDT:USDT", "dataset": dataset, "venues": venues}
+
+
+def test_only_funding_and_positioning_are_served_per_venue(client: TestClient) -> None:
+    response = client.get(
+        "/api/v1/market/venues", params={"symbol": "SYN/USDT:USDT", "dataset": "bars"}
+    )
+
+    assert response.status_code == 422
+
+
 # ── Technical indicators (SYNTHETIC) ─────────────────────────────────
 
 

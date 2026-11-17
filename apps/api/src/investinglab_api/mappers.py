@@ -7,7 +7,7 @@ shape (DataFrames to lists, timestamps to ISO dates) and turn undefined numbers 
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Final, Literal
 
 import numpy as np
 import pandas as pd
@@ -15,6 +15,7 @@ import pandas as pd
 from investinglab import __version__ as core_version
 from investinglab.domain.confluence import MIN_BARS
 from investinglab.domain.flow import FlowField
+from investinglab.domain.positioning import AMOUNTS, PositioningField
 from investinglab.domain.series import PriceField
 from investinglab.ports import PortfolioSpec
 from investinglab_api import __version__
@@ -57,6 +58,8 @@ from investinglab_api.schemas.market import (
     PatternOut,
     PatternsOut,
     PillarOut,
+    PositioningColumnOut,
+    PositioningOut,
     QualityOut,
     RatePointOut,
     RatesOut,
@@ -74,6 +77,7 @@ from investinglab_api.schemas.market import (
     TrendOut,
     UnavailableIndicatorOut,
     UnavailablePatternOut,
+    VenuesOut,
 )
 from investinglab_api.schemas.meta import (
     HealthOut,
@@ -96,7 +100,7 @@ from investinglab_api.schemas.portfolio import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping, Sequence
+    from collections.abc import Iterable, Mapping, Sequence
     from datetime import date, datetime
 
     from investinglab.domain.card import AssetCard
@@ -109,6 +113,7 @@ if TYPE_CHECKING:
     from investinglab.domain.patterns import PricePatterns
     from investinglab.domain.planning import PlanResult
     from investinglab.domain.portfolio import Portfolio
+    from investinglab.domain.positioning import PositioningSeries
     from investinglab.domain.quality import DataQualityReport
     from investinglab.domain.rate_series import RateSeries
     from investinglab.domain.series import DataSource, PriceSeries, SeriesStats
@@ -130,6 +135,7 @@ __all__ = [
     "plan_out",
     "portfolio_analytics_out",
     "portfolio_spec",
+    "positioning_out",
     "provider_out",
     "quality_out",
     "rates_out",
@@ -139,6 +145,7 @@ __all__ = [
     "series_out",
     "simulation_out",
     "technical_out",
+    "venues_out",
 ]
 
 ISSUE_EXAMPLES: Final = 10
@@ -640,6 +647,44 @@ def quality_out(report: DataQualityReport) -> QualityOut:
             for issue in report.issues
         ],
     )
+
+
+def _column_out(name: PositioningField, values: pd.Series) -> PositioningColumnOut:
+    present = values.dropna()
+
+    def at(position: int) -> float | None:
+        return finite(float(present.iloc[position])) if len(present) else None
+
+    return PositioningColumnOut(
+        field=name,
+        kind="amount" if name in AMOUNTS else "ratio",
+        first=at(0),
+        latest=at(-1),
+        minimum=finite(float(present.min())) if len(present) else None,
+        maximum=finite(float(present.max())) if len(present) else None,
+        values=[finite(float(value)) for value in values.to_numpy()],
+    )
+
+
+def positioning_out(series: PositioningSeries) -> PositioningOut:
+    """Snapshots by field, aligned on one list of instants, with their range."""
+    snapshots = series.snapshots
+    return PositioningOut(
+        instrument=instrument_out(series.instrument),
+        venue=series.venue,
+        frequency=series.frequency,
+        source=_source_out(series.source),
+        value_currency=None if series.value_currency is None else str(series.value_currency),
+        times=[stamp.to_pydatetime() for stamp in pd.DatetimeIndex(snapshots.index)],
+        columns=[_column_out(name, snapshots[name.value]) for name in series.fields],
+    )
+
+
+def venues_out(
+    symbol: str, dataset: Literal["holding_rates", "positioning"], venues: Iterable[str]
+) -> VenuesOut:
+    """The venues that serve a dataset, in the order they are asked."""
+    return VenuesOut(symbol=symbol, dataset=dataset, venues=list(venues))
 
 
 def risk_free_out(currency: str, rates: pd.Series) -> RiskFreeOut:

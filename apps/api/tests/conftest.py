@@ -23,6 +23,8 @@ from investinglab.domain import (
     AssetClass,
     FlowSeries,
     Frequency,
+    PositioningField,
+    PositioningSeries,
     PriceSeries,
     RateKind,
     RateSeries,
@@ -46,6 +48,7 @@ from support.fakes import (
     FakeBarsProvider,
     FakeEconomicProvider,
     FakeFlowProvider,
+    FakePositioningProvider,
     FakeRatesProvider,
 )
 from support.repositories import InMemoryPortfolioRepository
@@ -166,6 +169,32 @@ def synthetic_funding() -> RateSeries:
     )
 
 
+def synthetic_positioning() -> PositioningSeries:
+    """SYNTHETIC hourly positioning of a perpetual swap: open interest, its value and a ratio.
+
+    One hour misses its ratio, as a venue sometimes skips a snapshot: it must stay null.
+    """
+    instants = pd.date_range("2024-03-01", periods=48, freq="1h", tz="UTC")
+    rng = np.random.default_rng(23)
+    contracts = 1_000.0 + rng.normal(0.0, 10.0, len(instants)).cumsum()
+    ratio = rng.uniform(0.8, 1.6, len(instants))
+    ratio[5] = np.nan
+    swap = make_instrument(
+        "SYN/USDT:USDT", currency=USD, asset_class=AssetClass.CRYPTO, exchange=None
+    )
+    frame = pd.DataFrame(
+        {
+            PositioningField.OPEN_INTEREST.value: contracts,
+            PositioningField.OPEN_INTEREST_VALUE.value: contracts * 50.0,
+            PositioningField.LONG_SHORT_ACCOUNTS.value: ratio,
+        },
+        index=instants,
+    )
+    return PositioningSeries(
+        swap, "synthetic-oi", SYNTHETIC_SOURCE, Frequency.HOUR_1, frame, value_currency=USD
+    )
+
+
 def synthetic_estr() -> object:
     """A synthetic €STR at 3 %, each month published at the start of the next."""
     months = pd.date_range("2022-12-01", "2025-06-01", freq="MS")
@@ -210,8 +239,11 @@ def toolkit(bars: FakeBarsProvider, core_settings: Settings) -> AsyncToolkit:
     rates = FakeEconomicProvider("rates", {"ECBESTRVOLWGTTRMDMNRT": synthetic_estr()})  # type: ignore[dict-item]
     flow = FakeFlowProvider("synthetic-flow", {f.symbol: f for f in synthetic_flow()})
     funding = FakeRatesProvider("synthetic-venue", {"SYN/USDT:USDT": synthetic_funding()})
+    positioning = FakePositioningProvider(
+        "synthetic-oi", {"SYN/USDT:USDT": synthetic_positioning()}
+    )
     return AsyncToolkit.from_settings(
-        core_settings, providers=[bars, rates, flow, funding], cache=False
+        core_settings, providers=[bars, rates, flow, funding, positioning], cache=False
     )
 
 

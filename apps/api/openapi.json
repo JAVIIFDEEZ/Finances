@@ -1327,6 +1327,248 @@
         }
       }
     },
+    "/api/v1/market/positioning": {
+      "get": {
+        "tags": [
+          "market"
+        ],
+        "summary": "Open interest and long/short ratios of a derivative",
+        "description": "How much is open on a perpetual swap and how its traders stand (ADR-0042).\n\nEach value is the state when its period ended; the period in progress is left out.\nA venue publishes only some fields: the others are absent, never filled in.",
+        "operationId": "positioning_api_v1_market_positioning_get",
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 32,
+              "pattern": "^[A-Za-z0-9.^=\\-_/:]+$",
+              "description": "Instrument symbol: Yahoo style (SAN.MC, ^GSPC), a venue's pair (BTC/USDT) or a perpetual swap (BTC/USDT:USDT).",
+              "examples": [
+                "SAN.MC",
+                "^GSPC",
+                "EURUSD=X",
+                "BTC/USDT",
+                "BTC/USDT:USDT"
+              ],
+              "title": "Symbol"
+            },
+            "description": "Instrument symbol: Yahoo style (SAN.MC, ^GSPC), a venue's pair (BTC/USDT) or a perpetual swap (BTC/USDT:USDT)."
+          },
+          {
+            "name": "venue",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9_.\\-]{0,39}$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Venue (okx...); any.",
+              "title": "Venue"
+            },
+            "description": "Venue (okx...); any."
+          },
+          {
+            "name": "interval",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "5m",
+                "15m",
+                "30m",
+                "1h",
+                "4h",
+                "1d"
+              ],
+              "type": "string",
+              "description": "Spacing of the snapshots.",
+              "default": "1h",
+              "title": "Interval"
+            },
+            "description": "Spacing of the snapshots."
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First day (UTC); the last 30 days by default.",
+              "title": "Start"
+            },
+            "description": "First day (UTC); the last 30 days by default."
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last day (UTC), inclusive.",
+              "title": "End"
+            },
+            "description": "Last day (UTC), inclusive."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PositioningOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No provider has the requested data.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request breaks the schema, a limit or a domain rule.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Every provider able to serve the data failed; retry later.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/market/venues": {
+      "get": {
+        "tags": [
+          "market"
+        ],
+        "summary": "Venues that serve a dataset of an instrument",
+        "description": "The venues able to answer, in the order they are asked when none is named.\n\nInterfaces list these instead of a fixed set: a venue added to the platform appears\nhere on its own. Being listed means a venue serves that kind of instrument, not that it\nlists this one: asking it may still be a 404.",
+        "operationId": "venues_api_v1_market_venues_get",
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 32,
+              "pattern": "^[A-Za-z0-9.^=\\-_/:]+$",
+              "description": "Instrument symbol: Yahoo style (SAN.MC, ^GSPC), a venue's pair (BTC/USDT) or a perpetual swap (BTC/USDT:USDT).",
+              "examples": [
+                "SAN.MC",
+                "^GSPC",
+                "EURUSD=X",
+                "BTC/USDT",
+                "BTC/USDT:USDT"
+              ],
+              "title": "Symbol"
+            },
+            "description": "Instrument symbol: Yahoo style (SAN.MC, ^GSPC), a venue's pair (BTC/USDT) or a perpetual swap (BTC/USDT:USDT)."
+          },
+          {
+            "name": "dataset",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "enum": [
+                "holding_rates",
+                "positioning"
+              ],
+              "type": "string",
+              "description": "Funding (holding_rates) or positioning.",
+              "title": "Dataset"
+            },
+            "description": "Funding (holding_rates) or positioning."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VenuesOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request breaks the schema, a limit or a domain rule.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/market/compare": {
       "post": {
         "tags": [
@@ -5841,6 +6083,166 @@
         "title": "PortfolioIn",
         "description": "A portfolio to build from market data."
       },
+      "PositioningColumnOut": {
+        "properties": {
+          "field": {
+            "$ref": "#/components/schemas/PositioningField"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "amount",
+              "ratio"
+            ],
+            "title": "Kind",
+            "description": "An amount (open interest) or a ratio of two amounts (long/short)."
+          },
+          "first": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First",
+            "description": "First value in the range."
+          },
+          "latest": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest",
+            "description": "Last value in the range."
+          },
+          "minimum": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minimum"
+          },
+          "maximum": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Maximum"
+          },
+          "values": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Values",
+            "description": "One value per instant of ``times`` (null where the venue skipped one)."
+          }
+        },
+        "type": "object",
+        "required": [
+          "field",
+          "kind",
+          "first",
+          "latest",
+          "minimum",
+          "maximum",
+          "values"
+        ],
+        "title": "PositioningColumnOut",
+        "description": "The snapshots of one positioning field, aligned on :attr:`PositioningOut.times`."
+      },
+      "PositioningField": {
+        "type": "string",
+        "enum": [
+          "open_interest",
+          "open_interest_value",
+          "long_short_accounts",
+          "top_long_short_accounts",
+          "top_long_short_positions",
+          "taker_buy_sell"
+        ],
+        "title": "PositioningField",
+        "description": "What a column of a :class:`PositioningSeries` measures."
+      },
+      "PositioningOut": {
+        "properties": {
+          "instrument": {
+            "$ref": "#/components/schemas/InstrumentOut"
+          },
+          "venue": {
+            "type": "string",
+            "title": "Venue"
+          },
+          "frequency": {
+            "$ref": "#/components/schemas/Frequency"
+          },
+          "source": {
+            "$ref": "#/components/schemas/SourceOut"
+          },
+          "value_currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value Currency",
+            "description": "Currency of ``open_interest_value`` (null when the venue gives none)."
+          },
+          "times": {
+            "items": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "type": "array",
+            "title": "Times",
+            "description": "Start of each period (UTC); its value is the state when it ended."
+          },
+          "columns": {
+            "items": {
+              "$ref": "#/components/schemas/PositioningColumnOut"
+            },
+            "type": "array",
+            "title": "Columns",
+            "description": "Only the fields the venue publishes, in the vocabulary's order."
+          }
+        },
+        "type": "object",
+        "required": [
+          "instrument",
+          "venue",
+          "frequency",
+          "source",
+          "value_currency",
+          "times",
+          "columns"
+        ],
+        "title": "PositioningOut",
+        "description": "Open interest and long/short ratios of a derivative on one venue (ADR-0042)."
+      },
       "PriceAdjustment": {
         "type": "string",
         "enum": [
@@ -7697,6 +8099,38 @@
         ],
         "title": "ValidationOut",
         "description": "Whether the weights form a valid portfolio (before downloading anything)."
+      },
+      "VenuesOut": {
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
+          },
+          "dataset": {
+            "type": "string",
+            "enum": [
+              "holding_rates",
+              "positioning"
+            ],
+            "title": "Dataset"
+          },
+          "venues": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Venues",
+            "description": "First the one asked when no venue is named."
+          }
+        },
+        "type": "object",
+        "required": [
+          "symbol",
+          "dataset",
+          "venues"
+        ],
+        "title": "VenuesOut",
+        "description": "The venues that serve a dataset of an instrument, in the order they are asked."
       },
       "VintageMode": {
         "type": "string",

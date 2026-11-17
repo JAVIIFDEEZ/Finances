@@ -10,6 +10,7 @@ from pydantic import Field
 from investinglab.domain.card import Pillar, PillarIssue, Unit
 from investinglab.domain.flow import FlowField
 from investinglab.domain.instruments import AssetClass
+from investinglab.domain.positioning import PositioningField
 from investinglab.domain.quality import IssueKind, Severity
 from investinglab.domain.rate_series import RateKind
 from investinglab.domain.series import PriceAdjustment, PriceField
@@ -38,6 +39,8 @@ __all__ = [
     "PatternEventOut",
     "PatternOut",
     "PatternsOut",
+    "PositioningColumnOut",
+    "PositioningOut",
     "QualityOut",
     "RatePointOut",
     "RatesOut",
@@ -56,6 +59,7 @@ __all__ = [
     "TrendOut",
     "UnavailableIndicatorOut",
     "UnavailablePatternOut",
+    "VenuesOut",
 ]
 
 Symbol = Annotated[
@@ -312,6 +316,48 @@ class RatesOut(ApiModel):
     periods_per_year: float
     summary: RatesSummaryOut
     rates: list[RatePointOut]
+
+
+class PositioningColumnOut(ApiModel):
+    """The snapshots of one positioning field, aligned on :attr:`PositioningOut.times`."""
+
+    field: PositioningField
+    kind: Literal["amount", "ratio"] = Field(
+        description="An amount (open interest) or a ratio of two amounts (long/short)."
+    )
+    first: float | None = Field(description="First value in the range.")
+    latest: float | None = Field(description="Last value in the range.")
+    minimum: float | None
+    maximum: float | None
+    values: list[float | None] = Field(
+        description="One value per instant of ``times`` (null where the venue skipped one)."
+    )
+
+
+class PositioningOut(ApiModel):
+    """Open interest and long/short ratios of a derivative on one venue (ADR-0042)."""
+
+    instrument: InstrumentOut
+    venue: str
+    frequency: Frequency
+    source: SourceOut
+    value_currency: str | None = Field(
+        description="Currency of ``open_interest_value`` (null when the venue gives none)."
+    )
+    times: list[datetime] = Field(
+        description="Start of each period (UTC); its value is the state when it ended."
+    )
+    columns: list[PositioningColumnOut] = Field(
+        description="Only the fields the venue publishes, in the vocabulary's order."
+    )
+
+
+class VenuesOut(ApiModel):
+    """The venues that serve a dataset of an instrument, in the order they are asked."""
+
+    symbol: str
+    dataset: Literal["holding_rates", "positioning"]
+    venues: list[str] = Field(description="First the one asked when no venue is named.")
 
 
 class IndicatorOut(ApiModel):
