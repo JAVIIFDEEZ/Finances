@@ -9,7 +9,7 @@ import { useI18n, useTheme } from "@/components/providers";
 import { Badge, Button, Card, Input, PageHeader, ProblemAlert, Refreshing, Segmented, Skeleton, Stat } from "@/components/ui";
 import type { Schemas } from "@/lib/api/client";
 import { isNotFound, useBars, useComparison, useFlow, useFunding, usePatterns, useQuality, useStructure, useTechnical, type Interval } from "@/lib/api/queries";
-import { isMessageKey } from "@/lib/i18n/messages";
+import { fill, isMessageKey } from "@/lib/i18n/messages";
 import { trough } from "@/lib/util/chart";
 import { rangeStart, type RangeKey } from "@/lib/util/dates";
 import { perpetualOf } from "@/lib/util/instruments";
@@ -395,17 +395,34 @@ function FlowCard({ symbol, interval, start, color }: { symbol: string; interval
   );
 }
 
+/** Venues whose funding can be read: OKX's API is up to date; Binance's dumps keep the history. */
+const FUNDING_VENUES = ["okx", "binance"] as const;
+type FundingVenue = (typeof FUNDING_VENUES)[number];
+
 function FundingCard({ swap, start, color }: { swap: string; start: string | null; color: string }) {
   const { t, fmt } = useI18n();
-  const funding = useFunding(swap, start);
+  const [venue, setVenue] = useState<FundingVenue>("okx");
+  const funding = useFunding(swap, start, venue);
   const percent = useMemo(() => (v: number) => fmt.percent(v, 1), [fmt]);
   const data = funding.data;
+  const last = data?.rates[data.rates.length - 1]?.time;
   return (
-    <Card title={t("markets.funding")} subtitle={data ? `${swap} · ${data.venue}` : swap}>
+    <Card
+      title={t("markets.funding")}
+      subtitle={swap}
+      actions={
+        <Segmented
+          label={t("markets.fundingVenue")}
+          value={venue}
+          onChange={setVenue}
+          options={FUNDING_VENUES.map((value) => ({ value, label: t(`venue.${value}`) }))}
+        />
+      }
+    >
       {funding.isLoading ? (
         <Skeleton className="h-[240px]" />
       ) : funding.isError && isNotFound(funding.error) ? (
-        <p className="text-[13px] text-text-2">{t("markets.fundingNone")}</p>
+        <p className="text-[13px] text-text-2">{t(`markets.fundingNone.${venue}`)}</p>
       ) : funding.isError ? (
         <ProblemAlert error={funding.error} onRetry={() => void funding.refetch()} />
       ) : data ? (
@@ -419,7 +436,12 @@ function FundingCard({ swap, start, color }: { swap: string; start: string | nul
               lines={[{ name: t("markets.fundingRate"), color, points: data.rates.map((r) => ({ time: String(r.time), value: r.annualized })) }]}
             />
           </Refreshing>
-          <p className="text-xs text-muted">{t("metric.fundingPayer")}</p>
+          <p className="text-xs text-muted">
+            {t("metric.fundingPayer")}
+            {last ? ` · ${fill(t("markets.fundingLast"), { date: fmt.date(String(last)) })}` : null}
+            {/* About the data shown: while another venue loads, the previous one stays, dimmed. */}
+            {data.venue === "binance" ? ` · ${t("markets.fundingMonthly")}` : null}
+          </p>
           <dl className="grid grid-cols-2 gap-x-6 gap-y-5">
             <Stat label={t("metric.fundingMean")} value={fmt.percent(data.summary.mean_annualized, 1)} />
             <Stat label={t("metric.fundingLong")} value={fmt.signedPercent(data.summary.accumulated_long, 2)} />

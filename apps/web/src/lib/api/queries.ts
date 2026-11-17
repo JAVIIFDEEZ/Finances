@@ -153,13 +153,14 @@ export function usePatterns(symbol: string, interval: Interval, start: string | 
 }
 
 /** Funding of the perpetual swap ``swap`` (``BTC/USDT:USDT``); disabled with ``null``. */
-export function useFunding(swap: string | null, start: string | null) {
+/** The funding of a perpetual swap on one venue (``null``: the platform's up-to-date default). */
+export function useFunding(swap: string | null, start: string | null, venue: string | null = null) {
   return useQuery({
-    queryKey: ["funding", swap, start],
+    queryKey: ["funding", swap, start, venue],
     queryFn: async () =>
       unwrap(
         await api.GET("/api/v1/market/holding-rates", {
-          params: { query: { symbol: swap ?? "", kind: "funding", start: start ?? undefined } },
+          params: { query: { symbol: swap ?? "", kind: "funding", start: start ?? undefined, venue: venue ?? undefined } },
         }),
       ),
     enabled: swap !== null,
