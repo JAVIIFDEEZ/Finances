@@ -216,6 +216,23 @@ def test_rates_go_to_the_providers_of_that_kind_and_venue() -> None:
     assert registry.names == ("okx", "broker")
 
 
+def test_rates_follow_their_preference_by_kind_and_a_named_venue_wins() -> None:
+    registry = ProviderRegistry()
+    for name in ("history", "fresh", "broker"):
+        registry.register(FakeRatesProvider(name))
+
+    registry.prefer_rates(["fresh"], kind=RateKind.FUNDING)
+
+    funding = RatesRequest("BTC/USDT:USDT", RateKind.FUNDING)
+    assert [p.name for p in registry.rates_candidates(funding)] == ["fresh", "history", "broker"]
+    borrow = RatesRequest("SAN.MC", RateKind.BORROW)  # no preference for this kind
+    assert [p.name for p in registry.rates_candidates(borrow)] == ["history", "fresh", "broker"]
+    named = RatesRequest("BTC/USDT:USDT", RateKind.FUNDING, venue="history")
+    assert [p.name for p in registry.rates_candidates(named)] == ["history"]
+    with pytest.raises(DomainError, match="Unknown rates providers"):
+        registry.prefer_rates(["nobody"], kind=RateKind.FUNDING)
+
+
 def test_preferences_may_name_flow_only_providers() -> None:
     registry = ProviderRegistry()
     registry.register(FakeFlowProvider("tape"))
