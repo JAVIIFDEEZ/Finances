@@ -9,6 +9,7 @@ from investinglab.ports import (
     BarsRequest,
     Dataset,
     EconomicRequest,
+    PositioningRequest,
     ProviderCapabilities,
     RateLimit,
     RateLimitedError,
@@ -158,3 +159,34 @@ def test_provider_errors_carry_context() -> None:
     assert error.retryable
     assert error.retry_after == 3.0
     assert str(error) == "[yahoo] HTTP 429"
+
+
+def test_positioning_is_routed_by_its_own_identifiers_and_frequencies() -> None:
+    venue = ProviderCapabilities(
+        datasets=frozenset({Dataset.BARS, Dataset.POSITIONING}),
+        frequencies=frozenset(Frequency),
+        identifiers=r"[A-Z]+/[A-Z]+",
+        identifiers_by_dataset={Dataset.POSITIONING: r"[A-Z]+/[A-Z]+:[A-Z]+"},
+        frequencies_by_dataset={Dataset.POSITIONING: frozenset({Frequency.HOUR_1})},
+    )
+
+    assert venue.can_serve_positioning(PositioningRequest("BTC/USDT:USDT"))
+    assert not venue.can_serve_positioning(PositioningRequest("BTC/USDT"))
+    assert not venue.can_serve_positioning(
+        PositioningRequest("BTC/USDT:USDT", frequency=Frequency.MINUTE_5)
+    )
+    assert venue.frequencies_of(Dataset.BARS) == frozenset(Frequency)
+    assert venue.can_serve_bars(BarsRequest("BTC/USDT", Frequency.MINUTE_5), TODAY)
+    bars_only = ProviderCapabilities(datasets=frozenset({Dataset.BARS}))
+    assert not bars_only.can_serve_positioning(PositioningRequest("BTC/USDT:USDT"))
+
+
+def test_a_positioning_request_is_validated() -> None:
+    request = PositioningRequest("BTC/USDT:USDT")
+
+    assert (request.venue, request.start, request.end) == (None, None, None)
+    assert request.frequency is Frequency.HOUR_1
+    with pytest.raises(DomainError, match="needs a symbol"):
+        PositioningRequest(" ")
+    with pytest.raises(DomainError, match="is after end"):
+        PositioningRequest("BTC/USDT:USDT", start=date(2026, 11, 2), end=date(2026, 11, 1))

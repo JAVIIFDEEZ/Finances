@@ -23,6 +23,7 @@ if TYPE_CHECKING:
     from investinglab.domain.economic import EconomicSeries
     from investinglab.domain.flow import FlowSeries
     from investinglab.domain.instruments import AssetClass
+    from investinglab.domain.positioning import PositioningField, PositioningSeries
     from investinglab.domain.rate_series import RateKind, RateSeries
     from investinglab.domain.series import PriceSeries
 
@@ -33,6 +34,8 @@ __all__ = [
     "EconomicRequest",
     "HoldingRatesProvider",
     "MarketDataProvider",
+    "PositioningProvider",
+    "PositioningRequest",
     "ProviderCapabilities",
     "RateLimit",
     "RatesRequest",
@@ -52,6 +55,8 @@ class Dataset(StrEnum):
     """Trade flow per bar: value traded, number of trades and aggressor side."""
     HOLDING_RATES = "holding_rates"
     """What a position pays or earns per period: funding, borrow fees, financing."""
+    POSITIONING = "positioning"
+    """Open interest of a derivative and how traders stand in it (long/short ratios)."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -129,6 +134,31 @@ class RatesRequest:
             raise DomainError(f"start {self.start} is after end {self.end}")
 
 
+@dataclass(frozen=True, slots=True)
+class PositioningRequest:
+    """A request for the positioning snapshots of one derivative on one venue.
+
+    Attributes:
+        symbol: Canonical InvestingLab symbol of the derivative (``BTC/USDT:USDT``).
+        venue: Venue the snapshots describe; ``None`` lets the router choose.
+        start: First day (inclusive, UTC); ``None`` for the full available history.
+        end: Last day (inclusive, UTC); ``None`` for "up to the latest".
+        frequency: Spacing of the snapshots wanted (5 minutes to a day).
+    """
+
+    symbol: str
+    venue: str | None = None
+    start: date | None = None
+    end: date | None = None
+    frequency: Frequency = Frequency.HOUR_1
+
+    def __post_init__(self) -> None:
+        if not self.symbol.strip():
+            raise DomainError("A positioning request needs a symbol")
+        if self.start and self.end and self.start > self.end:
+            raise DomainError(f"start {self.start} is after end {self.end}")
+
+
 class VintageMode(StrEnum):
     """Which published versions of an economic series to retrieve (ADR-0009)."""
 
@@ -197,8 +227,13 @@ class ProviderCapabilities:
         identifiers_by_dataset: The identifiers of a dataset whose symbols are written
             otherwise than the rest (a venue's spot pairs for its bars, its perpetual swaps for
             their funding); ``identifiers`` applies to the datasets not named here.
+        frequencies_by_dataset: The frequencies of a dataset served at other frequencies
+            than the bars (positioning every 5 minutes or more); ``frequencies`` applies to
+            the datasets not named here.
         rate_kinds: Holding rates served (funding, borrow fees, financing costs), for a
             provider of ``Dataset.HOLDING_RATES``.
+        positioning_fields: Positioning fields published, for a provider of
+            ``Dataset.POSITIONING`` (each venue publishes its own).
         cacheable: Whether what it serves may be cached. A source as fast as the cache that
             its owner edits (local files) is read every time instead, so that an edited file
             is seen at once rather than when the cached copy expires.
@@ -215,7 +250,11 @@ class ProviderCapabilities:
     rate_limits: tuple[RateLimit, ...] = ()
     identifiers: str | None = None
     identifiers_by_dataset: Mapping[Dataset, str] = field(default_factory=dict, hash=False)
+    frequencies_by_dataset: Mapping[Dataset, frozenset[Frequency]] = field(
+        default_factory=dict, hash=False
+    )
     rate_kinds: frozenset[RateKind] = frozenset()
+    positioning_fields: frozenset[PositioningField] = frozenset()
     cacheable: bool = True
 
     def __post_init__(self) -> None:
@@ -251,6 +290,18 @@ class ProviderCapabilities:
         """
         return self._can_serve(Dataset.FLOW, request, today)
 
+    def frequencies_of(self, dataset: Dataset) -> frozenset[Frequency]:
+        """The frequencies ``dataset`` is served at."""
+        return self.frequencies_by_dataset.get(dataset, self.frequencies)
+
+    def can_serve_positioning(self, request: PositioningRequest) -> bool:
+        """Whether the provider can, in principle, answer ``request``."""
+        return (
+            Dataset.POSITIONING in self.datasets
+            and request.frequency in self.frequencies_of(Dataset.POSITIONING)
+            and self.serves(request.symbol, Dataset.POSITIONING)
+        )
+
     def can_serve_rates(self, request: RatesRequest) -> bool:
         """Whether the provider can, in principle, answer ``request``."""
         return (
@@ -260,7 +311,7 @@ class ProviderCapabilities:
         )
 
     def _can_serve(self, dataset: Dataset, request: BarsRequest, today: date) -> bool:
-        if dataset not in self.datasets or request.frequency not in self.frequencies:
+        if dataset not in self.datasets or request.frequency not in self.frequencies_of(dataset):
             return False
         if not self.serves(request.symbol, dataset):
             return False
@@ -368,6 +419,29 @@ class HoldingRatesProvider(Protocol):
 
     async def fetch_rates(self, request: RatesRequest) -> RateSeries:
         """Download the rates a request describes.
+
+        Raises:
+            ProviderError: With the same meaning as for price bars.
+        """
+        ...
+
+
+@runtime_checkable
+class PositioningProvider(Protocol):
+    """Source of positioning in derivatives: open interest and long/short ratios."""
+
+    @property
+    def name(self) -> str:
+        """Provider slug, also the venue the snapshots describe."""
+        ...
+
+    @property
+    def capabilities(self) -> ProviderCapabilities:
+        """What the provider serves; positioning needs ``Dataset.POSITIONING``."""
+        ...
+
+    async def fetch_positioning(self, request: PositioningRequest) -> PositioningSeries:
+        """Download the snapshots a request describes, at its frequency.
 
         Raises:
             ProviderError: With the same meaning as for price bars.
