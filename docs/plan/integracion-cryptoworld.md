@@ -804,7 +804,12 @@ en un solo gráfico de paneles apilados con un cursor, eje de precios a la derec
 precio, lectura de la vela bajo el cursor, escala logarítmica, barra de rango y zoom que se
 conserva ([ADR-0039](../adr/0039-price-chart-workspace.md)). Volumen por vela en barras, mayor
 caída nombrada en su punto y diagonal de la correlación fuera de la escala de color.
-Pendiente en G2: ficha de activo con pilares por clase de activo.
+**Avance (16-11-2026, ficha de activo):** registro de pilares por clase de activo
+(`applies_to`) con técnico, riesgo, derivados (cripto) y calidad de datos; solo el técnico es
+direccional y no hay veredicto fusionado ([ADR-0040](../adr/0040-asset-card-with-pillars.md));
+`tk.card`, `GET /api/v1/market/card` y su panel en la pantalla de mercados, la misma ficha para
+una acción, un índice, una divisa y una cripto. Pendiente: pilar macro (acciones e índices),
+fundamentales (F11), ML y pesos aprendidos con su muestra (G4).
 
 ### G3 — Backtest, validación, mundos nulos y metodología
 
