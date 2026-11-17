@@ -753,6 +753,12 @@ Es decir: **unos 6-8 meses hasta la paridad en lo esencial (G0-G8)** y unos 10-1
 
 **Terminado cuando:** `tk.series("BTC/USDT", venue="binance", frequency="1h")` devuelve una `PriceSeries` validada con su `FlowSeries`; el funding de BTC en tres *venues* sale alineado; los tests de contrato pasan para ccxt sin red.
 
+**Avance (17-11-2026, funding de Binance):** el funding de los perpetuos de Binance sale de sus
+volcados públicos verificados con su SHA-256 ([ADR-0041](../adr/0041-binance-funding-from-public-dumps.md)),
+con toda su historia; sin `venue`, se pide primero a OKX (al día) y después a Binance. Dos
+*venues* alineados en las mismas horas. Pendiente: *open interest* y ratios largo/corto, el tercer
+*venue* y la caché en disco de los ficheros mensuales.
+
 **Decisión al implementarla (13-11-2026):** en lugar de ccxt, un adaptador por *venue* sobre `HttpClient`, con casetes ([ADR-0032](../adr/0032-crypto-venues-on-the-shared-http-client.md)): ccxt salta la capa de red común y sus peticiones no se pueden reproducir con `respx`. La notación de símbolos es la de ccxt (`BTC/USDT`, `BTC/USDT:USDT`) y el enrutado la reconoce sola, así que `tk.series("BTC/USDT", frequency="1h")` va a Binance sin indicar el *venue*. Hechos: Binance *spot* (velas y flujo), funding de OKX, volumen de Yahoo como flujo. Pendientes: el resto de la lista.
 
 ### G2 — Análisis técnico multiactivo y ficha de activo

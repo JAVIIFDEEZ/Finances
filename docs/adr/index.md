@@ -45,6 +45,7 @@ actualiza el estado del antiguo.
 | [0038](0038-signal-panel-and-timeframe-confluence.md) | Panel de reglas por estilo y confluencia entre marcos temporales | Aceptado |
 | [0039](0039-price-chart-workspace.md) | Espacio de gráficos de precio: paneles sobre las mismas velas | Aceptado |
 | [0040](0040-asset-card-with-pillars.md) | Ficha de activo: pilares por clase de activo, sin veredicto fusionado | Aceptado |
+| [0041](0041-binance-funding-from-public-dumps.md) | Funding de Binance desde sus volcados públicos verificados | Aceptado |
 
 ## Cómo añadir un ADR
 
