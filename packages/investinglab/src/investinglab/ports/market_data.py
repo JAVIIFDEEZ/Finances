@@ -194,6 +194,9 @@ class ProviderCapabilities:
             its own notation (a venue's ``BASE/QUOTE`` pairs); ``None`` when any identifier
             may be served. The router skips the provider for other identifiers instead of
             asking it.
+        identifiers_by_dataset: The identifiers of a dataset whose symbols are written
+            otherwise than the rest (a venue's spot pairs for its bars, its perpetual swaps for
+            their funding); ``identifiers`` applies to the datasets not named here.
         rate_kinds: Holding rates served (funding, borrow fees, financing costs), for a
             provider of ``Dataset.HOLDING_RATES``.
         cacheable: Whether what it serves may be cached. A source as fast as the cache that
@@ -201,7 +204,7 @@ class ProviderCapabilities:
             is seen at once rather than when the cached copy expires.
 
     Raises:
-        DomainError: If ``identifiers`` is not a valid regular expression.
+        DomainError: If an identifiers pattern is not a valid regular expression.
     """
 
     datasets: frozenset[Dataset]
@@ -211,19 +214,30 @@ class ProviderCapabilities:
     requires_api_key: bool = False
     rate_limits: tuple[RateLimit, ...] = ()
     identifiers: str | None = None
+    identifiers_by_dataset: Mapping[Dataset, str] = field(default_factory=dict, hash=False)
     rate_kinds: frozenset[RateKind] = frozenset()
     cacheable: bool = True
 
     def __post_init__(self) -> None:
-        if self.identifiers is not None:
+        patterns = [self.identifiers, *self.identifiers_by_dataset.values()]
+        for pattern in patterns:
+            if pattern is None:
+                continue
             try:
-                re.compile(self.identifiers)
+                re.compile(pattern)
             except re.error as error:
                 raise DomainError(f"Invalid identifiers pattern: {error}") from error
 
-    def serves(self, identifier: str) -> bool:
-        """Whether ``identifier`` (a symbol or a series id) can belong to this provider."""
-        return self.identifiers is None or re.fullmatch(self.identifiers, identifier) is not None
+    def serves(self, identifier: str, dataset: Dataset | None = None) -> bool:
+        """Whether ``identifier`` (a symbol or a series id) can belong to this provider.
+
+        Args:
+            identifier: The symbol or series id.
+            dataset: The data asked for, when its identifiers differ from the rest.
+        """
+        pattern = self.identifiers_by_dataset.get(dataset) if dataset else None
+        pattern = pattern or self.identifiers
+        return pattern is None or re.fullmatch(pattern, identifier) is not None
 
     def can_serve_bars(self, request: BarsRequest, today: date) -> bool:
         """Whether the provider can, in principle, answer ``request``."""
@@ -242,13 +256,13 @@ class ProviderCapabilities:
         return (
             Dataset.HOLDING_RATES in self.datasets
             and request.kind in self.rate_kinds
-            and self.serves(request.symbol)
+            and self.serves(request.symbol, Dataset.HOLDING_RATES)
         )
 
     def _can_serve(self, dataset: Dataset, request: BarsRequest, today: date) -> bool:
         if dataset not in self.datasets or request.frequency not in self.frequencies:
             return False
-        if not self.serves(request.symbol):
+        if not self.serves(request.symbol, dataset):
             return False
         if request.asset_class is not None and request.asset_class not in self.asset_classes:
             return False
@@ -260,7 +274,9 @@ class ProviderCapabilities:
 
     def can_serve_economic(self, request: EconomicRequest) -> bool:
         """Whether the provider can, in principle, answer ``request``."""
-        return Dataset.ECONOMIC in self.datasets and self.serves(request.series_id)
+        return Dataset.ECONOMIC in self.datasets and self.serves(
+            request.series_id, Dataset.ECONOMIC
+        )
 
 
 @runtime_checkable
