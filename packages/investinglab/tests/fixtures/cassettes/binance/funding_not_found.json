@@ -1,0 +1,38 @@
+{
+ "provider": "binance",
+ "purpose": "A swap Binance does not list: its folder of dumps is empty.",
+ "recorded_at": "2026-11-17T19:05:02+00:00",
+ "request": {
+  "symbol": "NOPE/USDT:USDT",
+  "kind": "funding",
+  "venue": null,
+  "start": "2026-10-01",
+  "end": "2026-10-02"
+ },
+ "outcome": "SymbolNotFoundError: [binance] NOPE/USDT:USDT: Binance publishes no funding of NOPEUSDT",
+ "exchanges": [
+  {
+   "method": "GET",
+   "url": "https://s3-ap-northeast-1.amazonaws.com/data.binance.vision",
+   "params": {
+    "prefix": "data/futures/um/monthly/fundingRate/NOPEUSDT/",
+    "max-keys": "1000",
+    "marker": "data/futures/um/monthly/fundingRate/NOPEUSDT/NOPEUSDT-fundingRate-2026-09"
+   },
+   "status": 200,
+   "content_type": "application/xml",
+   "text": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<ListBucketResult xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\"><Name>data.binance.vision</Name><Prefix>data/futures/um/monthly/fundingRate/NOPEUSDT/</Prefix><Marker>data/futures/um/monthly/fundingRate/NOPEUSDT/NOPEUSDT-fundingRate-2026-09</Marker><MaxKeys>1000</MaxKeys><IsTruncated>false</IsTruncated></ListBucketResult>"
+  },
+  {
+   "method": "GET",
+   "url": "https://s3-ap-northeast-1.amazonaws.com/data.binance.vision",
+   "params": {
+    "prefix": "data/futures/um/monthly/fundingRate/NOPEUSDT/",
+    "max-keys": "2"
+   },
+   "status": 200,
+   "content_type": "application/xml",
+   "text": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<ListBucketResult xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\"><Name>data.binance.vision</Name><Prefix>data/futures/um/monthly/fundingRate/NOPEUSDT/</Prefix><Marker></Marker><MaxKeys>2</MaxKeys><IsTruncated>false</IsTruncated></ListBucketResult>"
+  }
+ ]
+}

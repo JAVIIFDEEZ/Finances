@@ -12,6 +12,7 @@ clock or the requested range use ``exact=False`` (URL only).
 
 from __future__ import annotations
 
+import base64
 import copy
 import json
 from dataclasses import dataclass
@@ -43,11 +44,17 @@ class Exchange:
     payload: Any = None
     text: str | None = None
     content_type: str = "application/json"
+    content: bytes | None = None
+    """A file's bytes (a ZIP archive, a checksum), recorded in base64."""
 
     def response(self, payload: Any = None, text: str | None = None) -> httpx.Response:
         """The recorded response, or one with the same status and another body."""
         if payload is not None:
             return httpx.Response(self.status, json=payload)
+        if self.content is not None and text is None:
+            return httpx.Response(
+                self.status, content=self.content, headers={"content-type": self.content_type}
+            )
         body = text if text is not None else self.text
         if body is not None:
             return httpx.Response(
@@ -151,6 +158,7 @@ def load_cassette(name: str) -> Cassette:
                 payload=exchange.get("json"),
                 text=exchange.get("text"),
                 content_type=exchange.get("content_type", "application/json"),
+                content=base64.b64decode(exchange["base64"]) if "base64" in exchange else None,
             )
             for exchange in raw["exchanges"]
         ),

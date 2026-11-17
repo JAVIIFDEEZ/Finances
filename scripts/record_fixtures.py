@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import base64
 import json
 import sys
 from dataclasses import dataclass
@@ -43,6 +44,7 @@ from investinglab.adapters.providers import (
     okx,
     yahoo,
 )
+from investinglab.adapters.providers.binance import dumps as binance_dumps
 from investinglab.config import LogLevel, configure_logging
 from investinglab.domain.rate_series import RateKind
 from investinglab.domain.time import Frequency
@@ -63,6 +65,12 @@ type Provider = (
 )
 
 CASSETTES = Path(__file__).resolve().parents[1] / "packages/investinglab/tests/fixtures/cassettes"
+
+
+def _binary(content_type: str) -> bool:
+    """Bodies kept as base64: files (ZIP archives, checksums) rather than documents."""
+    kind = content_type.split(";", maxsplit=1)[0].strip().lower()
+    return kind in {"application/zip", "application/octet-stream", "binary/octet-stream"}
 
 
 def _transient(status: int) -> bool:
@@ -96,6 +104,8 @@ class RecordingTransport(httpx.AsyncBaseTransport):
             }
             if "json" in content_type:
                 exchange["json"] = json.loads(body)
+            elif _binary(content_type):
+                exchange["base64"] = base64.b64encode(body).decode("ascii")
             else:
                 exchange["text"] = body.decode(response.encoding or "utf-8")
             self.exchanges.append(exchange)
@@ -244,6 +254,42 @@ def _recordings(today: date) -> list[Recording]:
             "Unknown pair: HTTP 400 with Binance's error code -1121.",
         ),
         Recording(
+            "binance/btc_usdt_swap_funding",
+            RatesRequest(
+                "BTC/USDT:USDT", RateKind.FUNDING, start=date(2026, 9, 1), end=date(2026, 10, 10)
+            ),
+            "Linear swap from the monthly dumps: the listing from the month before the range, "
+            "then each file with its SHA-256 checksum.",
+        ),
+        Recording(
+            "binance/btc_usd_inverse_funding",
+            RatesRequest(
+                "BTC/USD:BTC", RateKind.FUNDING, start=date(2026, 6, 1), end=date(2026, 6, 10)
+            ),
+            "Inverse swap settled in bitcoin (COIN-M BTCUSD_PERP), from its monthly dumps.",
+        ),
+        Recording(
+            "binance/funding_not_published",
+            RatesRequest(
+                "BTC/USDT:USDT", RateKind.FUNDING, start=date(2026, 11, 1), end=date(2026, 11, 10)
+            ),
+            "The month in progress: its file is not published until the month ends.",
+        ),
+        Recording(
+            "binance/inverse_funding_stopped",
+            RatesRequest(
+                "BTC/USD:BTC", RateKind.FUNDING, start=date(2026, 10, 1), end=date(2026, 10, 10)
+            ),
+            "A market whose dumps stopped: nothing after the start, so the last month is told.",
+        ),
+        Recording(
+            "binance/funding_not_found",
+            RatesRequest(
+                "NOPE/USDT:USDT", RateKind.FUNDING, start=date(2026, 10, 1), end=date(2026, 10, 2)
+            ),
+            "A swap Binance does not list: its folder of dumps is empty.",
+        ),
+        Recording(
             "okx/btc_usdt_swap_funding",
             RatesRequest(
                 "BTC/USDT:USDT", RateKind.FUNDING, start=date(2026, 10, 1), end=date(2026, 10, 10)
@@ -338,6 +384,8 @@ def _provider(
         ),
         binance.NAME: lambda: binance.BinanceProvider(
             client=binance.http_client(retry=retry, transport=transport),
+            dumps=binance_dumps.dumps_client(binance.NAME, retry=retry, transport=transport),
+            listing=binance_dumps.listing_client(binance.NAME, retry=retry, transport=transport),
             clock=clock,
             page_size=recording.page_size or binance.PAGE_SIZE,
         ),
@@ -389,7 +437,9 @@ async def _outcome(provider: Provider, request: Request) -> str:
         | coinbase.CoinbaseProvider,
     ):
         return f"{len(await provider.fetch_bars(request))} bars"
-    if isinstance(request, RatesRequest) and isinstance(provider, okx.OkxProvider):
+    if isinstance(request, RatesRequest) and isinstance(
+        provider, okx.OkxProvider | binance.BinanceProvider
+    ):
         return f"{len(await provider.fetch_rates(request))} payments"
     if isinstance(request, EconomicRequest) and isinstance(
         provider, ecb.EcbProvider | alternative_me.AlternativeMeProvider

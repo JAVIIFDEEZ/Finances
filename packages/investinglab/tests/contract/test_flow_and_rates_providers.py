@@ -184,7 +184,20 @@ def _okx(router: respx.MockRouter) -> HoldingRatesProvider:
     return OkxProvider(clock=known.clock)
 
 
+def _binance_rates(router: respx.MockRouter) -> HoldingRatesProvider:
+    known = load_cassette("binance/btc_usdt_swap_funding")
+    known.play(router)
+    load_cassette("binance/funding_not_found").play(router)
+    return BinanceProvider(clock=known.clock)
+
+
 RATES_CASES = (
+    RatesCase(
+        "binance",
+        _binance_rates,
+        load_cassette("binance/btc_usdt_swap_funding").rates_request,
+        load_cassette("binance/funding_not_found").rates_request,
+    ),
     RatesCase(
         "okx",
         _okx,

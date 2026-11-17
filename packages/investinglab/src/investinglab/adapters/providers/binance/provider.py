@@ -1,4 +1,4 @@
-"""Binance spot market: price bars and trade flow from the public market-data API (ADR-0032).
+"""Binance: spot bars and trade flow (ADR-0032), and the funding of its perpetual swaps (ADR-0041).
 
 Binance publishes its spot market data without an API key. The adapter reads it from
 ``data-api.binance.vision``, the mirror of the ``/api/v3`` market endpoints that answers
@@ -20,6 +20,10 @@ What the adapter guarantees, beyond the domain's validation:
   report (a maintenance window) stays absent.
 * **Bounded downloads.** At most :data:`MAX_PAGES` pages of :data:`PAGE_SIZE` bars per
   request: a longer history must be asked for in shorter ranges.
+
+The funding of its perpetual swaps (``BTC/USDT:USDT``) comes from Binance's public dumps,
+verified against their SHA-256 (:mod:`~investinglab.adapters.providers.binance.funding`):
+Binance's futures API refuses some countries, its dumps do not.
 """
 
 from __future__ import annotations
@@ -32,9 +36,12 @@ import pandas as pd
 
 from investinglab.adapters.http import HttpClient, retry_after
 from investinglab.adapters.providers import venues
+from investinglab.adapters.providers.binance import dumps as _dumps
+from investinglab.adapters.providers.binance.funding import PERPETUAL, fetch_funding
 from investinglab.domain.errors import DomainError
 from investinglab.domain.flow import FlowField
 from investinglab.domain.instruments import AssetClass
+from investinglab.domain.rate_series import RateKind
 from investinglab.domain.series import DataSource, PriceField
 from investinglab.domain.time import Frequency
 from investinglab.ports.errors import (
@@ -53,9 +60,10 @@ if TYPE_CHECKING:
 
     from investinglab.adapters.http import RetryPolicy
     from investinglab.domain.flow import FlowSeries
+    from investinglab.domain.rate_series import RateSeries
     from investinglab.domain.series import PriceSeries
     from investinglab.ports.errors import ProviderError
-    from investinglab.ports.market_data import BarsRequest
+    from investinglab.ports.market_data import BarsRequest, RatesRequest
 
 __all__ = [
     "BASE_URL",
@@ -64,6 +72,7 @@ __all__ = [
     "NAME",
     "PAGE_SIZE",
     "PAIR",
+    "PERPETUAL",
     "BinanceProvider",
     "explain_error",
     "http_client",
@@ -178,10 +187,12 @@ def http_client(
 
 
 class BinanceProvider:
-    """Price bars and trade flow of Binance's spot pairs, without an API key.
+    """Bars and flow of Binance's spot pairs and funding of its swaps, without an API key.
 
     Args:
-        client: HTTP client to use; :func:`http_client` by default.
+        client: HTTP client of the market-data API; :func:`http_client` by default.
+        dumps: HTTP client of the public dumps (:func:`dumps.dumps_client` by default).
+        listing: HTTP client of their listing (:func:`dumps.listing_client` by default).
         timeout: Seconds before a request times out (default client only).
         retry: Retry policy for transient failures (default client only).
         clock: Current time (injectable for tests); decides which bars are finished.
@@ -195,6 +206,8 @@ class BinanceProvider:
         self,
         *,
         client: HttpClient | None = None,
+        dumps: HttpClient | None = None,
+        listing: HttpClient | None = None,
         timeout: float = 30.0,
         retry: RetryPolicy | None = None,
         clock: Callable[[], datetime] = _utc_now,
@@ -203,6 +216,8 @@ class BinanceProvider:
         if not 1 <= page_size <= PAGE_SIZE:
             raise DomainError(f"page_size must be between 1 and {PAGE_SIZE}, got {page_size}")
         self._client = client or http_client(timeout=timeout, retry=retry)
+        self._dumps = dumps or _dumps.dumps_client(NAME, retry=retry)
+        self._listing = listing or _dumps.listing_client(NAME, timeout=timeout, retry=retry)
         self._clock = clock
         self._page_size = page_size
 
@@ -213,13 +228,15 @@ class BinanceProvider:
 
     @property
     def capabilities(self) -> ProviderCapabilities:
-        """Bars and flow of spot pairs (``BASE/QUOTE``) at every frequency."""
+        """Bars and flow of pairs (``BASE/QUOTE``); funding of swaps (``BASE/QUOTE:SETTLE``)."""
         return ProviderCapabilities(
-            datasets=frozenset({Dataset.BARS, Dataset.FLOW}),
+            datasets=frozenset({Dataset.BARS, Dataset.FLOW, Dataset.HOLDING_RATES}),
             asset_classes=frozenset({AssetClass.CRYPTO}),
             frequencies=frozenset(Frequency),
             rate_limits=RATE_LIMITS,
             identifiers=PAIR,
+            identifiers_by_dataset={Dataset.HOLDING_RATES: PERPETUAL},
+            rate_kinds=frozenset({RateKind.FUNDING}),
         )
 
     async def fetch_bars(self, request: BarsRequest) -> PriceSeries:
@@ -249,9 +266,38 @@ class BinanceProvider:
         """
         return venues.flow_series(NAME, request, await self._download(request))
 
+    async def fetch_rates(self, request: RatesRequest) -> RateSeries:
+        """Read the funding settled between ``request.start`` and ``end`` (UTC dates).
+
+        Raises:
+            UnsupportedRequestError: If the request is not for the funding of a perpetual swap
+                Binance could list, or spans more months than are read at once.
+            SymbolNotFoundError: If Binance publishes no funding of the swap.
+            ProviderDataError: If nothing is published in the range (the month in progress
+                is published once it ends), or a file is damaged.
+            ProviderError: Any other failure, translated by the HTTP clients.
+        """
+        if request.kind is not RateKind.FUNDING:
+            raise UnsupportedRequestError(NAME, f"Binance serves funding, not {request.kind.value}")
+        if request.venue not in {None, NAME}:
+            raise UnsupportedRequestError(
+                NAME, f"Binance serves its own rates, not {request.venue}'s"
+            )
+        return await fetch_funding(
+            NAME,
+            self._listing,
+            self._dumps,
+            request.symbol,
+            start=request.start,
+            end=request.end,
+            now=self._clock(),
+        )
+
     async def aclose(self) -> None:
-        """Close the HTTP connection pool."""
+        """Close the HTTP connection pools."""
         await self._client.aclose()
+        await self._dumps.aclose()
+        await self._listing.aclose()
 
     async def __aenter__(self) -> Self:
         return self

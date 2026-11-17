@@ -11,6 +11,8 @@ cuerpo de la respuesta, la hora de grabación (`recorded_at`) y el propósito de
 * Los tests las reproducen con `support.cassettes` y `respx`, sin red.
 * Las casetes con rango relativo al día de grabación (`*_live`) solo son válidas con el reloj
   fijado en `recorded_at`, que los helpers de test aplican.
+* Los cuerpos de fichero (ZIP, *checksums*) se guardan en base64 (`base64`) y se reproducen
+  byte a byte; los JSON y los textos, tal cual.
 * Las casetes `*_paged` se graban con páginas más pequeñas que las del proveedor (`page_size`)
   para probar la paginación con pocos datos; los tests usan el mismo tamaño.
 

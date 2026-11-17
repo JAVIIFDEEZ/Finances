@@ -1,4 +1,4 @@
-"""Binance spot market: price bars and trade flow without an API key (ADR-0032)."""
+"""Binance without an API key: spot bars and flow (ADR-0032), funding of its swaps (ADR-0041)."""
 
 from investinglab.adapters.providers.binance.provider import (
     BASE_URL,
@@ -7,6 +7,7 @@ from investinglab.adapters.providers.binance.provider import (
     NAME,
     PAGE_SIZE,
     PAIR,
+    PERPETUAL,
     BinanceProvider,
     explain_error,
     http_client,
@@ -20,6 +21,7 @@ __all__ = [
     "NAME",
     "PAGE_SIZE",
     "PAIR",
+    "PERPETUAL",
     "BinanceProvider",
     "explain_error",
     "http_client",
