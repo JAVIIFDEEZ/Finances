@@ -4,7 +4,8 @@ Providers are registered once (by the composition root) and the router returns, 
 request, the ordered list of providers able to serve it: an explicit preference order when
 one is configured for that asset class and/or frequency, then every other capable provider
 as a last-resort fallback, in registration order. Flow follows the same preferences as the
-price bars, since a venue's flow describes its own bars.
+price bars, since a venue's flow describes its own bars. Holding rates have preferences of
+their own, by kind: which venue's funding to read when none is named.
 """
 
 from __future__ import annotations
@@ -25,6 +26,7 @@ if TYPE_CHECKING:
     from datetime import date
 
     from investinglab.domain.instruments import AssetClass
+    from investinglab.domain.rate_series import RateKind
     from investinglab.domain.time import Frequency
     from investinglab.ports.market_data import (
         BarsRequest,
@@ -60,6 +62,7 @@ class ProviderRegistry:
         self._flow: dict[str, TradeFlowProvider] = {}
         self._rates: dict[str, HoldingRatesProvider] = {}
         self._routes: dict[_RouteKey, tuple[str, ...]] = {}
+        self._rate_routes: dict[RateKind, tuple[str, ...]] = {}
 
     def register(self, provider: AnyProvider) -> None:
         """Register a provider under its name for every dataset it declares.
@@ -110,6 +113,19 @@ class ProviderRegistry:
             raise DomainError(f"Unknown bars providers {unknown}; register them first")
         self._routes[asset_class, frequency] = tuple(providers)
 
+    def prefer_rates(self, providers: Sequence[str], *, kind: RateKind) -> None:
+        """Set the order in which providers are asked for rates of ``kind`` without a venue.
+
+        A request that names its venue only goes to that venue's provider, whatever the order.
+
+        Raises:
+            DomainError: If a name is not a registered provider of holding rates.
+        """
+        unknown = [name for name in providers if name not in self._rates]
+        if unknown:
+            raise DomainError(f"Unknown rates providers {unknown}; register them first")
+        self._rate_routes[kind] = tuple(providers)
+
     @property
     def names(self) -> tuple[str, ...]:
         """Names of every registered provider, in registration order."""
@@ -143,14 +159,17 @@ class ProviderRegistry:
         ]
 
     def rates_candidates(self, request: RatesRequest) -> list[HoldingRatesProvider]:
-        """Providers able to serve ``request``, in registration order.
+        """Providers able to serve ``request``: the preferred ones for its kind, then the rest.
 
         A request for a named venue only goes to the provider of that venue.
         """
+        preferred = self._rate_routes.get(request.kind, ())
+        ordered = [*preferred, *(name for name in self._rates if name not in preferred)]
         return [
-            provider
-            for name, provider in self._rates.items()
-            if request.venue in {None, name} and provider.capabilities.can_serve_rates(request)
+            self._rates[name]
+            for name in ordered
+            if request.venue in {None, name}
+            and self._rates[name].capabilities.can_serve_rates(request)
         ]
 
     def economic_candidates(self, request: EconomicRequest) -> list[EconomicDataProvider]:

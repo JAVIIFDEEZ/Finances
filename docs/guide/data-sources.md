@@ -9,7 +9,7 @@ en orden de prioridad y pasa a la siguiente si una falla (ver [Guía del Toolkit
 | 1 | Ficheros locales | No | Lo que haya en tu carpeta (sin red; ver la guía del Toolkit) |
 | 2 | **BCE** | No | Tipos de referencia del euro (divisas, diario) y €STR y tipos oficiales |
 | 3 | **Yahoo Finance** | No | Acciones, ETFs, fondos, índices, divisas, cripto y futuros, y su volumen |
-| 4 | **Binance** | No | Pares cripto *spot* (`BTC/USDT`) con el flujo de cada vela |
+| 4 | **Binance** | No | Pares cripto *spot* (`BTC/USDT`) con el flujo de cada vela; funding de sus perpetuos desde sus volcados mensuales |
 | 5 | **Kraken** | No | Respaldo de los pares cripto, también en dólares y euros (`BTC/USD`, `ETH/EUR`); solo sus últimas 720 velas |
 | 6 | **Coinbase** | No | Segundo respaldo de los pares cripto, con toda su historia |
 | 7 | **OKX** | No | Funding de los perpetuos (`BTC/USDT:USDT`) |
@@ -22,7 +22,7 @@ diario al BCE, `BTC/USDT` a Binance y `BTC/USDT:USDT` a OKX:
 |----------|----------|--------|
 | Símbolo de Yahoo | `SAN.MC`, `^GSPC`, `EURUSD=X`, `BTC-USD` | BCE o Yahoo |
 | Par de un *exchange*: `BASE/QUOTE` | `BTC/USDT`, `ETH/BTC`, `BTC/USD`, `ETH/EUR` | Binance, después Kraken y Coinbase |
-| Perpetuo: `BASE/QUOTE:SETTLE` | `BTC/USDT:USDT` (lineal), `BTC/USD:BTC` (inverso) | OKX |
+| Perpetuo: `BASE/QUOTE:SETTLE` | `BTC/USDT:USDT` (lineal), `BTC/USD:BTC` (inverso) | OKX, después Binance (`venue` elige uno) |
 
 ## Yahoo Finance
 
@@ -179,6 +179,26 @@ with Toolkit.from_settings() as tk:
   dice.
 * **Lineales e inversos.** `BTC/USDT:USDT` liquida en USDT; `BTC/USD:BTC`, en bitcoin. Una
   combinación que OKX no tiene (`BTC/USD:USD`) se rechaza en lugar de leer otro contrato.
+
+## Binance: funding de los perpetuos desde sus volcados
+
+```python
+with Toolkit.from_settings() as tk:
+    binance = tk.holding_rates("BTC/USDT:USDT", venue="binance", start="2024-01-01")
+    okx = tk.holding_rates("BTC/USDT:USDT", venue="okx")
+```
+
+* **Los volcados públicos** de `data.binance.vision` ([ADR-0041](../adr/0041-binance-funding-from-public-dumps.md)),
+  porque la API de futuros de Binance rechaza algunos países. Dan toda la historia del contrato.
+* **Verificados.** Cada fichero mensual se compara con su SHA-256 publicado antes de leerlo; si
+  no cuadra, se rechaza.
+* **Un mes de retraso.** Cada mes se publica cuando termina: el último pago de Binance es el del
+  último día del mes pasado (la serie lo dice en su `end`). Por eso, sin `venue`, el funding se
+  pide primero a OKX, que está al día, y Binance responde lo que OKX no guarda (más de tres
+  meses atrás).
+* **Lineales e inversos.** `BTC/USDT:USDT` y `ETH/USDC:USDC` son USDⓈ-M; `BTC/USD:BTC`, COIN-M
+  (sus volcados se publicaron hasta junio de 2026). Un contrato que Binance no tiene da
+  `SymbolNotFoundError`; un rango sin ficheros dice cuál es el último mes publicado.
 
 ## alternative.me: miedo y codicia cripto
 

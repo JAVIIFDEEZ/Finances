@@ -18,13 +18,22 @@ import respx
 
 from investinglab.adapters.providers import binance
 from investinglab.adapters.providers.binance import BinanceProvider, split_pair
-from investinglab.domain import AssetClass, DomainError, FlowField, Frequency, PriceAdjustment
+from investinglab.domain import (
+    AssetClass,
+    DomainError,
+    FlowField,
+    Frequency,
+    PriceAdjustment,
+    RateKind,
+)
 from investinglab.ports import (
     BannedError,
     BarsRequest,
     Dataset,
+    HoldingRatesProvider,
     MarketDataProvider,
     ProviderDataError,
+    RatesRequest,
     SymbolNotFoundError,
     TradeFlowProvider,
     UnsupportedRequestError,
@@ -347,13 +356,18 @@ def test_capabilities_describe_binance() -> None:
     assert isinstance(provider, MarketDataProvider)
     assert isinstance(provider, TradeFlowProvider)
     assert provider.name == "binance"
-    assert capabilities.datasets == frozenset({Dataset.BARS, Dataset.FLOW})
+    assert isinstance(provider, HoldingRatesProvider)
+    assert capabilities.datasets == frozenset({Dataset.BARS, Dataset.FLOW, Dataset.HOLDING_RATES})
     assert capabilities.asset_classes == frozenset({AssetClass.CRYPTO})
     assert not capabilities.requires_api_key
     assert capabilities.can_serve_flow(BarsRequest("ETH/BTC", Frequency.MINUTE_1), today)
     assert capabilities.can_serve_bars(BarsRequest("BTC/USDT", Frequency.MONTH_1), today)
     for other in ("BTC-USD", "SAN.MC", "BTC/USDT:USDT"):
         assert not capabilities.can_serve_bars(BarsRequest(other), today)
+    # Bars are of spot pairs; funding is of perpetual swaps, and of nothing else.
+    assert capabilities.can_serve_rates(RatesRequest("BTC/USDT:USDT", RateKind.FUNDING))
+    assert not capabilities.can_serve_rates(RatesRequest("BTC/USDT", RateKind.FUNDING))
+    assert not capabilities.can_serve_rates(RatesRequest("BTC/USDT:USDT", RateKind.BORROW))
 
 
 def test_pairs_split_into_base_and_quote() -> None:

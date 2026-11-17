@@ -129,6 +129,28 @@ def test_capabilities_route_by_the_identifiers_served() -> None:
         ProviderCapabilities(datasets=frozenset({Dataset.BARS}), identifiers="(")
 
 
+def test_a_dataset_can_have_identifiers_of_its_own() -> None:
+    venue = ProviderCapabilities(
+        datasets=frozenset({Dataset.BARS, Dataset.HOLDING_RATES}),
+        frequencies=frozenset({Frequency.DAY_1}),
+        identifiers=r"[A-Z]+/[A-Z]+",
+        identifiers_by_dataset={Dataset.HOLDING_RATES: r"[A-Z]+/[A-Z]+:[A-Z]+"},
+        rate_kinds=frozenset({RateKind.FUNDING}),
+    )
+
+    assert venue.can_serve_bars(BarsRequest("BTC/USDT"), TODAY)
+    assert not venue.can_serve_bars(BarsRequest("BTC/USDT:USDT"), TODAY)  # a swap has no bars here
+    assert venue.can_serve_rates(RatesRequest("BTC/USDT:USDT", RateKind.FUNDING))
+    assert not venue.can_serve_rates(RatesRequest("BTC/USDT", RateKind.FUNDING))
+    assert venue.serves("BTC/USDT")
+    assert not venue.serves("BTC/USDT", Dataset.HOLDING_RATES)
+    with pytest.raises(DomainError, match="Invalid identifiers pattern"):
+        ProviderCapabilities(
+            datasets=frozenset({Dataset.HOLDING_RATES}),
+            identifiers_by_dataset={Dataset.HOLDING_RATES: "["},
+        )
+
+
 def test_provider_errors_carry_context() -> None:
     error = RateLimitedError("yahoo", "HTTP 429", retry_after=3.0)
 

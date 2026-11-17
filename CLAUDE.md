@@ -189,5 +189,6 @@ bash). Lo que necesite más lógica va a un script de Python en `scripts/`, tipa
   fixtures grabadas; no se fabrican datos.
 - `api.binance.com`, `fapi.binance.com` y `api.bybit.com` rechazan el contenedor (HTTP 451 y
   403) aunque estén permitidos: sus casetes se graban desde un equipo propio. Las velas *spot*
-  de Binance salen de `data-api.binance.vision`, que sí responde.
+  de Binance salen de `data-api.binance.vision`, y su funding de los volcados de
+  `data.binance.vision` (listados en `s3-ap-northeast-1.amazonaws.com`), que sí responden.
 - No hay daemon de Docker: las imágenes se validan en GitHub Actions.

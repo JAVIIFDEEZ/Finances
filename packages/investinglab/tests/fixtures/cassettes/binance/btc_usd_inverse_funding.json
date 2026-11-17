@@ -1,0 +1,59 @@
+{
+ "provider": "binance",
+ "purpose": "Inverse swap settled in bitcoin (COIN-M BTCUSD_PERP), from its monthly dumps.",
+ "recorded_at": "2026-11-17T19:05:02+00:00",
+ "request": {
+  "symbol": "BTC/USD:BTC",
+  "kind": "funding",
+  "venue": null,
+  "start": "2026-06-01",
+  "end": "2026-06-10"
+ },
+ "outcome": "30 payments",
+ "exchanges": [
+  {
+   "method": "GET",
+   "url": "https://s3-ap-northeast-1.amazonaws.com/data.binance.vision",
+   "params": {
+    "prefix": "data/futures/cm/monthly/fundingRate/BTCUSD_PERP/",
+    "max-keys": "1000",
+    "marker": "data/futures/cm/monthly/fundingRate/BTCUSD_PERP/BTCUSD_PERP-fundingRate-2026-05"
+   },
+   "status": 200,
+   "content_type": "application/xml",
+   "text": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<ListBucketResult xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\"><Name>data.binance.vision</Name><Prefix>data/futures/cm/monthly/fundingRate/BTCUSD_PERP/</Prefix><Marker>data/futures/cm/monthly/fundingRate/BTCUSD_PERP/BTCUSD_PERP-fundingRate-2026-05</Marker><MaxKeys>1000</MaxKeys><IsTruncated>false</IsTruncated><Contents><Key>data/futures/cm/monthly/fundingRate/BTCUSD_PERP/BTCUSD_PERP-fundingRate-2026-05.zip</Key><LastModified>2026-06-01T07:57:38.000Z</LastModified><ETag>&quot;cc58002172fe73321396a3a70aff18e4&quot;</ETag><ChecksumAlgorithm>CRC64NVME</ChecksumAlgorithm><ChecksumType>FULL_OBJECT</ChecksumType><Size>917</Size><StorageClass>STANDARD</StorageClass></Contents><Contents><Key>data/futures/cm/monthly/fundingRate/BTCUSD_PERP/BTCUSD_PERP-fundingRate-2026-05.zip.CHECKSUM</Key><LastModified>2026-06-01T07:57:38.000Z</LastModified><ETag>&quot;842bab21b7b0de6d0d4ce45a3734ef5a&quot;</ETag><ChecksumAlgorithm>CRC64NVME</ChecksumAlgorithm><ChecksumType>FULL_OBJECT</ChecksumType><Size>102</Size><StorageClass>STANDARD</StorageClass></Contents><Contents><Key>data/futures/cm/monthly/fundingRate/BTCUSD_PERP/BTCUSD_PERP-fundingRate-2026-06.zip</Key><LastModified>2026-07-01T07:58:37.000Z</LastModified><ETag>&quot;d0c28de02df6c250283d620b37df32ed&quot;</ETag><ChecksumAlgorithm>CRC64NVME</ChecksumAlgorithm><ChecksumType>FULL_OBJECT</ChecksumType><Size>942</Size><StorageClass>STANDARD</StorageClass></Contents><Contents><Key>data/futures/cm/monthly/fundingRate/BTCUSD_PERP/BTCUSD_PERP-fundingRate-2026-06.zip.CHECKSUM</Key><LastModified>2026-07-01T07:58:37.000Z</LastModified><ETag>&quot;7bef47be76415c26bfbe6ae2b39dfdd3&quot;</ETag><ChecksumAlgorithm>CRC64NVME</ChecksumAlgorithm><ChecksumType>FULL_OBJECT</ChecksumType><Size>102</Size><StorageClass>STANDARD</StorageClass></Contents></ListBucketResult>"
+  },
+  {
+   "method": "GET",
+   "url": "https://data.binance.vision/data/futures/cm/monthly/fundingRate/BTCUSD_PERP/BTCUSD_PERP-fundingRate-2026-05.zip.CHECKSUM",
+   "params": {},
+   "status": 200,
+   "content_type": "binary/octet-stream",
+   "base64": "OWY4YjE3MjM3ODFhY2ZkMWQyMjFmODAzZjA0MWZjMWZiNDdiODUxODgyNTg5YWRlMzE3YWZjZDBjNTkyZjcwOCAgQlRDVVNEX1BFUlAtZnVuZGluZ1JhdGUtMjAyNi0wNS56aXAK"
+  },
+  {
+   "method": "GET",
+   "url": "https://data.binance.vision/data/futures/cm/monthly/fundingRate/BTCUSD_PERP/BTCUSD_PERP-fundingRate-2026-06.zip.CHECKSUM",
+   "params": {},
+   "status": 200,
+   "content_type": "binary/octet-stream",
+   "base64": "NTkwMmMxM2I4YTI2NTBkNWJhYzYxOWMwOGJiYzgyZTMyMDNmNzc0NTI3ZWZhNDUyYThlZjQ5ZDViMmU0Y2I3ZCAgQlRDVVNEX1BFUlAtZnVuZGluZ1JhdGUtMjAyNi0wNi56aXAK"
+  },
+  {
+   "method": "GET",
+   "url": "https://data.binance.vision/data/futures/cm/monthly/fundingRate/BTCUSD_PERP/BTCUSD_PERP-fundingRate-2026-05.zip",
+   "params": {},
+   "status": 200,
+   "content_type": "binary/octet-stream",
+   "base64": "UEsDBBQAAAAIADg9wVwSDWM0uQIAAOQJAAAjABwAQlRDVVNEX1BFUlAtZnVuZGluZ1JhdGUtMjAyNi0wNS5jc3ZVVAkAA7s3HWq7Nx1qdXgLAAEE4QMAAATdAwAAdZZRbhsxDET/exa3ICmSIk8TGGnaBkhTIHF7/mp3tF5ZXvsrxgup0XAk+fn89vx0ef39cvrx9/376/vPp9f3y8vHv/Pb068/fz8+T2/nz8vTxj7Ol5cvXGu1LE7L5xSnr/Rt+UvFfGUuohsDMhIGMpZbxMIFKIimjs5kK6sUK5VrmagrUKmLEN47qlToqO6TDmepQGmrDt0XIw2URVe/L+YpWCxMVh05lLl1Frw6YgOLzJUl09qTd1bCBazk1ZLOWBX7zs2UgUXBFnKDV8biGgsLaqOYvcxCYKY6MdXaWZRpPOSxygzugxu2YMkVTCm2rffdkaMje/o0uQrDgjNWIWVfTHgdQYhU2aquPiMnsW1tSFfBeEJCp5hQMBwpvOf1WsVAKpOO0kwGqjzPhsLAlGjSUZoPQBJxi7gyJKqtcSXfESEkTbtfQ9IlsgIZ2zQXtV61TXOwiktCh1XEdV+seQeHnZBW3edScKLCC03HRozQ0C3nfDDBRY89qkDtv7FWZSRVh1RlR2rTWKSdFaCKnQ1V2fcVVA7igY5bgsexFANyxHQ3uDRngSInHa0h7EjGqGUMfqJjap3zYZv+xKDHMAqvZbncNVNZoQywcnexUqUC5kiqjbMOBktENYaDJliuZ5jqhnj5BqQxWdJ25EAVGyj3VUJIahyggqTyAeq3MR2glHiA2in1Bw2LzUFtj0gC1TWofCC+31VDVarBKC0+ndskhfXqU1CHhjkH1TwxFJP5PrWWTyC7y2nhXhU0x6NNF1NxQlDrEJ3sLb3EfLNLUgXzejuX1pF6yx794d5p996KqujdiVFUVSu38Wg68Bzk9oIemL89I3qAejr8AHk8isf1mN2jLXAHybm6f4DiQUpjeWBvn5cBKR/LiOX06iOUeSwjtqXuxTdkc0rbExZAgZTul4By+1XzH1BLAQIeAxQAAAAIADg9wVwSDWM0uQIAAOQJAAAjABgAAAAAAAEAAACkgQAAAABCVENVU0RfUEVSUC1mdW5kaW5nUmF0ZS0yMDI2LTA1LmNzdlVUBQADuzcdanV4CwABBOEDAAAE3QMAAFBLBQYAAAAAAQABAGkAAAAWAwAAAAA="
+  },
+  {
+   "method": "GET",
+   "url": "https://data.binance.vision/data/futures/cm/monthly/fundingRate/BTCUSD_PERP/BTCUSD_PERP-fundingRate-2026-06.zip",
+   "params": {},
+   "status": 200,
+   "content_type": "binary/octet-stream",
+   "base64": "UEsDBBQAAAAIAJA84Vwqr0260gIAAH0JAAAjABwAQlRDVVNEX1BFUlAtZnVuZGluZ1JhdGUtMjAyNi0wNi5jc3ZVVAkAA3/DRGp/w0RqdXgLAAEE4QMAAATdAwAAdZZbbhsxDEX/uxbHECk+F9B1GEaatgHSFEicrr8akTMay7aRD8cHFK/IS848n9+eT5fXPy+Hn1/vP17ff51e3y8vH//Ob6fff78+Pg9v58/LaWUf58vLN1ArqFiWDx3sUI7LN0UoHdVSbPmhrgiW/wKhSw+7g9joChUyk0AWyeA2iiDOu4eIFhlAd5DWHoZbLjP0jrggXaERxRW6DL+DQsVOPCKEeDbr1bANATp0JKAyRQEkIukyZEMOFrlEeZEBdRSKDDvSEiUc9youFqiiXefSInGgCmwynjLM8mLqceRW3yKcXTHwrStPcrTvTxq/k123pPXPOJDKJEJqivCs4bgVQ4lEXqlr0FHBylEml4qT9FooOukh747XoGCxR4jCobeGgqKzQ1uOfjForCcb0yAuGiistkPe3BZIolRymwu8hwHselJL7zIg4qYjGbe/YAzXo7IMaiIbHt3CuHZWi02NaZOaqM4mrVYgkMj1rBRQlkDOc2OkQgihlM+N6VHSN0A8O1TS10AGk4bmG+qouYRmhKGcazhgWApRE6UPRxS08gby4dFVOZVIJsiTDqLwLwiHSbflUIxTvdgwaepow9yRRrd6KVKHaBRXafLosg9Dvcq0RdvseORSD4+OAxnzQMuVPZAbxr2Mpy3akuWBto7zrUd9tfaoFCB4MLrxaHs8RP99vfXIBlGPHNirbmpsRCwYFoVdqSwRh0V1J0SIgpkMIX6s6ba2aHkaFCmx2BBo3qIiklE6e5SwBMISHuWd9Br6sM5L1OsaxX5di628mPfdHUiWB1aY96i6eCDibX+tGxE1LlaVtnldm0IadaIym5SU40iq0yJtpYq9h839Xchu7wEnskeP+rajZpM2YXEzpjDp2PVSw4mYTd67XuPhhlJoXl8URkSp9ZEMke7R8YLQVkBWQ3y26DI9HeV7D+zfHTwOVLIHs4KqOj3epLbd+x9QSwECHgMUAAAACACQPOFcKq9NutICAAB9CQAAIwAYAAAAAAABAAAApIEAAAAAQlRDVVNEX1BFUlAtZnVuZGluZ1JhdGUtMjAyNi0wNi5jc3ZVVAUAA3/DRGp1eAsAAQThAwAABN0DAABQSwUGAAAAAAEAAQBpAAAALwMAAAAA"
+  }
+ ]
+}

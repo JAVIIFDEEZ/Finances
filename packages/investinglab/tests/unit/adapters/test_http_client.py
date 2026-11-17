@@ -76,6 +76,15 @@ async def test_transient_errors_are_retried_with_backoff() -> None:
 
 
 @respx.mock
+async def test_a_file_comes_back_as_its_bytes() -> None:
+    zipped = b"PK\x03\x04\x00\xff binary"
+    respx.get(f"{BASE}/file.zip").mock(return_value=httpx.Response(200, content=zipped))
+
+    async with _client(_Sleeps()) as client:
+        assert await client.get_bytes("/file.zip") == zipped
+
+
+@respx.mock
 async def test_retry_after_is_honoured_and_capped() -> None:
     respx.get(f"{BASE}/series").mock(
         side_effect=[

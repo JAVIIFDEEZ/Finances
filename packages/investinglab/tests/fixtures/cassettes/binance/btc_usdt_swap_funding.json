@@ -1,0 +1,75 @@
+{
+ "provider": "binance",
+ "purpose": "Linear swap from the monthly dumps: the listing from the month before the range, then each file with its SHA-256 checksum.",
+ "recorded_at": "2026-11-17T19:05:02+00:00",
+ "request": {
+  "symbol": "BTC/USDT:USDT",
+  "kind": "funding",
+  "venue": null,
+  "start": "2026-09-01",
+  "end": "2026-10-10"
+ },
+ "outcome": "120 payments",
+ "exchanges": [
+  {
+   "method": "GET",
+   "url": "https://s3-ap-northeast-1.amazonaws.com/data.binance.vision",
+   "params": {
+    "prefix": "data/futures/um/monthly/fundingRate/BTCUSDT/",
+    "max-keys": "1000",
+    "marker": "data/futures/um/monthly/fundingRate/BTCUSDT/BTCUSDT-fundingRate-2026-08"
+   },
+   "status": 200,
+   "content_type": "application/xml",
+   "text": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<ListBucketResult xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\"><Name>data.binance.vision</Name><Prefix>data/futures/um/monthly/fundingRate/BTCUSDT/</Prefix><Marker>data/futures/um/monthly/fundingRate/BTCUSDT/BTCUSDT-fundingRate-2026-08</Marker><MaxKeys>1000</MaxKeys><IsTruncated>false</IsTruncated><Contents><Key>data/futures/um/monthly/fundingRate/BTCUSDT/BTCUSDT-fundingRate-2026-08.zip</Key><LastModified>2026-09-01T08:24:26.000Z</LastModified><ETag>&quot;3c959b51c89492a222530e72dc4b1194&quot;</ETag><ChecksumAlgorithm>CRC64NVME</ChecksumAlgorithm><ChecksumType>FULL_OBJECT</ChecksumType><Size>896</Size><StorageClass>STANDARD</StorageClass></Contents><Contents><Key>data/futures/um/monthly/fundingRate/BTCUSDT/BTCUSDT-fundingRate-2026-08.zip.CHECKSUM</Key><LastModified>2026-09-01T08:24:26.000Z</LastModified><ETag>&quot;6420617f34b0ad7c178d6bd66957a480&quot;</ETag><ChecksumAlgorithm>CRC64NVME</ChecksumAlgorithm><ChecksumType>FULL_OBJECT</ChecksumType><Size>98</Size><StorageClass>STANDARD</StorageClass></Contents><Contents><Key>data/futures/um/monthly/fundingRate/BTCUSDT/BTCUSDT-fundingRate-2026-09.zip</Key><LastModified>2026-10-01T08:47:54.000Z</LastModified><ETag>&quot;09e62b3d2e0520d0286d060ff61192e8&quot;</ETag><ChecksumAlgorithm>CRC64NVME</ChecksumAlgorithm><ChecksumType>FULL_OBJECT</ChecksumType><Size>924</Size><StorageClass>STANDARD</StorageClass></Contents><Contents><Key>data/futures/um/monthly/fundingRate/BTCUSDT/BTCUSDT-fundingRate-2026-09.zip.CHECKSUM</Key><LastModified>2026-10-01T08:47:54.000Z</LastModified><ETag>&quot;5a0c73b332caac3d613617620de380e5&quot;</ETag><ChecksumAlgorithm>CRC64NVME</ChecksumAlgorithm><ChecksumType>FULL_OBJECT</ChecksumType><Size>98</Size><StorageClass>STANDARD</StorageClass></Contents><Contents><Key>data/futures/um/monthly/fundingRate/BTCUSDT/BTCUSDT-fundingRate-2026-10.zip</Key><LastModified>2026-11-01T08:26:46.000Z</LastModified><ETag>&quot;81d05cb96cb4cbfc4bec38786a70b30a&quot;</ETag><ChecksumAlgorithm>CRC64NVME</ChecksumAlgorithm><ChecksumType>FULL_OBJECT</ChecksumType><Size>943</Size><StorageClass>STANDARD</StorageClass></Contents><Contents><Key>data/futures/um/monthly/fundingRate/BTCUSDT/BTCUSDT-fundingRate-2026-10.zip.CHECKSUM</Key><LastModified>2026-11-01T08:26:46.000Z</LastModified><ETag>&quot;9bec0391c8e24a0970198ef29315e033&quot;</ETag><ChecksumAlgorithm>CRC64NVME</ChecksumAlgorithm><ChecksumType>FULL_OBJECT</ChecksumType><Size>98</Size><StorageClass>STANDARD</StorageClass></Contents></ListBucketResult>"
+  },
+  {
+   "method": "GET",
+   "url": "https://data.binance.vision/data/futures/um/monthly/fundingRate/BTCUSDT/BTCUSDT-fundingRate-2026-08.zip",
+   "params": {},
+   "status": 200,
+   "content_type": "binary/octet-stream",
+   "base64": "UEsDBBQAAAAIAMM6IV2LmTzcrAIAAAIKAAAfABwAQlRDVVNEVC1mdW5kaW5nUmF0ZS0yMDI2LTA4LmNzdlVUCQADHX2Wah19lmp1eAsAAQTdAwAABNwDAAB1lVtuGzEMRf+7FqMQxfdqDCN12wBpCiRO11/NkI5m6Iy/4hyLuiQvqafLy9P59vznevr58frj+fXX+fn1dn37d3k5//778fZ+erm838539na5Xb+BGjN1auMDJzu178tfBB0DKfTlH+0TIUggafmZiIkDdbM9IsYWiFX2yJwyoAntkWrTFSnwXgYsXwIRFRmCQoG0FxmdNJA1WGXQFN8MAmFbI/YZsJMFYi/VULEMmBnjJwLJuxzE9ndBgyiUE5dqdFEJlIltZLCvp8YJ7PUU9kBJJmJHDyStVKOpJzIvMohDvABYaYqMSgUi7Xvb8PBLoGzyRgZBoN7I9nktzQiEWGVQ+FC6hEV5yhDJgF4tquO2Fd2LMRUqeZxCiobNgOqZF2q1KLfMi1q1aMcUTxgWldlll2gKSbWodUvkYVF4MLZwhzopY0QCcatNkZTBWi26TNyK7v3fFKpDBBwjU7yhRhFQpFrUcsxFnMreYE9HacfijTFFiXKU56TI3QBqrXhjVCEMYK1alBHilGG16PhtpLwI2QcEy3G4W37b5ay8d9o3paFloZzDolO8AoYMt2rR0Ym1y9oAijcYYkdpNnJbw9ZbIAmLzrtQOJFXi4LEfI19XS06xHMgjtLTg9n0PuVThg+XrahD2aLzVKew6CZl6pFyz8zm0iPPlLtXi7JBIMyrHsdBkeVIBlqx6EQEREeI8OBN0VxsX6FhEtu1coN6WOoL8cy2X+YbZHokQ3IBwLZQFojoqBqiuG/KRNr6wwuLUXnFsOhs5XjrwlH3Xb5dsA6B7PGhj0dKDfSoKRYLETYbAGOI1ioudZqTMtZXpOytbNEZ0LFs0SEeMJDAkQz3duCNsY98vzc2iOoWHcscA+mRRQ0a772xPFIWCOtDP4YHAuUL9oWMFFjN9h9QSwECHgMUAAAACADDOiFdi5k83KwCAAACCgAAHwAYAAAAAAABAAAApIEAAAAAQlRDVVNEVC1mdW5kaW5nUmF0ZS0yMDI2LTA4LmNzdlVUBQADHX2WanV4CwABBN0DAAAE3AMAAFBLBQYAAAAAAQABAGUAAAAFAwAAAAA="
+  },
+  {
+   "method": "GET",
+   "url": "https://data.binance.vision/data/futures/um/monthly/fundingRate/BTCUSDT/BTCUSDT-fundingRate-2026-10.zip.CHECKSUM",
+   "params": {},
+   "status": 200,
+   "content_type": "binary/octet-stream",
+   "base64": "OWMwOWIwYmM2ZDhhNTdkYTA2YzM0ZWM0MWFkZDdkYzk5MTdkY2I0NWRkODNmNzM5M2FiMGIzYzJhMmMzNGU1ZSAgQlRDVVNEVC1mdW5kaW5nUmF0ZS0yMDI2LTEwLnppcAo="
+  },
+  {
+   "method": "GET",
+   "url": "https://data.binance.vision/data/futures/um/monthly/fundingRate/BTCUSDT/BTCUSDT-fundingRate-2026-10.zip",
+   "params": {},
+   "status": 200,
+   "content_type": "binary/octet-stream",
+   "base64": "UEsDBBQAAAAIAP09YV0brJZm2wIAABEKAAAfABwAQlRDVVNEVC1mdW5kaW5nUmF0ZS0yMDI2LTEwLmNzdlVUCQADre7maq3u5mp1eAsAAQTdAwAABNwDAAB1lltuWzEMRP+7FrcQ39RqAiNN2wBpCiRu11/Zo/uik3w595jSaDji9eP55fHh8vz76fTj7+v359efD8+vl6e3f+eXh19//r69n17O75eHhb2dL09fKHpL4mzjj055at+un6InASn59YGtSM0TKJpeH8iKvGcD6p2vD3hF7F1uqGOr1hZE13+AxsoH1IhJgdL8qFAtbogaqR6rmjgBqXCt4gQKXmV8nZuJ+o0NRcUOUcOKxN2PB5NIA7LUIwrtDJRRdVBiL4a9Bx2m2IxVczF4Mta5G4eshqx1czsZXzs6wqwoE6G1MbNsyBSwqWTHxC3AMmtryLCbUng5QetTiaprYcMMSNEwPi4pOlUagrXfLRxCTLgIMTJYaU5eqni6bL2V3hgLJDr1tTeLfBU0wOH/ruwaO6BAVmPXmyBkK5p94AhMDtGiZMQOS4Yjrb7tZvNoAY37qnSgZIR1q6KuuBmpNaweM1oZCOt2rVO031BfrsY+/ehLnxHZh25kC2yatWWclrvWZ90uWBR5Y3yNZvFKSQzMqChxpwCaQ2TX68RuTC2LEFPuQBJliowmCpB7uTMjBBP1EtR1YvEifudV0ETG6+VdEDtQ1qC60s1FFqpB9SZYUKQXN8bAISAvM7VpN7ghHUzvxSsjppvCGE0EMqR0C9XVcqBESrfkjBND/NKurWrMRhzZtJVr66MrQN6LGzm+DdSR0t3czI4FnZHS2F2Whmz4vH27sUna4JTnXUrH928o5gDc1Js4chOKPut2sBazKuhox+bvEtFdArpgwZHVYofMmcNpUexowx+grBnt2rDgGHH1qgxNQFozmmNUAUUdphQIvYyPRUZ0TGcZgTzKWI8szfrxRbdD88Sb8+nopRAho3xfRVrf+yYBhRT1vR/ZUcUNGd0nOxVItvf+NGrcfSCvGTVpE2XJ6KZQKIuM8eujA+nda39ZcA6ijxbUpp+5oSKfyVDnj5ryH1BLAQIeAxQAAAAIAP09YV0brJZm2wIAABEKAAAfABgAAAAAAAEAAACkgQAAAABCVENVU0RULWZ1bmRpbmdSYXRlLTIwMjYtMTAuY3N2VVQFAAOt7uZqdXgLAAEE3QMAAATcAwAAUEsFBgAAAAABAAEAZQAAADQDAAAAAA=="
+  },
+  {
+   "method": "GET",
+   "url": "https://data.binance.vision/data/futures/um/monthly/fundingRate/BTCUSDT/BTCUSDT-fundingRate-2026-09.zip",
+   "params": {},
+   "status": 200,
+   "content_type": "binary/octet-stream",
+   "base64": "UEsDBBQAAAAIAKo7QV2wNhpqyAIAALYJAAAfABwAQlRDVVNEVC1mdW5kaW5nUmF0ZS0yMDI2LTA5LmNzdlVUCQAD0Au+atALvmp1eAsAAQTdAwAABNwDAABtltFSWzEMRN/5lrRjyZIsfQ2TobRlhtIZCP3+Ol7f+F4FniAHy+vVWs7T+fXp8fLy5/n08/Ptx8vbr8eXt8vz+7/z6+Pvv5/vH6fX88flcWPv58vzAzV35uKl/+jJT+X79TcXZyAJu35QNkTXP4CaywGV6iID1dL4iFqEAlXUoz1yIJMkozoFUFRLBdnbQMKcZKibASklGe5RgcZOB6QKGdr/64hMpkKtbciIGxJRnEvNkgwqBDc09CbjG1ghhYk2xS87KBgSTTnpqOqww5ySHczT30ZlVJSFnFCw1eCEWqDNzTzZUWlbFWB1rSLHXs5qx4KigoKuMmTw8pccR+7d5OORozDOFbNfKwHSpQEJMiq7VYS9wpBR3q0iKOzRyhlVG6v6nshoW5FyCyAca1ewUUw0k+OrYM/HQN2w1BQjxl4kOaNVEcSgRskNKxPxjOhyXmoVIM4ZVZriWVt2oxsB5DmjWmM0JSppuiomOhE6ub97pA2o5Yh6qUBSckT7RUVBqeW+KTiyKE6tOw+neJkn3sXGEYDoZ/cjqv0zINHkBm9uaMPB1ipljIAep5rciDoL2iSrKbUSzmVWshtaFMgR0bWqtdmvRoio7QZigRtN8hi1PoKA0OQ9MgHygojejnwb2XGbvl8gSxHdoUhjdKFbRpd4ZUR0a1jbBWBbNdVLLhgjd8d+qYxpE9eU5EfFRmxiW/RlwcgRvb5bAxHniFKfbUCap2jB1euo5SlK/V4NNJ/RnfhClYGqJRnSByuQIaIr831czFWRp2gXCBmVc0R7QrFq84l3700PO5jnjBYEMfqBkdF1HyQqTJTqt6tyqyhoi1gOqbSCtmzfHXaPmwg26ylJOqgovFfNc5RivPUdOWcd/cpCh9HdINWCijMdh28qFeab3T32bTz2HUXLOmpAfeM8SLuJkNj0/rFngfnbF6bVzj4y7OE/UEsBAh4DFAAAAAgAqjtBXbA2GmrIAgAAtgkAAB8AGAAAAAAAAQAAAKSBAAAAAEJUQ1VTRFQtZnVuZGluZ1JhdGUtMjAyNi0wOS5jc3ZVVAUAA9ALvmp1eAsAAQTdAwAABNwDAABQSwUGAAAAAAEAAQBlAAAAIQMAAAAA"
+  },
+  {
+   "method": "GET",
+   "url": "https://data.binance.vision/data/futures/um/monthly/fundingRate/BTCUSDT/BTCUSDT-fundingRate-2026-09.zip.CHECKSUM",
+   "params": {},
+   "status": 200,
+   "content_type": "binary/octet-stream",
+   "base64": "OTEzY2QzMWI4ZjkyNGEwNjcxN2EyZmFjMTdmM2RmNjEzMmMyNGNjZGVkMjA5ZWIzZTRhZTdkODNlMWIyNDdmMiAgQlRDVVNEVC1mdW5kaW5nUmF0ZS0yMDI2LTA5LnppcAo="
+  },
+  {
+   "method": "GET",
+   "url": "https://data.binance.vision/data/futures/um/monthly/fundingRate/BTCUSDT/BTCUSDT-fundingRate-2026-08.zip.CHECKSUM",
+   "params": {},
+   "status": 200,
+   "content_type": "binary/octet-stream",
+   "base64": "N2MxMDhiM2EwMmJkNmRjNzM0NWNhNzMyM2UzYTQ5NjY0ZWRjZWEwYWZkY2Y3ODBmZmIzYjQ0NzYyYzQ1YTk2NCAgQlRDVVNEVC1mdW5kaW5nUmF0ZS0yMDI2LTA4LnppcAo="
+  }
+ ]
+}

@@ -62,6 +62,7 @@ nav = [
     "adr/0038-signal-panel-and-timeframe-confluence.md",
     "adr/0039-price-chart-workspace.md",
     "adr/0040-asset-card-with-pillars.md",
+    "adr/0041-binance-funding-from-public-dumps.md",
   ] },
   { "Referencia API" = [
     "reference/index.md",
