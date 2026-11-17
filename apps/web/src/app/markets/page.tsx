@@ -8,14 +8,15 @@ import { CorrelationHeatmap, TimeSeriesChart } from "@/components/charts/charts"
 import { useI18n, useTheme } from "@/components/providers";
 import { Badge, Button, Card, Input, PageHeader, ProblemAlert, Refreshing, Segmented, Skeleton, Stat } from "@/components/ui";
 import type { Schemas } from "@/lib/api/client";
-import { isNotFound, useBars, useComparison, useFlow, useFunding, usePatterns, useQuality, useStructure, useTechnical, type Interval } from "@/lib/api/queries";
-import { fill, isMessageKey } from "@/lib/i18n/messages";
+import { isNotFound, useBars, useComparison, useFlow, usePatterns, useQuality, useStructure, useTechnical, type Interval } from "@/lib/api/queries";
+import { isMessageKey } from "@/lib/i18n/messages";
 import { trough } from "@/lib/util/chart";
 import { rangeStart, type RangeKey } from "@/lib/util/dates";
 import { perpetualOf } from "@/lib/util/instruments";
 import { byFamily, occurrences, recentEvents, type Direction } from "@/lib/util/patterns";
 import { groupUnavailable } from "@/lib/util/technical";
 import { InstrumentCard } from "@/components/markets/card";
+import { FundingCard, PositioningCard } from "@/components/markets/derivatives";
 import { ConfluenceCard } from "@/components/markets/confluence";
 import { StructureCard } from "@/components/markets/structure";
 import { TechnicalCard, TechnicalSummary } from "@/components/markets/technical";
@@ -207,6 +208,8 @@ function InstrumentView({ symbol }: { symbol: string }) {
         <FlowCard symbol={symbol} interval={interval} start={start} color={color} />
         {swap ? <FundingCard swap={swap} start={start} color={color} /> : null}
       </div>
+
+      {swap ? <PositioningCard swap={swap} /> : null}
     </div>
   );
 }
@@ -388,65 +391,6 @@ function FlowCard({ symbol, interval, start, color }: { symbol: string; interval
             <Stat label={t("metric.trades")} value={fmt.compact(data.summary.trades)} />
             <Stat label={t("metric.netDelta")} value={signed(fmt.compact(data.summary.delta), data.summary.delta)} />
             <Stat label={t("metric.buyRatio")} value={fmt.percent(data.summary.buy_ratio, 1)} />
-          </dl>
-        </div>
-      ) : null}
-    </Card>
-  );
-}
-
-/** Venues whose funding can be read: OKX's API is up to date; Binance's dumps keep the history. */
-const FUNDING_VENUES = ["okx", "binance"] as const;
-type FundingVenue = (typeof FUNDING_VENUES)[number];
-
-function FundingCard({ swap, start, color }: { swap: string; start: string | null; color: string }) {
-  const { t, fmt } = useI18n();
-  const [venue, setVenue] = useState<FundingVenue>("okx");
-  const funding = useFunding(swap, start, venue);
-  const percent = useMemo(() => (v: number) => fmt.percent(v, 1), [fmt]);
-  const data = funding.data;
-  const last = data?.rates[data.rates.length - 1]?.time;
-  return (
-    <Card
-      title={t("markets.funding")}
-      subtitle={swap}
-      actions={
-        <Segmented
-          label={t("markets.fundingVenue")}
-          value={venue}
-          onChange={setVenue}
-          options={FUNDING_VENUES.map((value) => ({ value, label: t(`venue.${value}`) }))}
-        />
-      }
-    >
-      {funding.isLoading ? (
-        <Skeleton className="h-[240px]" />
-      ) : funding.isError && isNotFound(funding.error) ? (
-        <p className="text-[13px] text-text-2">{t(`markets.fundingNone.${venue}`)}</p>
-      ) : funding.isError ? (
-        <ProblemAlert error={funding.error} onRetry={() => void funding.refetch()} />
-      ) : data ? (
-        <div className="flex flex-col gap-4">
-          <Refreshing active={funding.isFetching}>
-            <TimeSeriesChart
-              height={180}
-              label={t("markets.fundingRate")}
-              format={percent}
-              reference={0}
-              lines={[{ name: t("markets.fundingRate"), color, points: data.rates.map((r) => ({ time: String(r.time), value: r.annualized })) }]}
-            />
-          </Refreshing>
-          <p className="text-xs text-muted">
-            {t("metric.fundingPayer")}
-            {last ? ` · ${fill(t("markets.fundingLast"), { date: fmt.date(String(last)) })}` : null}
-            {/* About the data shown: while another venue loads, the previous one stays, dimmed. */}
-            {data.venue === "binance" ? ` · ${t("markets.fundingMonthly")}` : null}
-          </p>
-          <dl className="grid grid-cols-2 gap-x-6 gap-y-5">
-            <Stat label={t("metric.fundingMean")} value={fmt.percent(data.summary.mean_annualized, 1)} />
-            <Stat label={t("metric.fundingLong")} value={fmt.signedPercent(data.summary.accumulated_long, 2)} />
-            <Stat label={t("metric.fundingPositive")} value={fmt.percent(data.summary.positive_share, 0)} />
-            <Stat label={t("metric.fundingInterval")} value={`${fmt.number(data.interval_hours, 0)} h`} detail={`${fmt.number(data.summary.payments, 0)} ${t("metric.observations").toLowerCase()}`} />
           </dl>
         </div>
       ) : null}

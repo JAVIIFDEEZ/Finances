@@ -152,7 +152,6 @@ export function usePatterns(symbol: string, interval: Interval, start: string | 
   });
 }
 
-/** Funding of the perpetual swap ``swap`` (``BTC/USDT:USDT``); disabled with ``null``. */
 /** The funding of a perpetual swap on one venue (``null``: the platform's up-to-date default). */
 export function useFunding(swap: string | null, start: string | null, venue: string | null = null) {
   return useQuery({
@@ -164,6 +163,37 @@ export function useFunding(swap: string | null, start: string | null, venue: str
         }),
       ),
     enabled: swap !== null,
+    placeholderData: keepPreviousData,
+    staleTime: 5 * MINUTE,
+    retry: (count, error) => !isNotFound(error) && count < 2,
+  });
+}
+
+/**
+ * The venues that serve the funding (``holding_rates``) or the positioning of ``symbol``, in
+ * the order the platform asks them: pickers list these instead of a fixed set.
+ */
+export function useVenues(symbol: string | null, dataset: "holding_rates" | "positioning") {
+  return useQuery({
+    queryKey: ["venues", symbol, dataset],
+    queryFn: async () =>
+      unwrap(await api.GET("/api/v1/market/venues", { params: { query: { symbol: symbol ?? "", dataset } } })),
+    enabled: symbol !== null,
+    staleTime: 60 * MINUTE,
+  });
+}
+
+/** Open interest and long/short ratios of a perpetual swap on one venue (ADR-0042). */
+export function usePositioning(swap: string | null, venue: string | null, interval: "1h" | "4h" | "1d", start: string) {
+  return useQuery({
+    queryKey: ["positioning", swap, venue, interval, start],
+    queryFn: async () =>
+      unwrap(
+        await api.GET("/api/v1/market/positioning", {
+          params: { query: { symbol: swap ?? "", venue: venue ?? undefined, interval, start } },
+        }),
+      ),
+    enabled: swap !== null && venue !== null,
     placeholderData: keepPreviousData,
     staleTime: 5 * MINUTE,
     retry: (count, error) => !isNotFound(error) && count < 2,
