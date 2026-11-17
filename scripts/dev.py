@@ -11,7 +11,12 @@ date first. Before starting, it checks that no other program holds the ports (th
 3000) and points the web app at the API's port, so running both elsewhere takes a single
 variable. When a port is taken it says who holds it (an InvestingLab API still running, a
 Docker container such as another project's backend, or a program by name and PID) and how to
-free it.
+free it. An InvestingLab server left behind by an earlier run, whose launcher is gone (nobody
+can stop it with Ctrl+C any more), is stopped instead, and the launch goes on.
+
+On Windows a program's children outlive it: the launcher puts itself in a job that ends every
+process it started when it ends, however it ends (Ctrl+C, a closed window, a crash), so no
+server is left holding a port.
 
 By default both listen on this machine only. ``--lan`` serves the web app to the local
 network as well, to open it from a phone on the same Wi-Fi: the API stays on this machine (the
@@ -31,6 +36,7 @@ import contextlib
 import csv
 import json
 import os
+import re
 import shutil
 import signal
 import socket
@@ -198,7 +204,236 @@ def process(port: int) -> tuple[int, str] | None:
 
 
 def _kill(pid: int) -> str:
-    return f"Stop-Process -Id {pid}" if sys.platform == "win32" else f"kill {pid}"
+    # taskkill /T also ends what the server started (uvicorn's worker, Next.js's node).
+    return f"taskkill /PID {pid} /T /F" if sys.platform == "win32" else f"kill {pid}"
+
+
+def investinglab_web(port: int) -> bool:
+    """Whether InvestingLab's web app answers there (its manifest names it)."""
+    direct = urllib.request.build_opener(urllib.request.ProxyHandler({}))  # never via a proxy
+    try:
+        with direct.open(
+            f"http://{LOCALHOST}:{port}/manifest.webmanifest", timeout=2.0
+        ) as response:
+            body = json.load(response)
+    except (OSError, ValueError):
+        return False
+    return isinstance(body, dict) and body.get("name") == "InvestingLab"
+
+
+@dataclass(frozen=True, slots=True)
+class Process:
+    """A running process: who started it, its program and when it started."""
+
+    pid: int
+    parent: int
+    name: str
+    started: str = ""
+    """Its start time as sortable text, when the system gives it (Windows)."""
+
+
+# What runs a server or wraps it: a server started by any of these belongs to whatever started
+# them. The venv's python.exe on Windows is a launcher that runs the real interpreter as its
+# child; pnpm is a .cmd shim that cmd.exe runs; uv waits for what it runs. Shells are not
+# wrappers: a shell is where someone typed the command, and while it runs, so does the launch.
+_WRAPPERS = re.compile(
+    r"python[\d.]*w?|py|uvx?|node|pnpm|corepack|npx|cmd|investinglab-api?|next-server.*"
+)
+# What adopts a process whose parent has ended.
+_ADOPTERS = frozenset({"init", "systemd", "launchd", "tini", "docker-init", "dumb-init"})
+
+
+def _program(name: str) -> str:
+    base = name.replace("\\", "/").rsplit("/", 1)[-1].lower()
+    return base.removesuffix(".exe")
+
+
+def ps_processes(ps: str) -> dict[int, Process]:
+    """The processes in ``ps -A -o pid= -o ppid= -o comm=`` output."""
+    found = {}
+    for line in ps.splitlines():
+        parts = line.split(None, 2)
+        if len(parts) == 3 and parts[0].isdigit() and parts[1].isdigit():  # noqa: PLR2004
+            found[int(parts[0])] = Process(int(parts[0]), int(parts[1]), parts[2].strip())
+    return found
+
+
+def cim_processes(listing: str) -> dict[int, Process]:
+    """The processes in the CSV of ``Win32_Process`` the launcher asks PowerShell for."""
+    found = {}
+    for row in csv.DictReader(listing.splitlines()):
+        pid, parent = row.get("ProcessId", ""), row.get("ParentProcessId", "")
+        if pid.isdigit() and parent.isdigit():
+            found[int(pid)] = Process(
+                int(pid), int(parent), row.get("Name") or "", row.get("Started") or ""
+            )
+    return found
+
+
+def processes() -> dict[int, Process]:
+    """Every running process (empty if the system does not tell)."""
+    if sys.platform == "win32":
+        started = "if ($_.CreationDate) { $_.CreationDate.ToString('yyyyMMddHHmmssfffffff') }"
+        listing = (
+            "Get-CimInstance Win32_Process | Select-Object ProcessId, ParentProcessId, Name, "
+            f"@{{n='Started'; e={{{started}}}}} | ConvertTo-Csv -NoTypeInformation"
+        )
+        return cim_processes(
+            _output(["powershell", "-NoProfile", "-NonInteractive", "-Command", listing])
+        )
+    return ps_processes(_output(["ps", "-A", "-o", "pid=", "-o", "ppid=", "-o", "comm="]))
+
+
+def _parent_ended(child: Process, parent: Process | None) -> bool:
+    """Whether ``child`` lost the process that started it."""
+    if parent is None:
+        return True  # it no longer runs
+    if parent.started and child.started and parent.started > child.started:
+        return True  # that PID now belongs to a younger process
+    program = _program(parent.name)
+    # Adopted: the first process (or a reaper) takes in those whose parent ended.
+    return program in _ADOPTERS or (parent.pid == 1 and not _WRAPPERS.fullmatch(program))
+
+
+def orphaned(pid: int, table: Mapping[int, Process] | None = None) -> bool:
+    """Whether the launcher that started ``pid`` is gone (in doubt, it is not).
+
+    It climbs from ``pid`` through the interpreters and wrappers that run it (python, uv,
+    node, pnpm, cmd) to whatever launched them. If the chain breaks on the way (a parent that
+    no longer runs, or a process adopted by ``init`` or ``systemd``), nobody can stop the
+    server any more: it is a leftover. If it reaches a launcher that still runs (``just``, a
+    terminal's shell), the server is someone's ``just api`` and it is left alone.
+    """
+    table = processes() if table is None else table
+    current = table.get(pid)
+    if current is None or not _WRAPPERS.fullmatch(_program(current.name)):
+        return False  # not a program a launcher of ours runs
+    for _ in range(32):  # a chain longer than this is not one a launcher made
+        if current.parent == 0:
+            return False  # the top: nothing launched it
+        parent = table.get(current.parent)
+        if parent is None or _parent_ended(current, parent):
+            return True
+        if not _WRAPPERS.fullmatch(_program(parent.name)):
+            return False  # a launcher that still runs
+        current = parent
+    return False
+
+
+def end_tree(pid: int) -> None:
+    """End ``pid`` and the processes it started."""
+    if sys.platform == "win32":
+        taskkill = shutil.which("taskkill") or "taskkill"
+        subprocess.run(  # noqa: S603 - fixed arguments
+            [taskkill, "/T", "/F", "/PID", str(pid)], capture_output=True, check=False
+        )
+        return
+    with contextlib.suppress(ProcessLookupError, PermissionError):
+        if os.getpgid(pid) == pid:  # it leads its group, as the launcher starts the servers
+            os.killpg(pid, signal.SIGTERM)
+        else:
+            os.kill(pid, signal.SIGTERM)
+
+
+def stop_leftover(port: int, role: str, timeout: float = 10.0) -> str | None:
+    """Stop an InvestingLab server an earlier run left on ``port``; say so (``None``: none).
+
+    Only a server of InvestingLab whose launcher is gone is stopped: anything else that
+    holds the port is reported by :func:`busy_ports` and left to the user.
+    """
+    if not listening(port):
+        return None
+    ours = investinglab_api(port) if role == "API" else investinglab_web(port)
+    found = process(port) if ours else None
+    if found is None or not orphaned(found[0]):
+        return None
+    end_tree(found[0])
+    deadline = time.monotonic() + timeout
+    while listening(port):
+        if time.monotonic() >= deadline:
+            return None  # it would not stop: busy_ports says how to stop it
+        time.sleep(POLL_SECONDS)
+    return f"Stopped the InvestingLab {role} an earlier run left on port {port} (PID {found[0]})."
+
+
+if sys.platform == "win32":
+    import ctypes
+    from ctypes import wintypes
+
+    _JOB_EXTENDED_LIMITS = 9  # JobObjectExtendedLimitInformation
+    _KILL_ON_JOB_CLOSE = 0x2000  # JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+
+    class _BasicLimits(ctypes.Structure):
+        _fields_ = (
+            ("PerProcessUserTimeLimit", ctypes.c_int64),
+            ("PerJobUserTimeLimit", ctypes.c_int64),
+            ("LimitFlags", wintypes.DWORD),
+            ("MinimumWorkingSetSize", ctypes.c_size_t),
+            ("MaximumWorkingSetSize", ctypes.c_size_t),
+            ("ActiveProcessLimit", wintypes.DWORD),
+            ("Affinity", ctypes.c_size_t),
+            ("PriorityClass", wintypes.DWORD),
+            ("SchedulingClass", wintypes.DWORD),
+        )
+
+    class _IoCounters(ctypes.Structure):
+        _fields_ = tuple(
+            (name, ctypes.c_uint64)
+            for name in ("Reads", "Writes", "Others", "ReadBytes", "WriteBytes", "OtherBytes")
+        )
+
+    class _ExtendedLimits(ctypes.Structure):
+        _fields_ = (
+            ("BasicLimitInformation", _BasicLimits),
+            ("IoInfo", _IoCounters),
+            ("ProcessMemoryLimit", ctypes.c_size_t),
+            ("JobMemoryLimit", ctypes.c_size_t),
+            ("PeakProcessMemoryUsed", ctypes.c_size_t),
+            ("PeakJobMemoryUsed", ctypes.c_size_t),
+        )
+
+    _JOBS: list[int] = []  # never closed: the system closes it when the launcher ends
+
+    def bind_to_launcher() -> bool:
+        """End every process the launcher starts when the launcher ends, however it ends.
+
+        The launcher joins a job that kills its processes once its last handle closes; the
+        launcher holds the only one, and the processes it starts join the job with it.
+        Returns whether it could (a job that forbids it, on old Windows, leaves things as
+        they were).
+        """
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32.CreateJobObjectW.restype = wintypes.HANDLE
+        kernel32.CreateJobObjectW.argtypes = (ctypes.c_void_p, wintypes.LPCWSTR)
+        kernel32.SetInformationJobObject.argtypes = (
+            wintypes.HANDLE,
+            ctypes.c_int,
+            ctypes.c_void_p,
+            wintypes.DWORD,
+        )
+        kernel32.AssignProcessToJobObject.argtypes = (wintypes.HANDLE, wintypes.HANDLE)
+        kernel32.GetCurrentProcess.restype = wintypes.HANDLE
+        kernel32.CloseHandle.argtypes = (wintypes.HANDLE,)
+        job = kernel32.CreateJobObjectW(None, None)
+        if not job:
+            return False
+        limits = _ExtendedLimits()
+        limits.BasicLimitInformation.LimitFlags = _KILL_ON_JOB_CLOSE
+        size = ctypes.sizeof(limits)
+        joined = kernel32.SetInformationJobObject(
+            job, _JOB_EXTENDED_LIMITS, ctypes.byref(limits), size
+        ) and kernel32.AssignProcessToJobObject(job, kernel32.GetCurrentProcess())
+        if not joined:
+            kernel32.CloseHandle(job)
+            return False
+        _JOBS.append(job)
+        return True
+
+else:
+
+    def bind_to_launcher() -> bool:
+        """Nothing to do: the servers lead process groups the launcher stops (and SIGHUP)."""
+        return False
 
 
 def holder(port: int) -> Holder:
@@ -386,7 +621,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="serve the web app to the local network too (to open it from a phone)",
     )
     arguments = parser.parse_args(argv)
+    bind_to_launcher()
     port = api_port()
+    for spare, role in ((port, "API"), (WEB_PORT, "web app")):
+        if (stopped := stop_leftover(spare, role)) is not None:
+            print(stopped, flush=True)  # noqa: T201
     if problems := busy_ports(port):
         print("\n".join(problems), file=sys.stderr)  # noqa: T201
         return 1

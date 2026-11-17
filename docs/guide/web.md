@@ -99,8 +99,14 @@ pnpm dev
 * **«API sin conexión»** (un aviso arriba en todas las pantallas): la API no está en marcha
   u **otro programa ocupa su puerto** (8000). `uv run just dev` comprueba los puertos antes de
   arrancar y dice **quién** los ocupa y cómo liberarlos:
-    * otra API de InvestingLab que sigue en marcha (un `just dev`, `just preview` o `just api`
-      anterior): Ctrl+C en su terminal, o el `Stop-Process -Id …` que indica;
+    * otra API (o la web) de InvestingLab que sigue en marcha. Si es lo que dejó un
+      arranque anterior cuyo lanzador ya terminó (nadie puede pararla con Ctrl+C), `just dev`
+      la para solo y lo dice («Stopped the InvestingLab API an earlier run left on port…»).
+      Si la lanzó un `just dev`, `just preview` o `just api` que sigue abierto en otra
+      terminal, la deja como está: Ctrl+C en esa terminal, o el `taskkill /PID … /T /F` que
+      indica (en Windows; `/T` cierra también lo que arrancó). En Windows, `just dev` ata
+      además sus servidores a sí mismo: al terminar, por Ctrl+C, al cerrar la ventana o por un
+      fallo, terminan con él y no dejan puertos ocupados;
     * un contenedor de Docker, por su nombre: `docker stop <nombre>`. El caso típico es el
       *backend* de **CryptoWorld**, que publica el 8000 con `restart: unless-stopped` y vuelve
       a arrancar solo cada vez que se abre Docker Desktop si estaba en marcha al cerrarlo; tras
