@@ -54,7 +54,14 @@ from investinglab.domain.rate_series import RateKind
 from investinglab.domain.structure import price_structure
 from investinglab.domain.technical import technical_indicators
 from investinglab.domain.time import Frequency
-from investinglab.ports.market_data import BarsRequest, EconomicRequest, RatesRequest, VintageMode
+from investinglab.ports.market_data import (
+    BarsRequest,
+    Dataset,
+    EconomicRequest,
+    PositioningRequest,
+    RatesRequest,
+    VintageMode,
+)
 from investinglab.reporting.options import ReportOptions
 from investinglab.services.fx import CurrencyService
 from investinglab.services.market_data import DataUnavailableError, MarketDataService
@@ -75,6 +82,7 @@ if TYPE_CHECKING:
     from investinglab.domain.metrics import RiskMetrics
     from investinglab.domain.patterns import PricePatterns
     from investinglab.domain.portfolio import RebalancePolicy
+    from investinglab.domain.positioning import PositioningSeries
     from investinglab.domain.quality import DataQualityReport
     from investinglab.domain.rate_series import RateSeries
     from investinglab.domain.series import PriceSeries
@@ -191,12 +199,23 @@ FUNDING_ORDER: Final = ("okx", "binance")
 monthly dumps (published once each month ends) add the history OKX does not keep."""
 
 
+POSITIONING_ORDER: Final = ("okx", "binance")
+"""Venues asked for positioning when none is named: OKX's API is up to date and says when a
+range starts before what it keeps; Binance's daily dumps keep 5-minute snapshots since 2021."""
+
+POSITIONING_DAYS: Final = 30
+"""Days of positioning read when no start is given."""
+
+
 def _prefer_fresh_funding(registry: ProviderRegistry) -> None:
-    """Ask the up-to-date source of funding first, among those registered."""
+    """Ask the up-to-date sources of funding and positioning first, among those registered."""
     registered = set(registry.names)
     order = [name for name in FUNDING_ORDER if name in registered]
     with contextlib.suppress(DomainError):  # a caller's provider of that name may serve no rates
         registry.prefer_rates(order, kind=RateKind.FUNDING)
+    order = [name for name in POSITIONING_ORDER if name in registered]
+    with contextlib.suppress(DomainError):  # ...or no positioning
+        registry.prefer_positioning(order)
 
 
 class AsyncToolkit:
@@ -580,6 +599,57 @@ class AsyncToolkit:
         """
         request = RatesRequest(symbol, RateKind(kind), venue, _as_date(start), _as_date(end))
         return await self._market_data.get_rates(request, refresh=refresh)
+
+    async def positioning(
+        self,
+        symbol: str,
+        *,
+        venue: str | None = None,
+        start: DateLike = None,
+        end: DateLike = None,
+        frequency: Frequency | str = Frequency.HOUR_1,
+        refresh: bool = False,
+    ) -> PositioningSeries:
+        """Open interest and long/short ratios of a derivative on one venue (ADR-0042).
+
+        Example: ``tk.positioning("BTC/USDT:USDT", venue="binance", start="2026-10-01")``.
+
+        Args:
+            symbol: The derivative, as a perpetual swap (``BTC/USDT:USDT``).
+            venue: Where it trades; the preferred venue that serves it by default.
+            start: First day (UTC); the last :data:`POSITIONING_DAYS` days by default.
+            end: Last day (UTC); up to the latest by default.
+            frequency: Spacing of the snapshots, from 5 minutes to a day.
+            refresh: Download again even if a recent answer is remembered.
+
+        Raises:
+            DataUnavailableError: If no provider could deliver them.
+        """
+        last = _as_date(end) or datetime.now(UTC).date()
+        first = _as_date(start) or last - timedelta(days=POSITIONING_DAYS)
+        request = PositioningRequest(symbol, venue, first, _as_date(end), Frequency(frequency))
+        return await self._market_data.get_positioning(request, refresh=refresh)
+
+    def venues(self, symbol: str, dataset: Dataset | str) -> tuple[str, ...]:
+        """The venues that serve ``dataset`` of ``symbol``, in the order they are asked.
+
+        Example: ``tk.venues("BTC/USDT:USDT", "positioning")`` is ``("okx", "binance")``. A
+        provider registered later appears here on its own: interfaces list these instead of
+        a fixed set.
+
+        Raises:
+            DomainError: If ``dataset`` is not one served per venue (funding, positioning).
+        """
+        wanted = Dataset(dataset)
+        if wanted is Dataset.HOLDING_RATES:
+            funding = RatesRequest(symbol, RateKind.FUNDING)
+            return tuple(p.name for p in self._registry.rates_candidates(funding))
+        if wanted is Dataset.POSITIONING:
+            request = PositioningRequest(symbol)
+            return tuple(p.name for p in self._registry.positioning_candidates(request))
+        raise DomainError(
+            f"{wanted.value} is not served per venue; ask for holding_rates or positioning"
+        )
 
     def load(self, path: str | Path, **spec: Any) -> PriceSeries:  # noqa: ANN401
         """Import a CSV or Parquet file (see :class:`~investinglab.adapters.files.ImportSpec`).
@@ -1003,6 +1073,27 @@ class Toolkit:
     ) -> RiskMetrics:
         """Metrics with the point-in-time risk-free rate (see :meth:`AsyncToolkit.metrics`)."""
         return self._run(self._inner.metrics(subject, levels=levels))
+
+    def positioning(
+        self,
+        symbol: str,
+        *,
+        venue: str | None = None,
+        start: DateLike = None,
+        end: DateLike = None,
+        frequency: Frequency | str = Frequency.HOUR_1,
+        refresh: bool = False,
+    ) -> PositioningSeries:
+        """Open interest and long/short ratios (see :meth:`AsyncToolkit.positioning`)."""
+        return self._run(
+            self._inner.positioning(
+                symbol, venue=venue, start=start, end=end, frequency=frequency, refresh=refresh
+            )
+        )
+
+    def venues(self, symbol: str, dataset: Dataset | str) -> tuple[str, ...]:
+        """The venues that serve ``dataset`` of ``symbol`` (see :meth:`AsyncToolkit.venues`)."""
+        return self._inner.venues(symbol, dataset)
 
     def load(self, path: str | Path, **spec: Any) -> PriceSeries:  # noqa: ANN401
         """Import a CSV or Parquet file (see :meth:`AsyncToolkit.load`)."""
