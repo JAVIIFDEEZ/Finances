@@ -87,7 +87,7 @@ class RetryPolicy:
 
 
 class HttpClient:
-    """GET-only JSON/text client for data providers.
+    """GET-only JSON, text and file client for data providers.
 
     Args:
         provider: Provider slug, used in errors and logs.
@@ -151,6 +151,10 @@ class HttpClient:
     async def get_text(self, path: str, params: QueryParams | None = None) -> str:
         """GET ``path`` and return the body as text (CSV, XML...)."""
         return (await self._get(path, params)).text
+
+    async def get_bytes(self, path: str, params: QueryParams | None = None) -> bytes:
+        """GET ``path`` and return the body as bytes (a compressed file, a checksum...)."""
+        return (await self._get(path, params)).content
 
     async def aclose(self) -> None:
         """Close the underlying connection pool."""
