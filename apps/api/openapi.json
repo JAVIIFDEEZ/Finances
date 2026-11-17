@@ -921,6 +921,115 @@
         }
       }
     },
+    "/api/v1/market/card": {
+      "get": {
+        "tags": [
+          "market"
+        ],
+        "summary": "Card of an instrument: what each pillar of its asset class says",
+        "description": "The pillars of an instrument on its last bar (ADR-0040).\n\nEvery instrument has a technical reading, a risk profile and the quality of its data;\na crypto pair also has the funding of its perpetual swap. A pillar no source serves\ncomes with its ``issue`` and the rest are still read. Only the technical pillar is\ndirectional. Nothing is fused into a verdict: a card describes, it is not advice.",
+        "operationId": "card_api_v1_market_card_get",
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 32,
+              "pattern": "^[A-Za-z0-9.^=\\-_/:]+$",
+              "description": "Instrument symbol: Yahoo style (SAN.MC, ^GSPC), a venue's pair (BTC/USDT) or a perpetual swap (BTC/USDT:USDT).",
+              "examples": [
+                "SAN.MC",
+                "^GSPC",
+                "EURUSD=X",
+                "BTC/USDT",
+                "BTC/USDT:USDT"
+              ],
+              "title": "Symbol"
+            },
+            "description": "Instrument symbol: Yahoo style (SAN.MC, ^GSPC), a venue's pair (BTC/USDT) or a perpetual swap (BTC/USDT:USDT)."
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last session (inclusive).",
+              "title": "End"
+            },
+            "description": "Last session (inclusive)."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CardOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No provider has the requested data.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request breaks the schema, a limit or a domain rule.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Every provider able to serve the data failed; retry later.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/market/flow": {
       "get": {
         "tags": [
@@ -2859,6 +2968,52 @@
         "title": "CalibrationOut",
         "description": "Parameters the simulation actually used (annualised)."
       },
+      "CardOut": {
+        "properties": {
+          "instrument": {
+            "$ref": "#/components/schemas/InstrumentOut"
+          },
+          "source": {
+            "$ref": "#/components/schemas/SourceOut"
+          },
+          "as_of": {
+            "type": "string",
+            "format": "date-time",
+            "title": "As Of"
+          },
+          "last_close": {
+            "type": "number",
+            "title": "Last Close"
+          },
+          "pillars": {
+            "items": {
+              "$ref": "#/components/schemas/PillarOut"
+            },
+            "type": "array",
+            "title": "Pillars",
+            "description": "Those its asset class has, in a fixed order."
+          },
+          "not_applicable": {
+            "items": {
+              "$ref": "#/components/schemas/Pillar"
+            },
+            "type": "array",
+            "title": "Not Applicable",
+            "description": "Pillars of the registry its asset class does not have."
+          }
+        },
+        "type": "object",
+        "required": [
+          "instrument",
+          "source",
+          "as_of",
+          "last_close",
+          "pillars",
+          "not_applicable"
+        ],
+        "title": "CardOut",
+        "description": "The card of an instrument: its pillars on the last bar (ADR-0040)."
+      },
       "CompareRequest": {
         "properties": {
           "start": {
@@ -3417,6 +3572,42 @@
         ],
         "title": "ExchangeOut",
         "description": "Trading venue."
+      },
+      "FactOut": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key",
+            "description": "What it is (alignment, volatility, funding_mean...)."
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value",
+            "description": "``null`` when it could not be told."
+          },
+          "unit": {
+            "$ref": "#/components/schemas/Unit",
+            "description": "A ratio is a fraction to show as a percentage; a code is a word to translate."
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "value",
+          "unit"
+        ],
+        "title": "FactOut",
+        "description": "One figure of a pillar: data, not a sentence."
       },
       "FailureOut": {
         "properties": {
@@ -5084,6 +5275,77 @@
         ],
         "title": "PatternsOut",
         "description": "Price patterns of an instrument, for any asset class."
+      },
+      "Pillar": {
+        "type": "string",
+        "enum": [
+          "technical",
+          "risk",
+          "derivatives",
+          "quality"
+        ],
+        "title": "Pillar",
+        "description": "A kind of evidence about an instrument."
+      },
+      "PillarIssue": {
+        "type": "string",
+        "enum": [
+          "no_data"
+        ],
+        "title": "PillarIssue",
+        "description": "Why a pillar that applies could not be read."
+      },
+      "PillarOut": {
+        "properties": {
+          "pillar": {
+            "$ref": "#/components/schemas/Pillar"
+          },
+          "directional": {
+            "type": "boolean",
+            "title": "Directional",
+            "description": "Whether its reading points up or down."
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score",
+            "description": "Its direction in [-1, 1]; ``null`` if not directional or not told."
+          },
+          "issue": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PillarIssue"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why it could not be read; ``null`` if it was."
+          },
+          "facts": {
+            "items": {
+              "$ref": "#/components/schemas/FactOut"
+            },
+            "type": "array",
+            "title": "Facts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "pillar",
+          "directional",
+          "score",
+          "issue",
+          "facts"
+        ],
+        "title": "PillarOut",
+        "description": "What one pillar of evidence says about the instrument."
       },
       "PlanFanPointOut": {
         "properties": {
@@ -7355,6 +7617,18 @@
         ],
         "title": "UnavailablePatternOut",
         "description": "A pattern the series cannot have, and what it lacks for it."
+      },
+      "Unit": {
+        "type": "string",
+        "enum": [
+          "ratio",
+          "number",
+          "count",
+          "code",
+          "date"
+        ],
+        "title": "Unit",
+        "description": "What the value of a fact is, so that an interface can format it."
       },
       "ValidationError": {
         "properties": {

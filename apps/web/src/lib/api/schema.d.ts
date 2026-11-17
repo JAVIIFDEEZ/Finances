@@ -222,6 +222,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/market/card": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Card of an instrument: what each pillar of its asset class says
+         * @description The pillars of an instrument on its last bar (ADR-0040).
+         *
+         *     Every instrument has a technical reading, a risk profile and the quality of its data;
+         *     a crypto pair also has the funding of its perpetual swap. A pillar no source serves
+         *     comes with its ``issue`` and the rest are still read. Only the technical pillar is
+         *     directional. Nothing is fused into a verdict: a card describes, it is not advice.
+         */
+        get: operations["card_api_v1_market_card_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/market/flow": {
         parameters: {
             query?: never;
@@ -589,6 +614,31 @@ export interface components {
             shrinkage: number | null;
         };
         /**
+         * CardOut
+         * @description The card of an instrument: its pillars on the last bar (ADR-0040).
+         */
+        CardOut: {
+            instrument: components["schemas"]["InstrumentOut"];
+            source: components["schemas"]["SourceOut"];
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Last Close */
+            last_close: number;
+            /**
+             * Pillars
+             * @description Those its asset class has, in a fixed order.
+             */
+            pillars: components["schemas"]["PillarOut"][];
+            /**
+             * Not Applicable
+             * @description Pillars of the registry its asset class does not have.
+             */
+            not_applicable: components["schemas"]["Pillar"][];
+        };
+        /**
          * CompareRequest
          * @description Several instruments to compare on a common footing.
          */
@@ -827,6 +877,24 @@ export interface components {
              * @description IANA timezone of the sessions.
              */
             timezone: string;
+        };
+        /**
+         * FactOut
+         * @description One figure of a pillar: data, not a sentence.
+         */
+        FactOut: {
+            /**
+             * Key
+             * @description What it is (alignment, volatility, funding_mean...).
+             */
+            key: string;
+            /**
+             * Value
+             * @description ``null`` when it could not be told.
+             */
+            value: number | string | null;
+            /** @description A ratio is a fraction to show as a percentage; a code is a word to translate. */
+            unit: components["schemas"]["Unit"];
         };
         /**
          * FailureOut
@@ -1495,6 +1563,39 @@ export interface components {
             events: components["schemas"]["PatternEventOut"][];
             /** Unavailable */
             unavailable: components["schemas"]["UnavailablePatternOut"][];
+        };
+        /**
+         * Pillar
+         * @description A kind of evidence about an instrument.
+         * @enum {string}
+         */
+        Pillar: "technical" | "risk" | "derivatives" | "quality";
+        /**
+         * PillarIssue
+         * @description Why a pillar that applies could not be read.
+         * @enum {string}
+         */
+        PillarIssue: "no_data";
+        /**
+         * PillarOut
+         * @description What one pillar of evidence says about the instrument.
+         */
+        PillarOut: {
+            pillar: components["schemas"]["Pillar"];
+            /**
+             * Directional
+             * @description Whether its reading points up or down.
+             */
+            directional: boolean;
+            /**
+             * Score
+             * @description Its direction in [-1, 1]; ``null`` if not directional or not told.
+             */
+            score: number | null;
+            /** @description Why it could not be read; ``null`` if it was. */
+            issue: components["schemas"]["PillarIssue"] | null;
+            /** Facts */
+            facts: components["schemas"]["FactOut"][];
         };
         /**
          * PlanFanPointOut
@@ -2492,6 +2593,12 @@ export interface components {
              */
             missing: ("open" | "high" | "low" | "close" | "intraday")[];
         };
+        /**
+         * Unit
+         * @description What the value of a fact is, so that an interface can format it.
+         * @enum {string}
+         */
+        Unit: "ratio" | "number" | "count" | "code" | "date";
         /** ValidationError */
         ValidationError: {
             /** Location */
@@ -2946,6 +3053,61 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ConfluenceOut"];
+                };
+            };
+            /** @description No provider has the requested data. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The request breaks the schema, a limit or a domain rule. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Every provider able to serve the data failed; retry later. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    card_api_v1_market_card_get: {
+        parameters: {
+            query: {
+                /** @description Instrument symbol: Yahoo style (SAN.MC, ^GSPC), a venue's pair (BTC/USDT) or a perpetual swap (BTC/USDT:USDT). */
+                symbol: string;
+                /** @description Last session (inclusive). */
+                end?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CardOut"];
                 };
             };
             /** @description No provider has the requested data. */

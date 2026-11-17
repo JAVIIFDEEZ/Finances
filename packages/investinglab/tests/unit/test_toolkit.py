@@ -17,12 +17,16 @@ from investinglab.domain import (
     EUR,
     OVERNIGHT_ACT_360,
     USD,
+    AssetClass,
     DomainError,
     FrameIssue,
     Frequency,
+    Pillar,
+    PillarIssue,
     Portfolio,
     PriceSeries,
     RateKind,
+    RateSeries,
     price_patterns,
 )
 from investinglab.ports import ProviderCapabilities
@@ -30,13 +34,15 @@ from investinglab.services import DataUnavailableError
 from investinglab.toolkit import AsyncToolkit, Toolkit, _EventLoopThread
 from support.cassettes import load_cassette
 from support.factories import (
+    SYNTHETIC_SOURCE,
     business_days,
     gbm_prices,
     make_economic_series,
     make_fx_series,
+    make_instrument,
     make_series,
 )
-from support.fakes import FakeBarsProvider, FakeEconomicProvider
+from support.fakes import FakeBarsProvider, FakeEconomicProvider, FakeRatesProvider
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -492,6 +498,77 @@ def test_the_confluence_reads_daily_weekly_and_monthly_from_one_download(tmp_pat
         len(BARS.resample("1mo").bars),
     )
     assert found.summary.frames == 2  # 300 sessions are 14 months: too few for the monthly panel
+
+
+def test_a_card_reads_every_pillar_of_the_asset_class(tmp_path: Path) -> None:
+    coin = make_series(
+        gbm_prices(300, sigma=0.6, seed=9),
+        symbol="BTC/USDT",
+        index=INDEX,
+        asset_class=AssetClass.CRYPTO,
+        exchange=None,
+        ohlc=True,
+    )
+    swap = make_instrument("BTC/USDT:USDT", asset_class=AssetClass.CRYPTO, exchange=None)
+    paid = pd.Series(
+        [0.0001, 0.0003, -0.0002],
+        index=pd.date_range(INDEX[-1] - pd.Timedelta(days=1), periods=3, freq="8h", tz="UTC"),
+    )
+    funding = RateSeries(swap, "fake", RateKind.FUNDING, SYNTHETIC_SOURCE, paid)
+    bars = FakeBarsProvider("fake", {"BARS.MC": BARS, "BTC/USDT": coin})
+    rates = FakeRatesProvider("swaps", {"BTC/USDT:USDT": funding})
+    with Toolkit.from_settings(_settings(tmp_path), providers=[bars, rates], cache=False) as tk:
+        share = tk.card("BARS.MC", end=INDEX[-1])
+        crypto = tk.card("BTC/USDT", end=INDEX[-1])
+
+    assert [r.pillar for r in share.pillars] == [Pillar.TECHNICAL, Pillar.RISK, Pillar.QUALITY]
+    assert share.not_applicable == (Pillar.DERIVATIVES,)
+    assert (share.as_of, share.last_close) == (INDEX[-1], float(BARS.prices.iloc[-1]))
+    technical = share.pillar(Pillar.TECHNICAL)
+    assert technical.score is not None
+    assert technical.fact("frames_read").value == 2  # daily and weekly; too few months
+    assert share.pillar(Pillar.RISK).fact("volatility").value == pytest.approx(
+        BARS.stats.annualized_volatility
+    )
+    assert [call.symbol for call in rates.calls] == ["BTC/USDT:USDT"]  # never asked for a share
+    assert rates.calls[0].start == INDEX[-1].date() - timedelta(days=90)
+    derivatives = crypto.pillar(Pillar.DERIVATIVES)
+    assert derivatives.issue is None
+    assert derivatives.fact("payments").value == 3
+    assert derivatives.fact("funding_positive").value == pytest.approx(2 / 3)
+
+
+def test_a_card_says_which_pillar_it_could_not_read(tmp_path: Path) -> None:
+    coin = make_series(
+        gbm_prices(40, seed=9),
+        symbol="NEW/USDT",
+        index=INDEX[-40:],
+        asset_class=AssetClass.CRYPTO,
+        exchange=None,
+    )
+    yahoo_style = make_series(
+        gbm_prices(300, seed=9),
+        symbol="BTC-USD",
+        index=INDEX,
+        asset_class=AssetClass.CRYPTO,
+        exchange=None,
+    )
+    bars = FakeBarsProvider("fake", {"NEW/USDT": coin, "BTC-USD": yahoo_style})
+    rates = FakeRatesProvider("swaps", {})
+    with Toolkit.from_settings(_settings(tmp_path), providers=[bars, rates], cache=False) as tk:
+        young = tk.card("NEW/USDT", end=INDEX[-1])
+        unnamed = tk.card("BTC-USD", end=INDEX[-1])
+        with pytest.raises(DataUnavailableError):
+            tk.card("MISSING")
+
+    # Forty bars: no frame can be read, and nobody serves the funding of its swap.
+    assert young.pillar(Pillar.TECHNICAL).fact("frames_read").value == 0
+    assert young.pillar(Pillar.TECHNICAL).score is None
+    assert young.pillar(Pillar.DERIVATIVES).issue is PillarIssue.NO_DATA
+    assert young.pillar(Pillar.RISK).issue is None
+    # A symbol that does not name its quote asset does not say which swap is its own.
+    assert unnamed.pillar(Pillar.DERIVATIVES).issue is PillarIssue.NO_DATA
+    assert [call.symbol for call in rates.calls] == ["NEW/USDT:USDT"]
 
 
 def test_a_frame_nobody_serves_is_reported_and_the_rest_are_read(toolkit: Toolkit) -> None:

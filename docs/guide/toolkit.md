@@ -6,8 +6,8 @@ sirve para:
 * descargar varias series a la vez de todas las fuentes configuradas;
 * leer el flujo de cada vela (`tk.flow`) y el funding de los perpetuos (`tk.holding_rates`);
 * calcular los indicadores técnicos de cualquier instrumento (`tk.technical`), sus patrones
-  de precio (`tk.patterns`), su estructura (`tk.structure`) y la confluencia entre marcos
-  temporales (`tk.confluence`);
+  de precio (`tk.patterns`), su estructura (`tk.structure`), la confluencia entre marcos
+  temporales (`tk.confluence`) y su ficha por pilares (`tk.card`);
 * leer series económicas *point-in-time* (`tk.economic`), como el €STR o el índice de miedo y
   codicia cripto;
 * construir carteras en una divisa base;
@@ -189,6 +189,26 @@ aparte. Un marco que ninguna fuente sirve, o con menos de 50 velas, se informa c
 (`issue`) y no cuenta; con menos de dos marcos legibles el veredicto es `insufficient`. Lo
 que dice una regla no es una previsión: si alguna anticipa algo se medirá al validar
 estrategias.
+
+## Ficha de activo
+
+`tk.card` reúne lo que dice cada pilar de evidencia sobre un instrumento, según su clase de
+activo ([ADR-0040](../adr/0040-asset-card-with-pillars.md)).
+
+```python
+from investinglab.domain import Pillar
+
+ficha = tk.card("BTC/USDT")
+[p.pillar.value for p in ficha.pillars]  # technical, risk, derivatives, quality
+ficha.pillar(Pillar.TECHNICAL).score  # la alineación de los marcos, en [-1, 1]
+ficha.pillar(Pillar.RISK).fact("volatility").value
+ficha.pillar(Pillar.DERIVATIVES).fact("funding_mean").value  # su perpetuo, anualizado
+tk.card("SAN.MC").not_applicable  # (Pillar.DERIVATIVES,): una acción no tiene perpetuo
+```
+
+Solo el pilar técnico es direccional; los demás describen. Un pilar que se aplica pero cuyos
+datos no sirve ninguna fuente va con `issue` y los demás se leen igual. No hay veredicto que
+los fusione: los pesos entre pilares se aprenderán en G4, con su muestra a la vista.
 
 ## Carteras en varias divisas
 

@@ -13,6 +13,7 @@ from investinglab.domain.time import Frequency
 from investinglab_api import use_cases
 from investinglab_api.dependencies import SettingsDep, ToolkitDep, at_most
 from investinglab_api.mappers import (
+    card_out,
     comparison_out,
     confluence_out,
     flow_out,
@@ -26,6 +27,7 @@ from investinglab_api.mappers import (
 )
 from investinglab_api.routers import problems
 from investinglab_api.schemas.market import (
+    CardOut,
     CompareRequest,
     ComparisonOut,
     ConfluenceOut,
@@ -193,6 +195,24 @@ async def confluence(
     """
     found = await toolkit.confluence(symbol, frames=frames, end=end)
     return await asyncio.to_thread(confluence_out, found)
+
+
+@router.get(
+    "/market/card",
+    summary="Card of an instrument: what each pillar of its asset class says",
+    response_model=CardOut,
+    responses=problems(404, 422, 503),
+)
+async def card(toolkit: ToolkitDep, symbol: SymbolQuery, *, end: End = None) -> CardOut:
+    """The pillars of an instrument on its last bar (ADR-0040).
+
+    Every instrument has a technical reading, a risk profile and the quality of its data;
+    a crypto pair also has the funding of its perpetual swap. A pillar no source serves
+    comes with its ``issue`` and the rest are still read. Only the technical pillar is
+    directional. Nothing is fused into a verdict: a card describes, it is not advice.
+    """
+    found = await toolkit.card(symbol, end=end)
+    return await asyncio.to_thread(card_out, found)
 
 
 @router.get(
