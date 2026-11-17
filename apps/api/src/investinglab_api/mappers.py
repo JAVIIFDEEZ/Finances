@@ -36,11 +36,13 @@ from investinglab_api.schemas.common import Matrix, Point, finite
 from investinglab_api.schemas.economic import EconomicObservationOut, EconomicSeriesOut
 from investinglab_api.schemas.market import (
     BarOut,
+    CardOut,
     CompareSeriesOut,
     ComparisonOut,
     ConfluenceOut,
     DivergenceOut,
     ExchangeOut,
+    FactOut,
     FailureOut,
     FibonacciLevelOut,
     FlowBarOut,
@@ -54,6 +56,7 @@ from investinglab_api.schemas.market import (
     PatternEventOut,
     PatternOut,
     PatternsOut,
+    PillarOut,
     QualityOut,
     RatePointOut,
     RatesOut,
@@ -96,6 +99,7 @@ if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
     from datetime import date, datetime
 
+    from investinglab.domain.card import AssetCard
     from investinglab.domain.confluence import FrameReading, TimeframeConfluence
     from investinglab.domain.economic import EconomicSeries
     from investinglab.domain.flow import FlowSeries
@@ -516,6 +520,30 @@ def confluence_out(confluence: TimeframeConfluence) -> ConfluenceOut:
         frames_read=summary.frames,
         min_bars=MIN_BARS,
         frames=[_frame_out(frame) for frame in confluence.frames],
+    )
+
+
+def card_out(card: AssetCard) -> CardOut:
+    """Every pillar of the instrument's asset class, with its facts."""
+    return CardOut(
+        instrument=instrument_out(card.instrument),
+        source=_source_out(card.source),
+        as_of=card.as_of.to_pydatetime(),
+        last_close=card.last_close,
+        pillars=[
+            PillarOut(
+                pillar=reading.pillar,
+                directional=reading.directional,
+                score=reading.score,
+                issue=reading.issue,
+                facts=[
+                    FactOut(key=fact.key, value=fact.value, unit=fact.unit)
+                    for fact in reading.facts
+                ],
+            )
+            for reading in card.pillars
+        ],
+        not_applicable=list(card.not_applicable),
     )
 
 

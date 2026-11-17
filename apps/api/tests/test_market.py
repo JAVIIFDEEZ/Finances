@@ -471,6 +471,37 @@ def test_one_readable_frame_is_not_a_consensus(client: TestClient) -> None:
     assert body["alignment"] == hourly["score"]
 
 
+def test_the_card_of_a_share_has_its_pillars_and_says_which_it_has_not(client: TestClient) -> None:
+    response = client.get("/api/v1/market/card", params={"symbol": "BARS.MC"})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert [pillar["pillar"] for pillar in body["pillars"]] == ["technical", "risk", "quality"]
+    assert body["not_applicable"] == ["derivatives"]
+    assert body["instrument"]["symbol"] == "BARS.MC"
+    assert body["last_close"] > 0
+    technical, risk, quality = body["pillars"]
+    confluence = client.get("/api/v1/market/confluence", params={"symbol": "BARS.MC"}).json()
+    assert (technical["directional"], technical["issue"]) == (True, None)
+    assert technical["score"] == pytest.approx(confluence["alignment"])
+    facts = {fact["key"]: fact for fact in technical["facts"]}
+    assert facts["verdict"] == {"key": "verdict", "value": confluence["verdict"], "unit": "code"}
+    assert facts["frames_read"]["value"] == confluence["frames_read"]
+    assert (risk["directional"], risk["score"]) == (False, None)
+    figures = {fact["key"]: fact["value"] for fact in risk["facts"]}
+    assert figures["volatility"] > 0
+    assert figures["max_drawdown"] <= figures["drawdown"] <= 0
+    assert {fact["unit"] for fact in risk["facts"]} == {"ratio", "date"}
+    assert {fact["key"] for fact in quality["facts"]} >= {"state", "observations", "until"}
+
+
+def test_the_card_of_a_missing_symbol_is_a_problem(client: TestClient) -> None:
+    response = client.get("/api/v1/market/card", params={"symbol": "NOPE.MC"})
+
+    assert response.status_code == 404
+    assert response.headers["content-type"].startswith("application/problem+json")
+
+
 def test_confluence_refuses_frames_it_cannot_read(client: TestClient) -> None:
     yearly = client.get(
         "/api/v1/market/confluence", params=[("symbol", "BARS.MC"), ("frame", "1y")]

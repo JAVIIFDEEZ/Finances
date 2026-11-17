@@ -7,6 +7,7 @@ from typing import Annotated, Literal
 
 from pydantic import Field
 
+from investinglab.domain.card import Pillar, PillarIssue, Unit
 from investinglab.domain.flow import FlowField
 from investinglab.domain.instruments import AssetClass
 from investinglab.domain.quality import IssueKind, Severity
@@ -17,6 +18,7 @@ from investinglab_api.schemas.common import ApiModel, DateRange, Matrix, Point
 
 __all__ = [
     "BarOut",
+    "CardOut",
     "CompareRequest",
     "CompareSeriesOut",
     "ComparisonOut",
@@ -534,6 +536,41 @@ class ConfluenceOut(ApiModel):
     frames_read: int
     min_bars: int = Field(description="Bars a frame needs to be read.")
     frames: list[FrameOut] = Field(description="Finest first.")
+
+
+class FactOut(ApiModel):
+    """One figure of a pillar: data, not a sentence."""
+
+    key: str = Field(description="What it is (alignment, volatility, funding_mean...).")
+    value: float | str | None = Field(description="``null`` when it could not be told.")
+    unit: Unit = Field(
+        description="A ratio is a fraction to show as a percentage; a code is a word to translate."
+    )
+
+
+class PillarOut(ApiModel):
+    """What one pillar of evidence says about the instrument."""
+
+    pillar: Pillar
+    directional: bool = Field(description="Whether its reading points up or down.")
+    score: float | None = Field(
+        description="Its direction in [-1, 1]; ``null`` if not directional or not told."
+    )
+    issue: PillarIssue | None = Field(description="Why it could not be read; ``null`` if it was.")
+    facts: list[FactOut]
+
+
+class CardOut(ApiModel):
+    """The card of an instrument: its pillars on the last bar (ADR-0040)."""
+
+    instrument: InstrumentOut
+    source: SourceOut
+    as_of: datetime
+    last_close: float
+    pillars: list[PillarOut] = Field(description="Those its asset class has, in a fixed order.")
+    not_applicable: list[Pillar] = Field(
+        description="Pillars of the registry its asset class does not have."
+    )
 
 
 class PatternsOut(ApiModel):
