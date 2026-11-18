@@ -58,6 +58,14 @@ describe("factText", () => {
     expect(codeKey("new_fact", "x")).toBe("card.code.new_fact.x");
   });
 
+  it("writes the venue of the positioning by its name and signs the change of open interest", () => {
+    expect(text({ key: "positioning_venue", value: "okx", unit: "code" })).toBe("OKX");
+    expect(text({ key: "positioning_venue", value: "kraken", unit: "code" })).toBe("Kraken");
+    expect(text({ key: "open_interest_change", value: 0.123, unit: "ratio" })).toBe("+12.3%");
+    expect(text({ key: "open_interest_value_change", value: -0.05, unit: "ratio" })).toBe("-5.0%");
+    expect(text({ key: "long_short_accounts", value: 2.934, unit: "number" })).toBe("2.93");
+  });
+
   it("never prints what could not be told", () => {
     expect(text({ key: "coverage", value: null, unit: "ratio" })).toBe("—");
     expect(text({ key: "volatility", value: Number.NaN, unit: "ratio" })).toBe("—");

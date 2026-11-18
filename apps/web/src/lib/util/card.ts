@@ -5,12 +5,16 @@
 
 import type { Schemas } from "@/lib/api/client";
 import type { Formatter } from "@/lib/i18n/format";
+import { venueLabel } from "@/lib/util/positioning";
 
 export type Pillar = Schemas["PillarOut"];
 export type Fact = Schemas["FactOut"];
 
 /** Ratios that are a move from somewhere, shown with their sign (``+4,8 %``). */
-const SIGNED: ReadonlySet<string> = new Set(["price_vs_average", "support_distance", "resistance_distance", "total_return", "funding_last", "funding_mean"]);
+const SIGNED: ReadonlySet<string> = new Set(["price_vs_average", "support_distance", "resistance_distance", "total_return", "funding_last", "funding_mean", "open_interest_change", "open_interest_value_change"]);
+
+/** Facts whose value is a venue. */
+const VENUES: ReadonlySet<string> = new Set(["positioning_venue"]);
 
 /** Facts a pillar shows as its headline, not in its list. */
 const HEADLINE: Readonly<Record<string, readonly string[]>> = { technical: ["verdict", "alignment"] };
@@ -43,6 +47,8 @@ export function factText(fact: Fact, fmt: Formatter, words: (key: string) => str
   if (value === null || value === undefined) return "—";
   if (typeof value === "string") {
     if (fact.unit === "date") return fmt.date(value);
+    // A venue is written by its name, the same in every language (a new one as it is called).
+    if (VENUES.has(fact.key)) return venueLabel(value);
     return words(codeKey(fact.key, value)) ?? value;
   }
   switch (fact.unit) {
