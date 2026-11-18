@@ -78,5 +78,7 @@ las dos fuentes, con el paso automático a Binance cuando OKX no llega.
 
 * [ADR-0031](0031-flow-holding-rates-and-universes.md), tipos hermanos: flujo y tipos de
   mantenimiento. [ADR-0041](0041-binance-funding-from-public-dumps.md), los volcados de Binance.
-* Pendiente: la API y la pantalla (siguiente PR), el pilar de derivados de la ficha con el
-  cambio del interés abierto, y más *venues* cuando respondan.
+* Hecho después: la API (`/market/positioning`, `/market/venues`), la tarjeta de Mercados y
+  el pilar de derivados de la ficha con el cambio del interés abierto
+  ([ADR-0040](0040-asset-card-with-pillars.md)).
+* Pendiente: más *venues* cuando respondan.

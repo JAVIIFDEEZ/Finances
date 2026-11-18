@@ -138,6 +138,9 @@ CARD_HISTORY: Final = timedelta(days=3 * 366)
 CARD_FUNDING: Final = timedelta(days=90)
 """Funding payments a card reads: a quarter."""
 
+CARD_POSITIONING: Final = timedelta(days=30)
+"""Daily positioning a card reads; the change of the open interest is measured over it."""
+
 _SPOT_PAIR: Final = re.compile(r"^([A-Z0-9]{2,15})/([A-Z0-9]{2,10})$")
 
 
@@ -508,8 +511,9 @@ class AsyncToolkit:
 
         Every instrument has a technical reading (its timeframes and price structure), a
         risk profile and the quality of its data, over three years of daily bars; a crypto
-        pair also has the funding of its perpetual swap. A pillar whose data no source
-        serves is reported as unread and the rest are still read.
+        pair also has its perpetual swap: a quarter of funding and a month of daily
+        positioning. A pillar whose data no source serves is reported as unread and the
+        rest are still read.
 
         Args:
             symbol: Any symbol (``SAN.MC``, ``^GSPC``, ``EURUSD=X``, ``BTC/USDT``).
@@ -527,23 +531,35 @@ class AsyncToolkit:
             except (DataUnavailableError, DomainError):
                 return None
 
+        wanted = {spec.pillar for spec in pillars_for(series.asset_class)}
+        swap = _perpetual_of(series.symbol) if Pillar.DERIVATIVES in wanted else None
+
         async def funding() -> RateSeries | None:
-            swap = _perpetual_of(series.symbol)
-            wanted = {spec.pillar for spec in pillars_for(series.asset_class)}
-            if swap is None or Pillar.DERIVATIVES not in wanted:
+            if swap is None:
                 return None
             try:
                 return await self.holding_rates(swap, start=last - CARD_FUNDING, end=end)
             except (DataUnavailableError, InvalidSeriesError):
                 return None
 
-        confluence, rates = await asyncio.gather(frames(), funding())
+        async def positioning() -> PositioningSeries | None:
+            if swap is None:
+                return None
+            try:
+                return await self.positioning(
+                    swap, start=last - CARD_POSITIONING, end=end, frequency=Frequency.DAY_1
+                )
+            except (DataUnavailableError, InvalidSeriesError):
+                return None
+
+        confluence, rates, standing = await asyncio.gather(frames(), funding(), positioning())
         return asset_card(
             series,
             confluence=confluence,
             structure=price_structure(series),
             quality=self.quality(series),
             funding=rates,
+            positioning=standing,
         )
 
     async def _with_history(

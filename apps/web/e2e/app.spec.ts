@@ -140,7 +140,7 @@ test("the card of an instrument: the pillars its asset class has", async ({ page
 
   await page.goto("/markets?symbol=BTC-USD"); // crypto: it has the pillar, but no source serves it offline
   const derivatives = card.getByRole("region", { name: "Derivados", exact: true });
-  await expect(derivatives.getByText("Ninguna fuente sirve el funding de su perpetuo.")).toBeVisible();
+  await expect(derivatives.getByText("Ninguna fuente sirve el funding ni el posicionamiento de su perpetuo.")).toBeVisible();
   await expect(card.getByText(/Pilares que esta clase de activo no tiene/)).toHaveCount(0);
   expect(errors).toEqual([]);
 });

@@ -574,9 +574,14 @@ def test_a_card_reads_every_pillar_of_the_asset_class(tmp_path: Path) -> None:
         index=pd.date_range(INDEX[-1] - pd.Timedelta(days=1), periods=3, freq="8h", tz="UTC"),
     )
     funding = RateSeries(swap, "fake", RateKind.FUNDING, SYNTHETIC_SOURCE, paid)
+    days = pd.date_range(INDEX[-1] - pd.Timedelta(days=2), periods=2, freq="D", tz="UTC")
+    open_interest = pd.DataFrame({PositioningField.OPEN_INTEREST.value: [100.0, 120.0]}, days)
+    standing = PositioningSeries(swap, "venue", SYNTHETIC_SOURCE, Frequency.DAY_1, open_interest)
     bars = FakeBarsProvider("fake", {"BARS.MC": BARS, "BTC/USDT": coin})
     rates = FakeRatesProvider("swaps", {"BTC/USDT:USDT": funding})
-    with Toolkit.from_settings(_settings(tmp_path), providers=[bars, rates], cache=False) as tk:
+    venue = FakePositioningProvider("venue", {"BTC/USDT:USDT": standing})
+    providers: list[AnyProvider] = [bars, rates, venue]
+    with Toolkit.from_settings(_settings(tmp_path), providers=providers, cache=False) as tk:
         share = tk.card("BARS.MC", end=INDEX[-1])
         crypto = tk.card("BTC/USDT", end=INDEX[-1])
 
@@ -595,6 +600,11 @@ def test_a_card_reads_every_pillar_of_the_asset_class(tmp_path: Path) -> None:
     assert derivatives.issue is None
     assert derivatives.fact("payments").value == 3
     assert derivatives.fact("funding_positive").value == pytest.approx(2 / 3)
+    [asked] = venue.calls  # never for a share either
+    assert (asked.symbol, asked.frequency) == ("BTC/USDT:USDT", Frequency.DAY_1)
+    assert asked.start == INDEX[-1].date() - timedelta(days=30)
+    assert derivatives.fact("open_interest_change").value == pytest.approx(0.2)
+    assert derivatives.fact("positioning_venue").value == "venue"
 
 
 def test_a_card_says_which_pillar_it_could_not_read(tmp_path: Path) -> None:
@@ -620,7 +630,8 @@ def test_a_card_says_which_pillar_it_could_not_read(tmp_path: Path) -> None:
         with pytest.raises(DataUnavailableError):
             tk.card("MISSING")
 
-    # Forty bars: no frame can be read, and nobody serves the funding of its swap.
+    # Forty bars: no frame can be read, and nobody serves the funding or the positioning
+    # of its swap (no provider of positioning is even registered).
     assert young.pillar(Pillar.TECHNICAL).fact("frames_read").value == 0
     assert young.pillar(Pillar.TECHNICAL).score is None
     assert young.pillar(Pillar.DERIVATIVES).issue is PillarIssue.NO_DATA

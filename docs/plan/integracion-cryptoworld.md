@@ -772,6 +772,12 @@ abierto y ratios con sus cifras al lado, ventanas de 7, 30 y 90 días). Esa tarj
 funding ofrecen las *venues* que dice la API, así que una nueva aparece sin tocar la web.
 Pendiente: foto del libro, el tercer *venue* y el pilar de derivados de la ficha con el OI.
 
+**Avance (18-11-2026, pilar de derivados):** la ficha de una cripto lee también 30 días de
+posicionamiento diario de su perpetuo: el cambio de los contratos abiertos, los ratios de
+cuentas y de posiciones del *top*, la *venue* y la fecha de la última foto. El *funding* y el
+posicionamiento se leen cada uno si una fuente los sirve. Pendiente de G1: foto del libro, el
+tercer *venue*, CoinGecko y la caché en disco de los volcados mensuales.
+
 **Decisión al implementarla (13-11-2026):** en lugar de ccxt, un adaptador por *venue* sobre `HttpClient`, con casetes ([ADR-0032](../adr/0032-crypto-venues-on-the-shared-http-client.md)): ccxt salta la capa de red común y sus peticiones no se pueden reproducir con `respx`. La notación de símbolos es la de ccxt (`BTC/USDT`, `BTC/USDT:USDT`) y el enrutado la reconoce sola, así que `tk.series("BTC/USDT", frequency="1h")` va a Binance sin indicar el *venue*. Hechos: Binance *spot* (velas y flujo), funding de OKX, volumen de Yahoo como flujo. Pendientes: el resto de la lista.
 
 ### G2 — Análisis técnico multiactivo y ficha de activo
