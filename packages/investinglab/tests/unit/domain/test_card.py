@@ -29,6 +29,7 @@ from investinglab.domain.card import (
     risk_pillar,
     technical_pillar,
 )
+from investinglab.domain.positioning import PositioningField, PositioningSeries
 from investinglab.domain.quality import assess_quality
 from investinglab.domain.rate_series import RateKind, RateSeries
 from investinglab.domain.structure import price_structure
@@ -73,6 +74,23 @@ def _funding(values: list[float], kind: RateKind = RateKind.FUNDING) -> RateSeri
     index = pd.date_range("2026-01-01", periods=len(values), freq="8h", tz="UTC")
     swap = make_instrument("BTC/USDT:USDT", asset_class=AssetClass.CRYPTO, exchange=None)
     return RateSeries(swap, "synthetic", kind, SYNTHETIC_SOURCE, pd.Series(values, index=index))
+
+
+def _positioning(columns: dict[PositioningField, list[float]]) -> PositioningSeries:
+    """SYNTHETIC daily positioning of the swap, one value per day for each field given."""
+    length = len(next(iter(columns.values())))
+    index = pd.date_range("2026-01-01", periods=length, freq="D", tz="UTC")
+    swap = make_instrument("BTC/USDT:USDT", asset_class=AssetClass.CRYPTO, exchange=None)
+    frame = pd.DataFrame({name.value: values for name, values in columns.items()}, index=index)
+    valued = PositioningField.OPEN_INTEREST_VALUE in columns
+    return PositioningSeries(
+        swap,
+        "synthetic",
+        SYNTHETIC_SOURCE,
+        Frequency.DAY_1,
+        frame,
+        value_currency=swap.currency if valued else None,
+    )
 
 
 def test_every_asset_class_has_its_pillars_and_only_crypto_has_derivatives() -> None:
@@ -151,6 +169,58 @@ def test_the_derivatives_pillar_reads_funding_and_nothing_else() -> None:
         derivatives_pillar(_funding([0.01, 0.02], RateKind.BORROW))
 
 
+def test_the_derivatives_pillar_adds_how_traders_stand_in_the_swap() -> None:
+    positioning = _positioning(
+        {
+            PositioningField.OPEN_INTEREST: [100.0, 104.0, 110.0],
+            # The value rose more than the contracts: the price went up too.
+            PositioningField.OPEN_INTEREST_VALUE: [5_000.0, 5_600.0, 6_600.0],
+            PositioningField.LONG_SHORT_ACCOUNTS: [1.4, 1.2, np.nan],  # the last one skipped
+            PositioningField.TOP_LONG_SHORT_POSITIONS: [0.9, 1.1, 1.05],
+        }
+    )
+
+    reading = derivatives_pillar(_funding([0.0001, 0.0003]), positioning)
+
+    assert [fact.key for fact in reading.facts] == [
+        "funding_last",
+        "funding_mean",
+        "funding_positive",
+        "payments",
+        "funding_since",
+        "open_interest_change",
+        "long_short_accounts",
+        "top_long_short_positions",
+        "positioning_venue",
+        "positioning_until",
+    ]
+    assert reading.fact("open_interest_change").value == pytest.approx(0.10)  # in contracts
+    assert reading.fact("long_short_accounts").value == pytest.approx(1.2)  # last published
+    assert reading.fact("top_long_short_positions").value == pytest.approx(1.05)
+    assert reading.fact("positioning_venue") == Fact("positioning_venue", "synthetic", Unit.CODE)
+    assert reading.fact("positioning_until").value == "2026-01-03"
+    assert (reading.score, reading.issue) == (None, None)
+
+
+def test_the_derivatives_pillar_reads_what_is_served_and_nothing_more() -> None:
+    valued_only = _positioning({PositioningField.OPEN_INTEREST_VALUE: [200.0, 150.0]})
+    from_zero = _positioning({PositioningField.OPEN_INTEREST: [0.0, 5.0]})
+
+    alone = derivatives_pillar(None, valued_only)
+
+    assert alone.issue is None
+    # Without contracts, the change of their value, named as such (it moves with the price).
+    assert alone.facts[0].key == "open_interest_value_change"
+    assert alone.fact("open_interest_value_change").value == pytest.approx(-0.25)
+    assert alone.fact("long_short_accounts").value is None  # this venue publishes no ratio
+    with pytest.raises(KeyError):
+        alone.fact("funding_last")
+    assert derivatives_pillar(None, from_zero).fact("open_interest_change").value is None
+    ratios_only = _positioning({PositioningField.LONG_SHORT_ACCOUNTS: [1.0, 2.0]})
+    assert derivatives_pillar(None, ratios_only).fact("open_interest_change").value is None
+    assert derivatives_pillar(None, None).issue is PillarIssue.NO_DATA
+
+
 def test_the_quality_pillar_says_how_far_the_data_can_be_trusted() -> None:
     clean = quality_pillar(assess_quality(SHARE, expected_sessions=DAYS))
     kept = np.arange(800) % 5 != 2  # one session in five never arrived
@@ -198,6 +268,12 @@ def test_a_card_reads_the_pillars_of_its_asset_class() -> None:
     assert coin.not_applicable == ()
     assert coin.pillar(Pillar.TECHNICAL).issue is PillarIssue.NO_DATA
     assert coin.pillar(Pillar.DERIVATIVES).fact("payments").value == 2
+    standing = _positioning({PositioningField.LONG_SHORT_ACCOUNTS: [1.0, 2.0]})
+    only_positioning = asset_card(
+        COIN, confluence=None, structure=None, quality=assess_quality(COIN), positioning=standing
+    )
+    derivatives = only_positioning.pillar(Pillar.DERIVATIVES)
+    assert (derivatives.issue, derivatives.fact("long_short_accounts").value) == (None, 2.0)
     assert _figure(coin.pillar(Pillar.RISK), "volatility") > 0
 
 

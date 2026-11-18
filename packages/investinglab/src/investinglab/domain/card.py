@@ -3,8 +3,9 @@
 A card gathers, for one instrument of any asset class, the readings the platform already
 computes, grouped in *pillars*. Which pillars an instrument has depends on its asset class
 (:data:`PILLARS`): every instrument has a technical reading, a risk profile and the quality
-of its data; only crypto has perpetual swaps and their funding. A pillar that applies but
-could not be read (no source serves its data) says so instead of being left out.
+of its data; only crypto has perpetual swaps, with their funding and their positioning. A
+pillar that applies but could not be read (no source serves its data) says so instead of
+being left out.
 
 A pillar is *directional* when what it reads points up or down: its score is in [-1, 1].
 The others describe (how volatile, how deep the fall, how clean the data) and have no
@@ -26,11 +27,13 @@ import pandas as pd
 
 from investinglab.analytics.risk import value_at_risk
 from investinglab.domain.instruments import AssetClass
+from investinglab.domain.positioning import PositioningField
 from investinglab.domain.rate_series import RateKind
 
 if TYPE_CHECKING:
     from investinglab.domain.confluence import TimeframeConfluence
     from investinglab.domain.instruments import Instrument
+    from investinglab.domain.positioning import PositioningSeries
     from investinglab.domain.quality import DataQualityReport
     from investinglab.domain.rate_series import RateSeries
     from investinglab.domain.series import DataSource, PriceSeries
@@ -65,7 +68,7 @@ class Pillar(StrEnum):
     RISK = "risk"
     """How much the price has moved and fallen."""
     DERIVATIVES = "derivatives"
-    """The funding of its perpetual swap: who pays whom to hold a position."""
+    """Its perpetual swap: who pays whom to hold a position, and how traders stand in it."""
     QUALITY = "quality"
     """How far its data can be trusted."""
 
@@ -244,31 +247,81 @@ def risk_pillar(series: PriceSeries) -> PillarReading:
     return _read(Pillar.RISK, facts)
 
 
-def derivatives_pillar(funding: RateSeries | None) -> PillarReading:
-    """The funding of the instrument's perpetual swap.
-
-    A positive rate means longs pay shorts to stay in: it says who is paying to hold, not
-    where the price goes.
-
-    Args:
-        funding: The funding rates (``None`` if no source serves them).
-
-    Raises:
-        ValueError: If ``funding`` holds another kind of rate.
-    """
-    if funding is None or len(funding) == 0:
-        return _unread(Pillar.DERIVATIVES)
+def _funding_facts(funding: RateSeries) -> tuple[Fact, ...]:
     if funding.kind is not RateKind.FUNDING:
         raise ValueError(f"The derivatives pillar reads funding, not {funding.kind.value}")
     annual = funding.annualized()
-    facts = (
+    return (
         Fact("funding_last", _number(annual.iloc[-1]), Unit.RATIO),
         Fact("funding_mean", _number(annual.mean()), Unit.RATIO),
         Fact("funding_positive", _number((funding.rates > 0).mean()), Unit.RATIO),
         Fact("payments", float(len(funding)), Unit.COUNT),
-        Fact("since", funding.start.date().isoformat(), Unit.DATE),
+        Fact("funding_since", funding.start.date().isoformat(), Unit.DATE),
     )
-    return _read(Pillar.DERIVATIVES, facts)
+
+
+def _open_interest_change(positioning: PositioningSeries) -> Fact:
+    """How much the open interest grew over the series, in contracts if the venue gives them.
+
+    Contracts (units of the base asset) count the positions open: their change is
+    ``open_interest_change``. Their value in a currency also moves with the price, so it is
+    read (as ``open_interest_value_change``) only when the venue publishes nothing else.
+    """
+    for name, key in (
+        (PositioningField.OPEN_INTEREST, "open_interest_change"),
+        (PositioningField.OPEN_INTEREST_VALUE, "open_interest_value_change"),
+    ):
+        if name in positioning.fields:
+            values = positioning.column(name).dropna()
+            first = float(values.iloc[0])
+            change = None if first <= 0 else _number(float(values.iloc[-1]) / first - 1)
+            return Fact(key, change, Unit.RATIO)
+    return Fact("open_interest_change", None, Unit.RATIO)
+
+
+def _positioning_facts(positioning: PositioningSeries) -> tuple[Fact, ...]:
+    latest = positioning.latest()
+    return (
+        _open_interest_change(positioning),
+        Fact(
+            "long_short_accounts",
+            _number(latest.get(PositioningField.LONG_SHORT_ACCOUNTS)),
+            Unit.NUMBER,
+        ),
+        Fact(
+            "top_long_short_positions",
+            _number(latest.get(PositioningField.TOP_LONG_SHORT_POSITIONS)),
+            Unit.NUMBER,
+        ),
+        Fact("positioning_venue", positioning.venue, Unit.CODE),
+        Fact("positioning_until", positioning.end.date().isoformat(), Unit.DATE),
+    )
+
+
+def derivatives_pillar(
+    funding: RateSeries | None, positioning: PositioningSeries | None = None
+) -> PillarReading:
+    """The funding of the instrument's perpetual swap and how its traders stand in it.
+
+    A positive funding rate means longs pay shorts to stay in, and a long/short ratio above
+    one that more accounts are long than short: both say how the market is positioned, not
+    where the price goes. Each part is read when a source serves it; the pillar is unread
+    only when neither is.
+
+    Args:
+        funding: The funding rates (``None`` if no source serves them).
+        positioning: Daily open interest and long/short ratios (``None`` if no source
+            serves them); the change of the open interest is measured over its range.
+
+    Raises:
+        ValueError: If ``funding`` holds another kind of rate.
+    """
+    facts: tuple[Fact, ...] = ()
+    if funding is not None and len(funding) > 0:
+        facts += _funding_facts(funding)
+    if positioning is not None and len(positioning) > 0:
+        facts += _positioning_facts(positioning)
+    return _read(Pillar.DERIVATIVES, facts) if facts else _unread(Pillar.DERIVATIVES)
 
 
 def quality_pillar(report: DataQualityReport) -> PillarReading:
@@ -329,6 +382,7 @@ def asset_card(
     structure: PriceStructure | None,
     quality: DataQualityReport,
     funding: RateSeries | None = None,
+    positioning: PositioningSeries | None = None,
 ) -> AssetCard:
     """Read every pillar the asset class of ``series`` has.
 
@@ -339,11 +393,12 @@ def asset_card(
         quality: The quality report of ``series``.
         funding: The funding of its perpetual swap; only read for the asset classes that
             have the derivatives pillar.
+        positioning: The positioning of that swap, read likewise.
     """
     readers = {
         Pillar.TECHNICAL: lambda: technical_pillar(confluence, structure),
         Pillar.RISK: lambda: risk_pillar(series),
-        Pillar.DERIVATIVES: lambda: derivatives_pillar(funding),
+        Pillar.DERIVATIVES: lambda: derivatives_pillar(funding, positioning),
         Pillar.QUALITY: lambda: quality_pillar(quality),
     }
     applicable = pillars_for(series.asset_class)
