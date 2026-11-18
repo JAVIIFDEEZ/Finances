@@ -12,7 +12,7 @@ copyright = "© InvestingLab — uso privado"
 nav = [
   { "Inicio" = "index.md" },
   { "Plan" = ["plan/plan-maestro.md", "plan/integracion-cryptoworld.md"] },
-  { "Guías" = ["guide/toolkit.md", "guide/data-sources.md", "guide/optimization.md", "guide/planning.md", "guide/api.md", "guide/persistence.md", "guide/web.md"] },
+  { "Guías" = ["guide/toolkit.md", "guide/data-sources.md", "guide/adding-a-source.md", "guide/optimization.md", "guide/planning.md", "guide/api.md", "guide/persistence.md", "guide/web.md"] },
   { "Módulos del máster" = ["modules/b1-toolkit.md"] },
   { "Arquitectura" = [
     "architecture/index.md",
@@ -63,6 +63,7 @@ nav = [
     "adr/0039-price-chart-workspace.md",
     "adr/0040-asset-card-with-pillars.md",
     "adr/0041-binance-funding-from-public-dumps.md",
+    "adr/0042-positioning-as-a-dataset.md",
   ] },
   { "Referencia API" = [
     "reference/index.md",

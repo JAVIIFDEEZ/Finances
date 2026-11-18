@@ -5,7 +5,7 @@ import threading
 import time
 from concurrent.futures import Future
 from dataclasses import dataclass, field
-from datetime import timedelta
+from datetime import date, timedelta
 from typing import TYPE_CHECKING
 
 import pandas as pd
@@ -24,12 +24,14 @@ from investinglab.domain import (
     Pillar,
     PillarIssue,
     Portfolio,
+    PositioningField,
+    PositioningSeries,
     PriceSeries,
     RateKind,
     RateSeries,
     price_patterns,
 )
-from investinglab.ports import ProviderCapabilities, RatesRequest
+from investinglab.ports import Dataset, ProviderCapabilities, RatesRequest
 from investinglab.services import DataUnavailableError, ProviderRegistry
 from investinglab.toolkit import AsyncToolkit, Toolkit, _EventLoopThread, _prefer_fresh_funding
 from support.cassettes import load_cassette
@@ -42,11 +44,18 @@ from support.factories import (
     make_instrument,
     make_series,
 )
-from support.fakes import FakeBarsProvider, FakeEconomicProvider, FakeRatesProvider
+from support.fakes import (
+    FakeBarsProvider,
+    FakeEconomicProvider,
+    FakePositioningProvider,
+    FakeRatesProvider,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
     from pathlib import Path
+
+    from investinglab.services.registry import AnyProvider
 
 INDEX = business_days(300)
 A = make_series(gbm_prices(300, seed=1), symbol="A.MC", index=INDEX)
@@ -272,6 +281,41 @@ def test_funding_is_asked_of_the_up_to_date_venue_first() -> None:
     alone.register(FakeBarsProvider("okx"))  # a caller's provider of that name, without rates
     _prefer_fresh_funding(alone)  # nothing to order, and no error
     assert alone.names == ("okx",)
+
+
+def test_positioning_reads_the_last_days_and_venues_lists_who_serves(tmp_path: Path) -> None:
+    swap = make_instrument(
+        "BTC/USDT:USDT", currency=USD, asset_class=AssetClass.CRYPTO, exchange=None
+    )
+    hours = pd.date_range("2026-11-15", periods=3, freq="1h", tz="UTC")
+    frame = pd.DataFrame({PositioningField.OPEN_INTEREST.value: [1.0, 2.0, 3.0]}, hours)
+    series = {
+        name: PositioningSeries(swap, name, SYNTHETIC_SOURCE, Frequency.HOUR_1, frame)
+        for name in ("okx", "binance")
+    }
+    binance = FakePositioningProvider("binance", {"BTC/USDT:USDT": series["binance"]})
+    okx = FakePositioningProvider("okx", {"BTC/USDT:USDT": series["okx"]})
+    funding = FakeRatesProvider("swaps")
+    providers: list[AnyProvider] = [binance, okx, funding]
+    with Toolkit.from_settings(_settings(tmp_path), providers=providers, cache=False) as tk:
+        found = tk.positioning("BTC/USDT:USDT", end="2026-11-16")
+        on_binance = tk.positioning("BTC/USDT:USDT", venue="binance", start="2026-11-01")
+        venues = tk.venues("BTC/USDT:USDT", "positioning")
+        funding_venues = tk.venues("BTC/USDT:USDT", Dataset.HOLDING_RATES)
+        with pytest.raises(DomainError, match="not served per venue"):
+            tk.venues("BTC/USDT", "bars")
+
+    assert venues == ("okx", "binance")  # the up-to-date venue first, whatever the order given
+    assert funding_venues == ("swaps",)
+    assert found.venue == "okx"
+    asked = okx.calls[0]
+    assert (asked.start, asked.end, asked.frequency) == (
+        date(2026, 10, 17),  # thirty days before the end
+        date(2026, 11, 16),
+        Frequency.HOUR_1,
+    )
+    assert on_binance.venue == "binance"
+    assert binance.calls[0].start == date(2026, 11, 1)
 
 
 def test_euro_fixings_and_rates_come_from_the_ecb(tmp_path: Path) -> None:

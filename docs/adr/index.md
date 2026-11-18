@@ -46,6 +46,7 @@ actualiza el estado del antiguo.
 | [0039](0039-price-chart-workspace.md) | Espacio de gráficos de precio: paneles sobre las mismas velas | Aceptado |
 | [0040](0040-asset-card-with-pillars.md) | Ficha de activo: pilares por clase de activo, sin veredicto fusionado | Aceptado |
 | [0041](0041-binance-funding-from-public-dumps.md) | Funding de Binance desde sus volcados públicos verificados | Aceptado |
+| [0042](0042-positioning-as-a-dataset.md) | Posicionamiento en derivados como conjunto de datos propio, ampliable por *venue* | Aceptado |
 
 ## Cómo añadir un ADR
 

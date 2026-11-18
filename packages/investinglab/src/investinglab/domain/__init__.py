@@ -76,6 +76,11 @@ from investinglab.domain.portfolio import (
     RebalancePolicy,
     weight_problems,
 )
+from investinglab.domain.positioning import (
+    POSITIONING_FREQUENCIES,
+    PositioningField,
+    PositioningSeries,
+)
 from investinglab.domain.quality import (
     DataQualityReport,
     IssueKind,
@@ -145,6 +150,7 @@ __all__ = [
     "MIN_OBSERVATIONS",
     "OVERNIGHT_ACT_360",
     "PILLARS",
+    "POSITIONING_FREQUENCIES",
     "USD",
     "WEIGHT_TOLERANCE",
     "AlignedPanel",
@@ -194,6 +200,8 @@ __all__ = [
     "PlanResult",
     "Portfolio",
     "PortfolioBacktest",
+    "PositioningField",
+    "PositioningSeries",
     "PriceAdjustment",
     "PriceDivergence",
     "PriceField",

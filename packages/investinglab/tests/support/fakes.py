@@ -7,13 +7,20 @@ import threading
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from investinglab.domain import AssetClass, Frequency, RateKind
+from investinglab.domain import (
+    POSITIONING_FREQUENCIES,
+    AssetClass,
+    Frequency,
+    PositioningField,
+    RateKind,
+)
 from investinglab.ports import (
     BarsRequest,
     CachedBars,
     CachedEconomicSeries,
     Dataset,
     EconomicRequest,
+    PositioningRequest,
     ProviderCapabilities,
     RatesRequest,
     SymbolNotFoundError,
@@ -23,7 +30,13 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
     from datetime import datetime
 
-    from investinglab.domain import EconomicSeries, FlowSeries, PriceSeries, RateSeries
+    from investinglab.domain import (
+        EconomicSeries,
+        FlowSeries,
+        PositioningSeries,
+        PriceSeries,
+        RateSeries,
+    )
     from investinglab.ports import ProviderError
 
 BARS_CAPABILITIES = ProviderCapabilities(
@@ -39,6 +52,11 @@ FLOW_CAPABILITIES = ProviderCapabilities(
 )
 RATES_CAPABILITIES = ProviderCapabilities(
     datasets=frozenset({Dataset.HOLDING_RATES}), rate_kinds=frozenset(RateKind)
+)
+POSITIONING_CAPABILITIES = ProviderCapabilities(
+    datasets=frozenset({Dataset.POSITIONING}),
+    frequencies_by_dataset={Dataset.POSITIONING: frozenset(POSITIONING_FREQUENCIES)},
+    positioning_fields=frozenset(PositioningField),
 )
 
 
@@ -133,6 +151,25 @@ class FakeRatesProvider:
         if request.symbol not in self.rates:
             raise SymbolNotFoundError(self.name, f"unknown symbol {request.symbol}")
         return self.rates[request.symbol]
+
+
+@dataclass
+class FakePositioningProvider:
+    """Serves pre-built positioning by symbol; raises configured errors; records calls."""
+
+    name: str
+    series: Mapping[str, PositioningSeries] = field(default_factory=dict)
+    errors: Mapping[str, ProviderError] = field(default_factory=dict)
+    capabilities: ProviderCapabilities = POSITIONING_CAPABILITIES
+    calls: list[PositioningRequest] = field(default_factory=list)
+
+    async def fetch_positioning(self, request: PositioningRequest) -> PositioningSeries:
+        self.calls.append(request)
+        if request.symbol in self.errors:
+            raise self.errors[request.symbol]
+        if request.symbol not in self.series:
+            raise SymbolNotFoundError(self.name, f"unknown symbol {request.symbol}")
+        return self.series[request.symbol]
 
 
 @dataclass

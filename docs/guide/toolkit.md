@@ -4,8 +4,9 @@
 sirve para:
 
 * descargar varias series a la vez de todas las fuentes configuradas;
-* leer el flujo de cada vela (`tk.flow`) y el funding de los perpetuos en OKX o Binance
-  (`tk.holding_rates`, con `venue`);
+* leer el flujo de cada vela (`tk.flow`), el funding de los perpetuos (`tk.holding_rates`) y su
+  interés abierto y ratios largo/corto (`tk.positioning`), en el *venue* que se quiera
+  (`tk.venues` dice cuáles lo sirven);
 * calcular los indicadores técnicos de cualquier instrumento (`tk.technical`), sus patrones
   de precio (`tk.patterns`), su estructura (`tk.structure`), la confluencia entre marcos
   temporales (`tk.confluence`) y su ficha por pilares (`tk.card`);

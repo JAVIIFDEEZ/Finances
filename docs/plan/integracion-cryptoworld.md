@@ -759,6 +759,13 @@ con toda su historia; sin `venue`, se pide primero a OKX (al día) y después a 
 *venues* alineados en las mismas horas. Pendiente: *open interest* y ratios largo/corto, el tercer
 *venue* y la caché en disco de los ficheros mensuales.
 
+**Avance (17-11-2026, posicionamiento):** interés abierto y ratios largo/corto como conjunto de
+datos propio, con un vocabulario común que cada *venue* rellena con lo que publica
+([ADR-0042](../adr/0042-positioning-as-a-dataset.md)): Binance (volcados diarios cada 5 minutos
+desde 2021) y OKX (al día). `tk.positioning`, `tk.venues` para descubrir quién sirve cada dato, un
+contrato por conjunto de datos y la guía [Añadir una fuente de datos](../guide/adding-a-source.md).
+Pendiente: API y pantalla, foto del libro, el tercer *venue* y el pilar de derivados con el OI.
+
 **Decisión al implementarla (13-11-2026):** en lugar de ccxt, un adaptador por *venue* sobre `HttpClient`, con casetes ([ADR-0032](../adr/0032-crypto-venues-on-the-shared-http-client.md)): ccxt salta la capa de red común y sus peticiones no se pueden reproducir con `respx`. La notación de símbolos es la de ccxt (`BTC/USDT`, `BTC/USDT:USDT`) y el enrutado la reconoce sola, así que `tk.series("BTC/USDT", frequency="1h")` va a Binance sin indicar el *venue*. Hechos: Binance *spot* (velas y flujo), funding de OKX, volumen de Yahoo como flujo. Pendientes: el resto de la lista.
 
 ### G2 — Análisis técnico multiactivo y ficha de activo

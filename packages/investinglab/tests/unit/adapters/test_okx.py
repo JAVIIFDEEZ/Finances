@@ -18,10 +18,11 @@ import respx
 
 from investinglab.adapters.providers import okx
 from investinglab.adapters.providers.okx import OkxProvider, swap_id
-from investinglab.domain import AssetClass, DomainError, RateKind
+from investinglab.domain import AssetClass, DomainError, Frequency, PositioningField, RateKind
 from investinglab.ports import (
     Dataset,
     HoldingRatesProvider,
+    PositioningRequest,
     ProviderDataError,
     RateLimitedError,
     RatesRequest,
@@ -277,7 +278,11 @@ def test_capabilities_describe_okx() -> None:
 
     assert isinstance(provider, HoldingRatesProvider)
     assert provider.name == "okx"
-    assert capabilities.datasets == frozenset({Dataset.HOLDING_RATES})
+    assert capabilities.datasets == frozenset({Dataset.HOLDING_RATES, Dataset.POSITIONING})
+    hourly = PositioningRequest("BTC/USDT:USDT")
+    assert capabilities.can_serve_positioning(hourly)
+    assert not capabilities.can_serve_positioning(replace(hourly, frequency=Frequency.MINUTE_1))
+    assert PositioningField.TAKER_BUY_SELL not in capabilities.positioning_fields
     assert capabilities.rate_kinds == frozenset({RateKind.FUNDING})
     assert not capabilities.requires_api_key
     assert capabilities.can_serve_rates(_request())

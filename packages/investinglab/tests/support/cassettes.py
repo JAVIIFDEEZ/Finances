@@ -24,7 +24,13 @@ import httpx
 
 from investinglab.domain.rate_series import RateKind
 from investinglab.domain.time import Frequency
-from investinglab.ports import BarsRequest, EconomicRequest, RatesRequest, VintageMode
+from investinglab.ports import (
+    BarsRequest,
+    EconomicRequest,
+    PositioningRequest,
+    RatesRequest,
+    VintageMode,
+)
 
 if TYPE_CHECKING:
     import respx
@@ -69,7 +75,7 @@ class Cassette:
 
     name: str
     recorded_at: datetime
-    request: BarsRequest | EconomicRequest | RatesRequest
+    request: BarsRequest | EconomicRequest | RatesRequest | PositioningRequest
     exchanges: tuple[Exchange, ...]
     page_size: int | None = None
     """Page size the cassette was recorded with, when smaller than the provider's default."""
@@ -90,6 +96,12 @@ class Cassette:
     def rates_request(self) -> RatesRequest:
         """The recorded request, which must be one for holding rates."""
         assert isinstance(self.request, RatesRequest), f"{self.name} records no holding rates"
+        return self.request
+
+    @property
+    def positioning_request(self) -> PositioningRequest:
+        """The recorded request, which must be one for positioning."""
+        assert isinstance(self.request, PositioningRequest), f"{self.name} records no positioning"
         return self.request
 
     def clock(self) -> datetime:
@@ -130,8 +142,18 @@ def _day(text: str | None) -> date | None:
     return None if text is None else date.fromisoformat(text)
 
 
-def _request(raw: dict[str, Any]) -> BarsRequest | EconomicRequest | RatesRequest:
+def _request(
+    raw: dict[str, Any],
+) -> BarsRequest | EconomicRequest | RatesRequest | PositioningRequest:
     start, end = _day(raw["start"]), _day(raw["end"])
+    if raw.get("dataset") == "positioning":
+        return PositioningRequest(
+            raw["symbol"],
+            venue=raw["venue"],
+            start=start,
+            end=end,
+            frequency=Frequency(raw["frequency"]),
+        )
     if "series_id" in raw:
         return EconomicRequest(
             raw["series_id"], start=start, end=end, mode=VintageMode(raw["mode"])

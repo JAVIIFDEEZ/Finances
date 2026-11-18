@@ -25,15 +25,13 @@ from typing import TYPE_CHECKING, Final
 import pandas as pd
 
 from investinglab.adapters.providers.binance import dumps
+from investinglab.adapters.providers.binance.contracts import PERPETUAL, contract, swap_instrument
 from investinglab.domain.errors import DomainError
-from investinglab.domain.instruments import EXCHANGES, AssetClass, Instrument
-from investinglab.domain.money import Currency
 from investinglab.domain.rate_series import RateKind, RateSeries
 from investinglab.domain.series import DataSource
 from investinglab.ports.errors import (
     ProviderDataError,
     SymbolNotFoundError,
-    UnsupportedRequestError,
 )
 
 if TYPE_CHECKING:
@@ -41,63 +39,12 @@ if TYPE_CHECKING:
 
 __all__ = ["FUNDING_DATASET", "PERPETUAL", "contract", "fetch_funding"]
 
-PERPETUAL: Final = r"[A-Z0-9]{2,15}/[A-Z0-9]{2,10}:[A-Z0-9]{2,10}"
-"""A perpetual swap: ``BASE/QUOTE:SETTLE`` (``BTC/USDT:USDT``)."""
-
 FUNDING_DATASET: Final = "fundingRate"
 
-_PERPETUAL = re.compile(PERPETUAL)
-_LINEAR_SETTLEMENTS: Final = frozenset({"USDT", "USDC"})
-_INVERSE_QUOTE: Final = "USD"
 _COLUMNS: Final = ("calc_time", "last_funding_rate")
 _DAY: Final = timedelta(days=1)
 _NANOSECOND: Final = pd.Timedelta(1, "ns")
 _MONTH = re.compile(r"(\d{4}-\d{2})\.zip$")
-
-
-def contract(provider: str, symbol: str) -> tuple[str, str]:
-    """The futures market and contract of a perpetual swap.
-
-    ``BTC/USDT:USDT`` is ``("um", "BTCUSDT")``; ``BTC/USD:BTC`` is ``("cm", "BTCUSD_PERP")``.
-
-    Raises:
-        UnsupportedRequestError: If the symbol is not a perpetual swap Binance could list.
-    """
-    if not _PERPETUAL.fullmatch(symbol):
-        raise UnsupportedRequestError(
-            provider,
-            f"{symbol!r} is not a perpetual swap written BASE/QUOTE:SETTLE in capitals "
-            "(e.g. BTC/USDT:USDT)",
-        )
-    pair, settle = symbol.split(":")
-    base, quote = pair.split("/")
-    if quote in _LINEAR_SETTLEMENTS and settle == quote:
-        return "um", f"{base}{quote}"
-    if quote == _INVERSE_QUOTE and settle == base:
-        return "cm", f"{base}{quote}_PERP"
-    raise UnsupportedRequestError(
-        provider,
-        f"{symbol}: Binance's perpetual swaps settle in the quote asset (USDT or USDC) or, "
-        f"quoted in USD, in the base asset; not {base}/{quote} in {settle}",
-    )
-
-
-def _instrument(provider: str, symbol: str, name: str) -> Instrument:
-    pair, settle = symbol.split(":")
-    base, quote = pair.split("/")
-    try:
-        currency = Currency(quote)
-    except DomainError as error:
-        raise UnsupportedRequestError(
-            provider, f"{symbol}: prices quoted in {quote} cannot be represented ({error})"
-        ) from error
-    return Instrument(
-        symbol=symbol,
-        name=f"{base}/{quote} perpetual swap settled in {settle} (Binance {name})",
-        asset_class=AssetClass.CRYPTO,
-        currency=currency,
-        exchange=EXCHANGES["CRYPTO"],
-    )
 
 
 def _midnight(day: date) -> pd.Timestamp:
@@ -153,7 +100,7 @@ async def fetch_funding(
         ProviderDataError: If nothing is published in the range, or a file is damaged.
     """
     market, name = contract(provider, symbol)
-    instrument = _instrument(provider, symbol, name)
+    instrument = swap_instrument(provider, symbol)
     prefix = f"data/futures/{market}/monthly/{FUNDING_DATASET}/{name}/"
     stem = f"{prefix}{name}-{FUNDING_DATASET}-"
     # From the month before the range: the interval is inferred even from a single payment.

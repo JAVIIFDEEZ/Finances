@@ -23,6 +23,7 @@ from investinglab.domain import (
     DomainError,
     FlowField,
     Frequency,
+    PositioningField,
     PriceAdjustment,
     RateKind,
 )
@@ -32,6 +33,8 @@ from investinglab.ports import (
     Dataset,
     HoldingRatesProvider,
     MarketDataProvider,
+    PositioningProvider,
+    PositioningRequest,
     ProviderDataError,
     RatesRequest,
     SymbolNotFoundError,
@@ -357,7 +360,19 @@ def test_capabilities_describe_binance() -> None:
     assert isinstance(provider, TradeFlowProvider)
     assert provider.name == "binance"
     assert isinstance(provider, HoldingRatesProvider)
-    assert capabilities.datasets == frozenset({Dataset.BARS, Dataset.FLOW, Dataset.HOLDING_RATES})
+    assert isinstance(provider, PositioningProvider)
+    assert capabilities.datasets == frozenset(
+        {Dataset.BARS, Dataset.FLOW, Dataset.HOLDING_RATES, Dataset.POSITIONING}
+    )
+    swap = "BTC/USDT:USDT"
+    assert capabilities.can_serve_positioning(
+        PositioningRequest(swap, frequency=Frequency.MINUTE_5)
+    )
+    assert not capabilities.can_serve_positioning(PositioningRequest("BTC/USDT"))
+    assert not capabilities.can_serve_positioning(
+        PositioningRequest(swap, frequency=Frequency.MINUTE_1)  # bars at 1m, positioning at 5m+
+    )
+    assert capabilities.positioning_fields == frozenset(PositioningField)
     assert capabilities.asset_classes == frozenset({AssetClass.CRYPTO})
     assert not capabilities.requires_api_key
     assert capabilities.can_serve_flow(BarsRequest("ETH/BTC", Frequency.MINUTE_1), today)
