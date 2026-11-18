@@ -205,6 +205,7 @@ ficha = tk.card("BTC/USDT")
 ficha.pillar(Pillar.TECHNICAL).score  # la alineación de los marcos, en [-1, 1]
 ficha.pillar(Pillar.RISK).fact("volatility").value
 ficha.pillar(Pillar.DERIVATIVES).fact("funding_mean").value  # su perpetuo, anualizado
+ficha.pillar(Pillar.DERIVATIVES).fact("open_interest_change").value  # contratos, 30 días
 tk.card("SAN.MC").not_applicable  # (Pillar.DERIVATIVES,): una acción no tiene perpetuo
 ```
 

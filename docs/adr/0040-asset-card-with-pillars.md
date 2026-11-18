@@ -53,6 +53,13 @@ Opción 2 (`domain/card.py`, `tk.card`, `GET /api/v1/market/card`).
   los últimos 90 días: el último y el medio anualizados y la parte de pagos positivos. Dice
   quién paga por mantener la posición, no hacia dónde va el precio. Un símbolo que no nombra
   su moneda de cotización (`BTC-USD`) no dice cuál es su perpetuo: el pilar queda sin leer.
+  *Actualización (18-11-2026):* el pilar lee también el posicionamiento diario del perpetuo
+  en los últimos 30 días ([ADR-0042](0042-positioning-as-a-dataset.md)): el cambio de los
+  contratos abiertos (el de su valor solo si la *venue* no da contratos, con otra clave,
+  porque el valor también se mueve con el precio), el último ratio de cuentas largas/cortas,
+  el de posiciones del *top*, de qué *venue* sale y hasta qué día; la fecha del primer pago
+  leído pasa a llamarse `funding_since`, para no confundirla con la del posicionamiento. Cada parte se lee si una
+  fuente la sirve; el pilar queda sin leer solo si no hay ninguna de las dos.
 * **Calidad de datos**: el informe de calidad de las mismas velas que leen los demás.
 * Cada pilar es una lista de `Fact` (clave, valor, unidad: `ratio`, `number`, `count`,
   `code`, `date`). La web elige las palabras y el formato.
