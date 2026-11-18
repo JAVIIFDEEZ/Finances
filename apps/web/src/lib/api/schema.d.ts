@@ -290,6 +290,53 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/market/positioning": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Open interest and long/short ratios of a derivative
+         * @description How much is open on a perpetual swap and how its traders stand (ADR-0042).
+         *
+         *     Each value is the state when its period ended; the period in progress is left out.
+         *     A venue publishes only some fields: the others are absent, never filled in.
+         */
+        get: operations["positioning_api_v1_market_positioning_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/market/venues": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Venues that serve a dataset of an instrument
+         * @description The venues able to answer, in the order they are asked when none is named.
+         *
+         *     Interfaces list these instead of a fixed set: a venue added to the platform appears
+         *     here on its own. Being listed means a venue serves that kind of instrument, not that it
+         *     lists this one: asking it may still be a 404.
+         */
+        get: operations["venues_api_v1_market_venues_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/market/compare": {
         parameters: {
             query?: never;
@@ -1816,6 +1863,70 @@ export interface components {
             allow_short?: boolean;
         };
         /**
+         * PositioningColumnOut
+         * @description The snapshots of one positioning field, aligned on :attr:`PositioningOut.times`.
+         */
+        PositioningColumnOut: {
+            field: components["schemas"]["PositioningField"];
+            /**
+             * Kind
+             * @description An amount (open interest) or a ratio of two amounts (long/short).
+             * @enum {string}
+             */
+            kind: "amount" | "ratio";
+            /**
+             * First
+             * @description First value in the range.
+             */
+            first: number | null;
+            /**
+             * Latest
+             * @description Last value in the range.
+             */
+            latest: number | null;
+            /** Minimum */
+            minimum: number | null;
+            /** Maximum */
+            maximum: number | null;
+            /**
+             * Values
+             * @description One value per instant of ``times`` (null where the venue skipped one).
+             */
+            values: (number | null)[];
+        };
+        /**
+         * PositioningField
+         * @description What a column of a :class:`PositioningSeries` measures.
+         * @enum {string}
+         */
+        PositioningField: "open_interest" | "open_interest_value" | "long_short_accounts" | "top_long_short_accounts" | "top_long_short_positions" | "taker_buy_sell";
+        /**
+         * PositioningOut
+         * @description Open interest and long/short ratios of a derivative on one venue (ADR-0042).
+         */
+        PositioningOut: {
+            instrument: components["schemas"]["InstrumentOut"];
+            /** Venue */
+            venue: string;
+            frequency: components["schemas"]["Frequency"];
+            source: components["schemas"]["SourceOut"];
+            /**
+             * Value Currency
+             * @description Currency of ``open_interest_value`` (null when the venue gives none).
+             */
+            value_currency: string | null;
+            /**
+             * Times
+             * @description Start of each period (UTC); its value is the state when it ended.
+             */
+            times: string[];
+            /**
+             * Columns
+             * @description Only the fields the venue publishes, in the vocabulary's order.
+             */
+            columns: components["schemas"]["PositioningColumnOut"][];
+        };
+        /**
          * PriceAdjustment
          * @description Corporate-action adjustment applied to the open/high/low/close columns.
          *
@@ -2625,6 +2736,24 @@ export interface components {
             problems: string[];
         };
         /**
+         * VenuesOut
+         * @description The venues that serve a dataset of an instrument, in the order they are asked.
+         */
+        VenuesOut: {
+            /** Symbol */
+            symbol: string;
+            /**
+             * Dataset
+             * @enum {string}
+             */
+            dataset: "holding_rates" | "positioning";
+            /**
+             * Venues
+             * @description First the one asked when no venue is named.
+             */
+            venues: string[];
+        };
+        /**
          * VintageMode
          * @description Which published versions of an economic series to retrieve (ADR-0009).
          * @enum {string}
@@ -3252,6 +3381,102 @@ export interface operations {
             };
             /** @description Every provider able to serve the data failed; retry later. */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    positioning_api_v1_market_positioning_get: {
+        parameters: {
+            query: {
+                /** @description Instrument symbol: Yahoo style (SAN.MC, ^GSPC), a venue's pair (BTC/USDT) or a perpetual swap (BTC/USDT:USDT). */
+                symbol: string;
+                /** @description Venue (okx...); any. */
+                venue?: string | null;
+                /** @description Spacing of the snapshots. */
+                interval?: "5m" | "15m" | "30m" | "1h" | "4h" | "1d";
+                /** @description First day (UTC); the last 30 days by default. */
+                start?: string | null;
+                /** @description Last day (UTC), inclusive. */
+                end?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PositioningOut"];
+                };
+            };
+            /** @description No provider has the requested data. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The request breaks the schema, a limit or a domain rule. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Every provider able to serve the data failed; retry later. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    venues_api_v1_market_venues_get: {
+        parameters: {
+            query: {
+                /** @description Instrument symbol: Yahoo style (SAN.MC, ^GSPC), a venue's pair (BTC/USDT) or a perpetual swap (BTC/USDT:USDT). */
+                symbol: string;
+                /** @description Funding (holding_rates) or positioning. */
+                dataset: "holding_rates" | "positioning";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VenuesOut"];
+                };
+            };
+            /** @description The request breaks the schema, a limit or a domain rule. */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -766,6 +766,12 @@ desde 2021) y OKX (al día). `tk.positioning`, `tk.venues` para descubrir quién
 contrato por conjunto de datos y la guía [Añadir una fuente de datos](../guide/adding-a-source.md).
 Pendiente: API y pantalla, foto del libro, el tercer *venue* y el pilar de derivados con el OI.
 
+**Avance (17-11-2026, posicionamiento en la API y la web):** `GET /api/v1/market/positioning` y
+`GET /api/v1/market/venues`; en mercados, la tarjeta de posicionamiento del perpetuo (interés
+abierto y ratios con sus cifras al lado, ventanas de 7, 30 y 90 días). Esa tarjeta y la del
+funding ofrecen las *venues* que dice la API, así que una nueva aparece sin tocar la web.
+Pendiente: foto del libro, el tercer *venue* y el pilar de derivados de la ficha con el OI.
+
 **Decisión al implementarla (13-11-2026):** en lugar de ccxt, un adaptador por *venue* sobre `HttpClient`, con casetes ([ADR-0032](../adr/0032-crypto-venues-on-the-shared-http-client.md)): ccxt salta la capa de red común y sus peticiones no se pueden reproducir con `respx`. La notación de símbolos es la de ccxt (`BTC/USDT`, `BTC/USDT:USDT`) y el enrutado la reconoce sola, así que `tk.series("BTC/USDT", frequency="1h")` va a Binance sin indicar el *venue*. Hechos: Binance *spot* (velas y flujo), funding de OKX, volumen de Yahoo como flujo. Pendientes: el resto de la lista.
 
 ### G2 — Análisis técnico multiactivo y ficha de activo

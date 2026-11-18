@@ -1,10 +1,10 @@
-"""Market data: bars, trade flow, holding rates, comparisons, data quality and risk-free rates."""
+"""Market data: bars, flow, holding rates, positioning, comparisons, quality and risk-free rates."""
 
 from __future__ import annotations
 
 import asyncio
 from datetime import date
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Query
 
@@ -18,12 +18,14 @@ from investinglab_api.mappers import (
     confluence_out,
     flow_out,
     patterns_out,
+    positioning_out,
     quality_out,
     rates_out,
     risk_free_out,
     series_out,
     structure_out,
     technical_out,
+    venues_out,
 )
 from investinglab_api.routers import problems
 from investinglab_api.schemas.market import (
@@ -33,12 +35,14 @@ from investinglab_api.schemas.market import (
     ConfluenceOut,
     FlowOut,
     PatternsOut,
+    PositioningOut,
     QualityOut,
     RatesOut,
     SeriesOut,
     StructureOut,
     Symbol,
     TechnicalOut,
+    VenuesOut,
 )
 from investinglab_api.schemas.meta import RiskFreeOut
 
@@ -58,6 +62,10 @@ SymbolQuery = Annotated[
 Interval = Annotated[Frequency, Query(description="Bar frequency.")]
 Start = Annotated[date | None, Query(description="First session (inclusive).")]
 End = Annotated[date | None, Query(description="Last session (inclusive).")]
+Venue = Annotated[
+    str | None,
+    Query(pattern=r"^[a-z0-9][a-z0-9_.\-]{0,39}$", description="Venue (okx...); any."),
+]
 
 
 @router.get(
@@ -250,16 +258,68 @@ async def holding_rates(
     kind: Annotated[RateKind, Query(description="Funding, borrow fee or financing.")] = (
         RateKind.FUNDING
     ),
-    venue: Annotated[
-        str | None,
-        Query(pattern=r"^[a-z0-9][a-z0-9_.\-]{0,39}$", description="Venue (okx...); any."),
-    ] = None,
+    venue: Venue = None,
     start: Start = None,
     end: End = None,
 ) -> RatesOut:
     """What holding the instrument paid or earned per period, e.g. a perpetual's funding."""
     rates = await toolkit.holding_rates(symbol, kind=kind, venue=venue, start=start, end=end)
     return rates_out(rates)
+
+
+PositioningInterval = Literal["5m", "15m", "30m", "1h", "4h", "1d"]
+"""Frequencies positioning is read at (``POSITIONING_FREQUENCIES``)."""
+
+
+@router.get(
+    "/market/positioning",
+    summary="Open interest and long/short ratios of a derivative",
+    response_model=PositioningOut,
+    responses=problems(404, 422, 503),
+)
+async def positioning(
+    toolkit: ToolkitDep,
+    symbol: SymbolQuery,
+    *,
+    venue: Venue = None,
+    interval: Annotated[PositioningInterval, Query(description="Spacing of the snapshots.")] = "1h",
+    start: Annotated[
+        date | None, Query(description="First day (UTC); the last 30 days by default.")
+    ] = None,
+    end: Annotated[date | None, Query(description="Last day (UTC), inclusive.")] = None,
+) -> PositioningOut:
+    """How much is open on a perpetual swap and how its traders stand (ADR-0042).
+
+    Each value is the state when its period ended; the period in progress is left out.
+    A venue publishes only some fields: the others are absent, never filled in.
+    """
+    series = await toolkit.positioning(
+        symbol, venue=venue, start=start, end=end, frequency=Frequency(interval)
+    )
+    return await asyncio.to_thread(positioning_out, series)
+
+
+@router.get(
+    "/market/venues",
+    summary="Venues that serve a dataset of an instrument",
+    response_model=VenuesOut,
+    responses=problems(422),
+)
+async def venues(
+    toolkit: ToolkitDep,
+    symbol: SymbolQuery,
+    dataset: Annotated[
+        Literal["holding_rates", "positioning"],
+        Query(description="Funding (holding_rates) or positioning."),
+    ],
+) -> VenuesOut:
+    """The venues able to answer, in the order they are asked when none is named.
+
+    Interfaces list these instead of a fixed set: a venue added to the platform appears
+    here on its own. Being listed means a venue serves that kind of instrument, not that it
+    lists this one: asking it may still be a 404.
+    """
+    return venues_out(symbol, dataset, toolkit.venues(symbol, dataset))
 
 
 @router.post(

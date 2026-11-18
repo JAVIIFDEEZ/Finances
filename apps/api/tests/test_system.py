@@ -21,7 +21,7 @@ def test_health_reports_the_providers_and_the_offline_mode(client: TestClient) -
         "status": "ok",
         "version": __version__,
         "core_version": core_version,
-        "providers": ["synthetic", "rates", "synthetic-flow", "synthetic-venue"],
+        "providers": ["synthetic", "rates", "synthetic-flow", "synthetic-venue", "synthetic-oi"],
         "offline": True,
         "database": "not_configured",
     }
@@ -35,6 +35,7 @@ def test_providers_describe_their_capabilities(client: TestClient) -> None:
         "rates",
         "synthetic-flow",
         "synthetic-venue",
+        "synthetic-oi",
     ]
     bars = providers[0]
     assert bars["datasets"] == ["bars"]
@@ -116,6 +117,8 @@ def test_the_openapi_document_describes_every_endpoint(client: TestClient) -> No
         "/api/v1/market/confluence",
         "/api/v1/market/card",
         "/api/v1/market/holding-rates",
+        "/api/v1/market/positioning",
+        "/api/v1/market/venues",
         "/api/v1/market/quality",
         "/api/v1/rates/risk-free",
         "/api/v1/economic/series",
