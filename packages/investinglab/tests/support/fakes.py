@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from investinglab.domain import (
+    BOOK_DEPTH_FREQUENCIES,
     POSITIONING_FREQUENCIES,
     AssetClass,
     Frequency,
@@ -16,6 +17,7 @@ from investinglab.domain import (
 )
 from investinglab.ports import (
     BarsRequest,
+    BookDepthRequest,
     CachedBars,
     CachedEconomicSeries,
     Dataset,
@@ -31,6 +33,7 @@ if TYPE_CHECKING:
     from datetime import datetime
 
     from investinglab.domain import (
+        BookDepthSeries,
         EconomicSeries,
         FlowSeries,
         PositioningSeries,
@@ -57,6 +60,11 @@ POSITIONING_CAPABILITIES = ProviderCapabilities(
     datasets=frozenset({Dataset.POSITIONING}),
     frequencies_by_dataset={Dataset.POSITIONING: frozenset(POSITIONING_FREQUENCIES)},
     positioning_fields=frozenset(PositioningField),
+)
+BOOK_DEPTH_CAPABILITIES = ProviderCapabilities(
+    datasets=frozenset({Dataset.BOOK_DEPTH}),
+    frequencies_by_dataset={Dataset.BOOK_DEPTH: frozenset(BOOK_DEPTH_FREQUENCIES)},
+    book_bands=frozenset({1.0, 2.0, 5.0}),
 )
 
 
@@ -164,6 +172,25 @@ class FakePositioningProvider:
     calls: list[PositioningRequest] = field(default_factory=list)
 
     async def fetch_positioning(self, request: PositioningRequest) -> PositioningSeries:
+        self.calls.append(request)
+        if request.symbol in self.errors:
+            raise self.errors[request.symbol]
+        if request.symbol not in self.series:
+            raise SymbolNotFoundError(self.name, f"unknown symbol {request.symbol}")
+        return self.series[request.symbol]
+
+
+@dataclass
+class FakeBookDepthProvider:
+    """Serves pre-built book depth by symbol; raises configured errors; records calls."""
+
+    name: str
+    series: Mapping[str, BookDepthSeries] = field(default_factory=dict)
+    errors: Mapping[str, ProviderError] = field(default_factory=dict)
+    capabilities: ProviderCapabilities = BOOK_DEPTH_CAPABILITIES
+    calls: list[BookDepthRequest] = field(default_factory=list)
+
+    async def fetch_book_depth(self, request: BookDepthRequest) -> BookDepthSeries:
         self.calls.append(request)
         if request.symbol in self.errors:
             raise self.errors[request.symbol]

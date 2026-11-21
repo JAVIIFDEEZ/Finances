@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 
 from investinglab.domain.errors import DomainError
 from investinglab.ports.market_data import (
+    BookDepthProvider,
     Dataset,
     EconomicDataProvider,
     HoldingRatesProvider,
@@ -31,6 +32,7 @@ if TYPE_CHECKING:
     from investinglab.domain.time import Frequency
     from investinglab.ports.market_data import (
         BarsRequest,
+        BookDepthRequest,
         EconomicRequest,
         PositioningRequest,
         ProviderCapabilities,
@@ -45,6 +47,7 @@ type AnyProvider = (
     | TradeFlowProvider
     | HoldingRatesProvider
     | PositioningProvider
+    | BookDepthProvider
 )
 """A provider of at least one dataset."""
 
@@ -56,6 +59,7 @@ _METHODS: dict[Dataset, tuple[type, str]] = {
     Dataset.FLOW: (TradeFlowProvider, "fetch_flow"),
     Dataset.HOLDING_RATES: (HoldingRatesProvider, "fetch_rates"),
     Dataset.POSITIONING: (PositioningProvider, "fetch_positioning"),
+    Dataset.BOOK_DEPTH: (BookDepthProvider, "fetch_book_depth"),
 }
 
 
@@ -70,6 +74,8 @@ class ProviderRegistry:
         self._rates: dict[str, HoldingRatesProvider] = {}
         self._positioning: dict[str, PositioningProvider] = {}
         self._positioning_order: tuple[str, ...] = ()
+        self._book_depth: dict[str, BookDepthProvider] = {}
+        self._book_depth_order: tuple[str, ...] = ()
         self._routes: dict[_RouteKey, tuple[str, ...]] = {}
         self._rate_routes: dict[RateKind, tuple[str, ...]] = {}
 
@@ -101,6 +107,8 @@ class ProviderRegistry:
             self._rates[name] = provider
         if isinstance(provider, PositioningProvider) and Dataset.POSITIONING in datasets:
             self._positioning[name] = provider
+        if isinstance(provider, BookDepthProvider) and Dataset.BOOK_DEPTH in datasets:
+            self._book_depth[name] = provider
 
     def prefer(
         self,
@@ -147,6 +155,17 @@ class ProviderRegistry:
         if unknown:
             raise DomainError(f"Unknown positioning providers {unknown}; register them first")
         self._positioning_order = tuple(providers)
+
+    def prefer_book_depth(self, providers: Sequence[str]) -> None:
+        """Set the order in which providers are asked for book depth without a venue.
+
+        Raises:
+            DomainError: If a name is not a registered provider of book depth.
+        """
+        unknown = [name for name in providers if name not in self._book_depth]
+        if unknown:
+            raise DomainError(f"Unknown book depth providers {unknown}; register them first")
+        self._book_depth_order = tuple(providers)
 
     @property
     def names(self) -> tuple[str, ...]:
@@ -206,6 +225,20 @@ class ProviderRegistry:
             for name in ordered
             if request.venue in {None, name}
             and self._positioning[name].capabilities.can_serve_positioning(request)
+        ]
+
+    def book_depth_candidates(self, request: BookDepthRequest) -> list[BookDepthProvider]:
+        """Providers able to serve ``request``: the preferred ones, then the rest.
+
+        A request for a named venue only goes to the provider of that venue.
+        """
+        preferred = self._book_depth_order
+        ordered = [*preferred, *(name for name in self._book_depth if name not in preferred)]
+        return [
+            self._book_depth[name]
+            for name in ordered
+            if request.venue in {None, name}
+            and self._book_depth[name].capabilities.can_serve_book_depth(request)
         ]
 
     def economic_candidates(self, request: EconomicRequest) -> list[EconomicDataProvider]:
