@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
 from typing import TYPE_CHECKING, Any
 
 import pytest
@@ -45,6 +47,61 @@ def test_db_needs_a_database_url(capsys: pytest.CaptureFixture[str]) -> None:
     assert cli.main(["db", "current"]) == 2
 
     assert "INVESTINGLAB_API_DATABASE_URL" in capsys.readouterr().err
+
+
+def test_a_database_that_does_not_answer_is_named_without_its_password(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # Port 1 of this machine: nothing listens there, the connection is refused at once.
+    url = "postgresql+psycopg://someone:not-a-real-password@127.0.0.1:1/investinglab"
+    monkeypatch.setenv("INVESTINGLAB_API_DATABASE_URL", url)
+    get_api_settings.cache_clear()
+
+    assert cli.main(["db", "upgrade"]) == 1
+
+    error = capsys.readouterr().err
+    assert "Could not reach the database at 127.0.0.1:1/investinglab" in error
+    assert "uv run just db-up" in error
+    assert "not-a-real-password" not in error
+    assert "someone" not in error
+
+
+def test_a_migration_interrupted_with_ctrl_c_ends_quietly(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    def interrupted(url: str, revision: str = "head") -> None:
+        raise KeyboardInterrupt
+
+    monkeypatch.setenv("INVESTINGLAB_API_DATABASE_URL", "postgresql+psycopg://h/x")
+    get_api_settings.cache_clear()
+    monkeypatch.setattr(migrate, "upgrade", interrupted)
+
+    assert cli.main(["db", "upgrade"]) == 130  # 128 + SIGINT, as shells report it
+
+    assert "left as it was" in capsys.readouterr().err
+
+
+def test_migrating_does_not_load_the_core() -> None:
+    """``just dev`` migrates before the servers: that step must not wait for pandas or SciPy."""
+    probe = (
+        "import sys, investinglab_api.persistence.migrate; "
+        "print(sorted({'pandas', 'scipy', 'investinglab', 'fastapi'} & set(sys.modules)))"
+    )
+
+    done = subprocess.run(  # noqa: S603
+        [sys.executable, "-c", probe], check=True, capture_output=True, text=True
+    )
+
+    assert done.stdout.strip() == "[]"
+
+
+def test_the_persistence_exports_load_when_used() -> None:
+    from investinglab_api import persistence  # noqa: PLC0415
+
+    assert persistence.Database.__name__ == "Database"
+    assert {"Database", "SqlAuditLog"} <= set(dir(persistence))
+    with pytest.raises(AttributeError, match="no attribute 'Nope'"):
+        _ = persistence.Nope
 
 
 @pytest.mark.integration

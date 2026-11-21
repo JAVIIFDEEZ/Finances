@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from functools import cache
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Final
 
 from alembic import command
 from alembic.config import Config
@@ -18,9 +18,25 @@ from sqlalchemy.exc import ProgrammingError
 if TYPE_CHECKING:
     from sqlalchemy.engine import Engine
 
-__all__ = ["alembic_config", "current_revision", "head_revision", "revision", "upgrade"]
+__all__ = [
+    "CONNECT_TIMEOUT",
+    "alembic_config",
+    "current_revision",
+    "engine",
+    "head_revision",
+    "revision",
+    "upgrade",
+]
 
 MIGRATIONS = Path(__file__).parent / "migrations"
+
+CONNECT_TIMEOUT: Final = 10
+"""Seconds to wait for the database to answer before giving up with an error."""
+
+
+def engine(url: str) -> Engine:
+    """An engine for a one-off migration command, that gives up if nobody answers."""
+    return create_engine(url, connect_args={"connect_timeout": CONNECT_TIMEOUT})
 
 
 def alembic_config(url: str | None = None) -> Config:
@@ -57,13 +73,13 @@ def revision(url: str, message: str) -> None:
 
 def current_revision(url: str) -> str | None:
     """The revision the database is at (``None`` before the first migration)."""
-    engine: Engine = create_engine(url)
+    connected = engine(url)
     try:
-        with engine.connect() as connection:
+        with connected.connect() as connection:
             try:
                 value = connection.scalar(text("SELECT version_num FROM alembic_version"))
             except ProgrammingError:
                 return None
             return None if value is None else str(value)
     finally:
-        engine.dispose()
+        connected.dispose()
