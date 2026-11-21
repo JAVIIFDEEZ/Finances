@@ -5,6 +5,12 @@ The domain may use the numerical kernel (:mod:`investinglab.analytics`) but neve
 frameworks, plotting or configuration (enforced by import-linter).
 """
 
+from investinglab.domain.book_depth import (
+    BOOK_DEPTH_FREQUENCIES,
+    BookDepthSeries,
+    BookSide,
+    DepthMeasure,
+)
 from investinglab.domain.card import (
     PILLARS,
     AssetCard,
@@ -134,6 +140,7 @@ from investinglab.domain.time import (
 from investinglab.domain.universe import Membership, Survivorship, Universe
 
 __all__ = [
+    "BOOK_DEPTH_FREQUENCIES",
     "CALENDAR_YEAR_DAYS",
     "CHF",
     "CRYPTO_SCHEDULE",
@@ -157,6 +164,8 @@ __all__ = [
     "AlignmentMethod",
     "AssetCard",
     "AssetClass",
+    "BookDepthSeries",
+    "BookSide",
     "CovarianceEstimator",
     "Currency",
     "CurrencyKind",
@@ -164,6 +173,7 @@ __all__ = [
     "DataQualityReport",
     "DataSource",
     "DayCount",
+    "DepthMeasure",
     "DomainError",
     "DriftAssumption",
     "EconomicSeries",
