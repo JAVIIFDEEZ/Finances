@@ -47,6 +47,7 @@ actualiza el estado del antiguo.
 | [0040](0040-asset-card-with-pillars.md) | Ficha de activo: pilares por clase de activo, sin veredicto fusionado | Aceptado |
 | [0041](0041-binance-funding-from-public-dumps.md) | Funding de Binance desde sus volcados públicos verificados | Aceptado |
 | [0042](0042-positioning-as-a-dataset.md) | Posicionamiento en derivados como conjunto de datos propio, ampliable por *venue* | Aceptado |
+| [0043](0043-verified-published-files-cache.md) | Caché en disco de los ficheros publicados con su *checksum*, por versión y verificada al leer | Aceptado |
 
 ## Cómo añadir un ADR
 

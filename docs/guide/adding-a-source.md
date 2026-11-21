@@ -39,6 +39,11 @@ En `adapters/providers/<nombre>/`:
   en vez de responder con la cola: así el enrutador pregunta a la siguiente.
 * **Errores con su tipo** (`SymbolNotFoundError`, `UnsupportedRequestError`,
   `ProviderDataError`...): el enrutador decide con ellos si prueba otra fuente.
+* **Ficheros que no cambian.** Si la fuente publica su historia en ficheros con *checksum* y un
+  listado con versiones (como Binance), se guardan con `PublishedFileCache` de
+  `adapters/storage` ([ADR-0043](../adr/0043-verified-published-files-cache.md)): cada fichero
+  se descarga una vez y se verifica de nuevo cada vez que se lee. El adaptador la recibe en su
+  constructor y el Toolkit le da su carpeta, `<caché>/dumps/<nombre>`.
 
 ## 3. El registro
 
