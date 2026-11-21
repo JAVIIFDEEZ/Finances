@@ -30,6 +30,8 @@ from investinglab.domain import (
 from investinglab.ports import (
     BannedError,
     BarsRequest,
+    BookDepthProvider,
+    BookDepthRequest,
     Dataset,
     HoldingRatesProvider,
     MarketDataProvider,
@@ -361,9 +363,19 @@ def test_capabilities_describe_binance() -> None:
     assert provider.name == "binance"
     assert isinstance(provider, HoldingRatesProvider)
     assert isinstance(provider, PositioningProvider)
+    assert isinstance(provider, BookDepthProvider)
     assert capabilities.datasets == frozenset(
-        {Dataset.BARS, Dataset.FLOW, Dataset.HOLDING_RATES, Dataset.POSITIONING}
+        {
+            Dataset.BARS,
+            Dataset.FLOW,
+            Dataset.HOLDING_RATES,
+            Dataset.POSITIONING,
+            Dataset.BOOK_DEPTH,
+        }
     )
+    assert capabilities.can_serve_book_depth(BookDepthRequest("BTC/USDT:USDT"))
+    assert not capabilities.can_serve_book_depth(BookDepthRequest("BTC/USDT"))
+    assert capabilities.book_bands == frozenset({0.2, 1.0, 2.0, 3.0, 4.0, 5.0})
     swap = "BTC/USDT:USDT"
     assert capabilities.can_serve_positioning(
         PositioningRequest(swap, frequency=Frequency.MINUTE_5)

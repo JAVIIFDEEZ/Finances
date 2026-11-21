@@ -1,0 +1,39 @@
+{
+ "provider": "binance",
+ "purpose": "A swap Binance does not list: its folder of book depth is empty.",
+ "recorded_at": "2026-11-21T10:26:42+00:00",
+ "request": {
+  "dataset": "book_depth",
+  "symbol": "NOPE/USDT:USDT",
+  "venue": null,
+  "frequency": "1h",
+  "start": "2026-11-20",
+  "end": "2026-11-20"
+ },
+ "outcome": "SymbolNotFoundError: [binance] NOPE/USDT:USDT: Binance publishes no book depth of NOPEUSDT",
+ "exchanges": [
+  {
+   "method": "GET",
+   "url": "https://s3-ap-northeast-1.amazonaws.com/data.binance.vision",
+   "params": {
+    "prefix": "data/futures/um/daily/bookDepth/NOPEUSDT/",
+    "max-keys": "1000",
+    "marker": "data/futures/um/daily/bookDepth/NOPEUSDT/NOPEUSDT-bookDepth-2026-11-19.zip.CHECKSUM"
+   },
+   "status": 200,
+   "content_type": "application/xml",
+   "text": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<ListBucketResult xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\"><Name>data.binance.vision</Name><Prefix>data/futures/um/daily/bookDepth/NOPEUSDT/</Prefix><Marker>data/futures/um/daily/bookDepth/NOPEUSDT/NOPEUSDT-bookDepth-2026-11-19.zip.CHECKSUM</Marker><MaxKeys>1000</MaxKeys><IsTruncated>false</IsTruncated></ListBucketResult>"
+  },
+  {
+   "method": "GET",
+   "url": "https://s3-ap-northeast-1.amazonaws.com/data.binance.vision",
+   "params": {
+    "prefix": "data/futures/um/daily/bookDepth/NOPEUSDT/",
+    "max-keys": "2"
+   },
+   "status": 200,
+   "content_type": "application/xml",
+   "text": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<ListBucketResult xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\"><Name>data.binance.vision</Name><Prefix>data/futures/um/daily/bookDepth/NOPEUSDT/</Prefix><Marker></Marker><MaxKeys>2</MaxKeys><IsTruncated>false</IsTruncated></ListBucketResult>"
+  }
+ ]
+}

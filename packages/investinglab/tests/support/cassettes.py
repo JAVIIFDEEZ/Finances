@@ -26,6 +26,7 @@ from investinglab.domain.rate_series import RateKind
 from investinglab.domain.time import Frequency
 from investinglab.ports import (
     BarsRequest,
+    BookDepthRequest,
     EconomicRequest,
     PositioningRequest,
     RatesRequest,
@@ -75,7 +76,7 @@ class Cassette:
 
     name: str
     recorded_at: datetime
-    request: BarsRequest | EconomicRequest | RatesRequest | PositioningRequest
+    request: BarsRequest | EconomicRequest | RatesRequest | PositioningRequest | BookDepthRequest
     exchanges: tuple[Exchange, ...]
     page_size: int | None = None
     """Page size the cassette was recorded with, when smaller than the provider's default."""
@@ -96,6 +97,12 @@ class Cassette:
     def rates_request(self) -> RatesRequest:
         """The recorded request, which must be one for holding rates."""
         assert isinstance(self.request, RatesRequest), f"{self.name} records no holding rates"
+        return self.request
+
+    @property
+    def book_depth_request(self) -> BookDepthRequest:
+        """The recorded request, which must be one for book depth."""
+        assert isinstance(self.request, BookDepthRequest), f"{self.name} records no book depth"
         return self.request
 
     @property
@@ -144,8 +151,16 @@ def _day(text: str | None) -> date | None:
 
 def _request(
     raw: dict[str, Any],
-) -> BarsRequest | EconomicRequest | RatesRequest | PositioningRequest:
+) -> BarsRequest | EconomicRequest | RatesRequest | PositioningRequest | BookDepthRequest:
     start, end = _day(raw["start"]), _day(raw["end"])
+    if raw.get("dataset") == "book_depth":
+        return BookDepthRequest(
+            raw["symbol"],
+            venue=raw["venue"],
+            start=start,
+            end=end,
+            frequency=Frequency(raw["frequency"]),
+        )
     if raw.get("dataset") == "positioning":
         return PositioningRequest(
             raw["symbol"],
