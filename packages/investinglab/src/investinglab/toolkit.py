@@ -40,7 +40,7 @@ from investinglab.adapters.providers.files import LocalFilesProvider
 from investinglab.adapters.providers.kraken import KrakenProvider
 from investinglab.adapters.providers.okx import OkxProvider
 from investinglab.adapters.providers.yahoo import YahooFinanceProvider
-from investinglab.adapters.storage import ParquetSeriesStore
+from investinglab.adapters.storage import ParquetSeriesStore, PublishedFileCache
 from investinglab.config.logging import get_logger
 from investinglab.config.settings import Settings, get_settings
 from investinglab.domain.card import Pillar, asset_card, pillars_for
@@ -170,7 +170,9 @@ get none: providers keep little intraday history, so their warm-up shows.
 """
 
 
-def _remote_providers(config: Settings, registry: ProviderRegistry) -> list[RemoteProvider]:
+def _remote_providers(
+    config: Settings, registry: ProviderRegistry, *, cache: bool = True
+) -> list[RemoteProvider]:
     """Default remote providers, in order, except those a caller's provider replaces.
 
     The ECB comes first: its reference rates are the official daily fixings of the euro
@@ -182,13 +184,18 @@ def _remote_providers(config: Settings, registry: ProviderRegistry) -> list[Remo
     API, up to date, and from Binance's monthly dumps, which keep the whole history
     (ADR-0032, ADR-0041); ``venue`` picks one. alternative.me
     publishes the crypto Fear & Greed Index (``FNG``).
+
+    With ``cache``, Binance keeps the dump files it verifies under
+    ``<cache_dir>/dumps/binance`` and reads them from there while they are not published
+    again (ADR-0043).
     """
     retry = RetryPolicy(max_attempts=config.http_max_attempts)
     timeout = config.http_timeout_seconds
+    dumps = PublishedFileCache(config.effective_cache_dir / "dumps" / "binance") if cache else None
     factories: dict[str, Callable[[], RemoteProvider]] = {
         "ecb": lambda: EcbProvider(timeout=timeout, retry=retry),
         "yahoo": lambda: YahooFinanceProvider(timeout=timeout, retry=retry),
-        "binance": lambda: BinanceProvider(timeout=timeout, retry=retry),
+        "binance": lambda: BinanceProvider(timeout=timeout, retry=retry, dump_cache=dumps),
         "kraken": lambda: KrakenProvider(timeout=timeout, retry=retry),
         "coinbase": lambda: CoinbaseProvider(timeout=timeout, retry=retry),
         "okx": lambda: OkxProvider(timeout=timeout, retry=retry),
@@ -264,7 +271,8 @@ class AsyncToolkit:
         Args:
             settings: Configuration; the process-wide settings by default.
             providers: Extra providers, registered first (highest priority).
-            cache: Keep downloaded data in the local Parquet cache.
+            cache: Keep downloaded data in the local cache: bars and economic series in
+                Parquet, and the verified dump files of Binance as published.
         """
         config = settings or get_settings()
         registry = ProviderRegistry()
@@ -272,7 +280,7 @@ class AsyncToolkit:
             registry.register(provider)
         if config.local_data_dir is not None:
             registry.register(LocalFilesProvider(config.local_data_dir))
-        remote = [] if config.offline else _remote_providers(config, registry)
+        remote = [] if config.offline else _remote_providers(config, registry, cache=cache)
         for provider in remote:
             registry.register(provider)
         _prefer_fresh_funding(registry)
