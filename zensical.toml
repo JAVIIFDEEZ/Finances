@@ -65,6 +65,7 @@ nav = [
     "adr/0041-binance-funding-from-public-dumps.md",
     "adr/0042-positioning-as-a-dataset.md",
     "adr/0043-verified-published-files-cache.md",
+    "adr/0044-order-book-depth-by-bands.md",
   ] },
   { "Referencia API" = [
     "reference/index.md",

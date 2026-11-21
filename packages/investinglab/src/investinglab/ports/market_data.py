@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
     from datetime import date, timedelta
 
+    from investinglab.domain.book_depth import BookDepthSeries
     from investinglab.domain.economic import EconomicSeries
     from investinglab.domain.flow import FlowSeries
     from investinglab.domain.instruments import AssetClass
@@ -29,6 +30,8 @@ if TYPE_CHECKING:
 
 __all__ = [
     "BarsRequest",
+    "BookDepthProvider",
+    "BookDepthRequest",
     "Dataset",
     "EconomicDataProvider",
     "EconomicRequest",
@@ -57,6 +60,8 @@ class Dataset(StrEnum):
     """What a position pays or earns per period: funding, borrow fees, financing."""
     POSITIONING = "positioning"
     """Open interest of a derivative and how traders stand in it (long/short ratios)."""
+    BOOK_DEPTH = "book_depth"
+    """Depth of an order book within bands around its price, snapshot by snapshot."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -159,6 +164,31 @@ class PositioningRequest:
             raise DomainError(f"start {self.start} is after end {self.end}")
 
 
+@dataclass(frozen=True, slots=True)
+class BookDepthRequest:
+    """A request for the depth of the book of one instrument on one venue.
+
+    Attributes:
+        symbol: Canonical InvestingLab symbol (``BTC/USDT:USDT``).
+        venue: Venue of the book; ``None`` lets the router choose.
+        start: First day (inclusive, UTC); ``None`` for the full available history.
+        end: Last day (inclusive, UTC); ``None`` for "up to the latest".
+        frequency: Spacing of the snapshots wanted (5 minutes to a day).
+    """
+
+    symbol: str
+    venue: str | None = None
+    start: date | None = None
+    end: date | None = None
+    frequency: Frequency = Frequency.HOUR_1
+
+    def __post_init__(self) -> None:
+        if not self.symbol.strip():
+            raise DomainError("A book depth request needs a symbol")
+        if self.start and self.end and self.start > self.end:
+            raise DomainError(f"start {self.start} is after end {self.end}")
+
+
 class VintageMode(StrEnum):
     """Which published versions of an economic series to retrieve (ADR-0009)."""
 
@@ -234,6 +264,8 @@ class ProviderCapabilities:
             provider of ``Dataset.HOLDING_RATES``.
         positioning_fields: Positioning fields published, for a provider of
             ``Dataset.POSITIONING`` (each venue publishes its own).
+        book_bands: Distances from the price (in percent) whose depth is published, for a
+            provider of ``Dataset.BOOK_DEPTH``.
         cacheable: Whether what it serves may be cached. A source as fast as the cache that
             its owner edits (local files) is read every time instead, so that an edited file
             is seen at once rather than when the cached copy expires.
@@ -255,6 +287,7 @@ class ProviderCapabilities:
     )
     rate_kinds: frozenset[RateKind] = frozenset()
     positioning_fields: frozenset[PositioningField] = frozenset()
+    book_bands: frozenset[float] = frozenset()
     cacheable: bool = True
 
     def __post_init__(self) -> None:
@@ -300,6 +333,14 @@ class ProviderCapabilities:
             Dataset.POSITIONING in self.datasets
             and request.frequency in self.frequencies_of(Dataset.POSITIONING)
             and self.serves(request.symbol, Dataset.POSITIONING)
+        )
+
+    def can_serve_book_depth(self, request: BookDepthRequest) -> bool:
+        """Whether the provider can, in principle, answer ``request``."""
+        return (
+            Dataset.BOOK_DEPTH in self.datasets
+            and request.frequency in self.frequencies_of(Dataset.BOOK_DEPTH)
+            and self.serves(request.symbol, Dataset.BOOK_DEPTH)
         )
 
     def can_serve_rates(self, request: RatesRequest) -> bool:
@@ -441,6 +482,29 @@ class PositioningProvider(Protocol):
         ...
 
     async def fetch_positioning(self, request: PositioningRequest) -> PositioningSeries:
+        """Download the snapshots a request describes, at its frequency.
+
+        Raises:
+            ProviderError: With the same meaning as for price bars.
+        """
+        ...
+
+
+@runtime_checkable
+class BookDepthProvider(Protocol):
+    """Source of the depth of an order book within bands around its price."""
+
+    @property
+    def name(self) -> str:
+        """Provider slug, also the venue whose book it is."""
+        ...
+
+    @property
+    def capabilities(self) -> ProviderCapabilities:
+        """What the provider serves; book depth needs ``Dataset.BOOK_DEPTH``."""
+        ...
+
+    async def fetch_book_depth(self, request: BookDepthRequest) -> BookDepthSeries:
         """Download the snapshots a request describes, at its frequency.
 
         Raises:

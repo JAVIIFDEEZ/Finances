@@ -1,0 +1,39 @@
+{
+ "provider": "binance",
+ "purpose": "Today: its book depth is published tomorrow morning.",
+ "recorded_at": "2026-11-21T10:26:42+00:00",
+ "request": {
+  "dataset": "book_depth",
+  "symbol": "BTC/USDT:USDT",
+  "venue": null,
+  "frequency": "1h",
+  "start": "2026-11-21",
+  "end": null
+ },
+ "outcome": "ProviderDataError: [binance] BTC/USDT:USDT: no book depth published between 2026-11-21 and now; Binance publishes each day the next morning",
+ "exchanges": [
+  {
+   "method": "GET",
+   "url": "https://s3-ap-northeast-1.amazonaws.com/data.binance.vision",
+   "params": {
+    "prefix": "data/futures/um/daily/bookDepth/BTCUSDT/",
+    "max-keys": "1000",
+    "marker": "data/futures/um/daily/bookDepth/BTCUSDT/BTCUSDT-bookDepth-2026-11-20.zip.CHECKSUM"
+   },
+   "status": 200,
+   "content_type": "application/xml",
+   "text": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<ListBucketResult xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\"><Name>data.binance.vision</Name><Prefix>data/futures/um/daily/bookDepth/BTCUSDT/</Prefix><Marker>data/futures/um/daily/bookDepth/BTCUSDT/BTCUSDT-bookDepth-2026-11-20.zip.CHECKSUM</Marker><MaxKeys>1000</MaxKeys><IsTruncated>false</IsTruncated></ListBucketResult>"
+  },
+  {
+   "method": "GET",
+   "url": "https://s3-ap-northeast-1.amazonaws.com/data.binance.vision",
+   "params": {
+    "prefix": "data/futures/um/daily/bookDepth/BTCUSDT/",
+    "max-keys": "2"
+   },
+   "status": 200,
+   "content_type": "application/xml",
+   "text": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<ListBucketResult xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\"><Name>data.binance.vision</Name><Prefix>data/futures/um/daily/bookDepth/BTCUSDT/</Prefix><Marker></Marker><MaxKeys>2</MaxKeys><IsTruncated>true</IsTruncated><Contents><Key>data/futures/um/daily/bookDepth/BTCUSDT/BTCUSDT-bookDepth-2023-01-01.zip</Key><LastModified>2023-07-11T08:51:58.000Z</LastModified><ETag>&quot;c169ada0100a853fd69e3779ce948511&quot;</ETag><Size>463182</Size><StorageClass>STANDARD</StorageClass></Contents><Contents><Key>data/futures/um/daily/bookDepth/BTCUSDT/BTCUSDT-bookDepth-2023-01-01.zip.CHECKSUM</Key><LastModified>2023-07-11T08:51:58.000Z</LastModified><ETag>&quot;d5ca91503654028067f16f359a8c281a&quot;</ETag><Size>99</Size><StorageClass>STANDARD</StorageClass></Contents></ListBucketResult>"
+  }
+ ]
+}

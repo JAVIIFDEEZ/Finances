@@ -50,6 +50,7 @@ from investinglab.domain.rate_series import RateKind
 from investinglab.domain.time import Frequency
 from investinglab.ports import (
     BarsRequest,
+    BookDepthRequest,
     EconomicRequest,
     PositioningRequest,
     ProviderError,
@@ -59,7 +60,7 @@ from investinglab.ports import (
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-type Request = BarsRequest | EconomicRequest | RatesRequest | PositioningRequest
+type Request = BarsRequest | EconomicRequest | RatesRequest | PositioningRequest | BookDepthRequest
 type Provider = (
     yahoo.YahooFinanceProvider
     | ecb.EcbProvider
@@ -316,6 +317,26 @@ def _recordings(today: date) -> list[Recording]:
             "A swap Binance does not list: its folder of metrics is empty.",
         ),
         Recording(
+            "binance/btc_usdt_book_depth",
+            BookDepthRequest("BTC/USDT:USDT", start=date(2026, 11, 20), end=date(2026, 11, 20)),
+            "Linear swap: one daily bookDepth file, a snapshot every 30 seconds, read hourly.",
+        ),
+        Recording(
+            "binance/btc_usd_inverse_book_depth",
+            BookDepthRequest("BTC/USD:BTC", start=date(2026, 11, 20), end=date(2026, 11, 20)),
+            "Inverse swap: depth in contracts and in bitcoins, without the ±0.2 % band.",
+        ),
+        Recording(
+            "binance/book_depth_not_published_live",
+            BookDepthRequest("BTC/USDT:USDT", start=today),
+            "Today: its book depth is published tomorrow morning.",
+        ),
+        Recording(
+            "binance/book_depth_not_found",
+            BookDepthRequest("NOPE/USDT:USDT", start=date(2026, 11, 20), end=date(2026, 11, 20)),
+            "A swap Binance does not list: its folder of book depth is empty.",
+        ),
+        Recording(
             "okx/btc_usdt_positioning",
             PositioningRequest("BTC/USDT:USDT", start=date(2026, 11, 15), end=date(2026, 11, 16)),
             "Hourly open interest and long/short ratios, one call per statistic.",
@@ -469,6 +490,14 @@ def _describe(request: Request) -> dict[str, str | None]:
             "venue": request.venue,
             **bounds,
         }
+    if isinstance(request, BookDepthRequest):
+        return {
+            "dataset": "book_depth",
+            "symbol": request.symbol,
+            "venue": request.venue,
+            "frequency": request.frequency.value,
+            **bounds,
+        }
     if isinstance(request, PositioningRequest):
         return {
             "dataset": "positioning",
@@ -500,6 +529,9 @@ async def _outcome(provider: Provider, request: Request) -> str:
         provider, okx.OkxProvider | binance.BinanceProvider
     ):
         return f"{len(await provider.fetch_rates(request))} payments"
+    if isinstance(request, BookDepthRequest) and isinstance(provider, binance.BinanceProvider):
+        depth = await provider.fetch_book_depth(request)
+        return f"{len(depth)} snapshots of {len(depth.bands)} bands"
     if isinstance(request, EconomicRequest) and isinstance(
         provider, ecb.EcbProvider | alternative_me.AlternativeMeProvider
     ):

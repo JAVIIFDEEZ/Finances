@@ -7,6 +7,7 @@ import pytest
 from investinglab.domain import AssetClass, DomainError, Frequency, RateKind
 from investinglab.ports import (
     BarsRequest,
+    BookDepthRequest,
     Dataset,
     EconomicRequest,
     PositioningRequest,
@@ -190,3 +191,33 @@ def test_a_positioning_request_is_validated() -> None:
         PositioningRequest(" ")
     with pytest.raises(DomainError, match="is after end"):
         PositioningRequest("BTC/USDT:USDT", start=date(2026, 11, 2), end=date(2026, 11, 1))
+
+
+def test_book_depth_is_routed_by_its_own_identifiers_and_frequencies() -> None:
+    venue = ProviderCapabilities(
+        datasets=frozenset({Dataset.BARS, Dataset.BOOK_DEPTH}),
+        frequencies=frozenset(Frequency),
+        identifiers=r"[A-Z]+/[A-Z]+",
+        identifiers_by_dataset={Dataset.BOOK_DEPTH: r"[A-Z]+/[A-Z]+:[A-Z]+"},
+        frequencies_by_dataset={Dataset.BOOK_DEPTH: frozenset({Frequency.HOUR_1})},
+        book_bands=frozenset({1.0, 2.0}),
+    )
+
+    assert venue.can_serve_book_depth(BookDepthRequest("BTC/USDT:USDT"))
+    assert not venue.can_serve_book_depth(BookDepthRequest("BTC/USDT"))
+    assert not venue.can_serve_book_depth(
+        BookDepthRequest("BTC/USDT:USDT", frequency=Frequency.MINUTE_5)
+    )
+    bars_only = ProviderCapabilities(datasets=frozenset({Dataset.BARS}))
+    assert not bars_only.can_serve_book_depth(BookDepthRequest("BTC/USDT:USDT"))
+
+
+def test_a_book_depth_request_is_validated() -> None:
+    request = BookDepthRequest("BTC/USDT:USDT")
+
+    assert (request.venue, request.start, request.end) == (None, None, None)
+    assert request.frequency is Frequency.HOUR_1
+    with pytest.raises(DomainError, match="needs a symbol"):
+        BookDepthRequest(" ")
+    with pytest.raises(DomainError, match="is after end"):
+        BookDepthRequest("BTC/USDT:USDT", start=date(2026, 11, 2), end=date(2026, 11, 1))

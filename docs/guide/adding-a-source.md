@@ -14,6 +14,7 @@ Cada clase de dato tiene su puerto en `ports/market_data.py` y su tipo de domini
 | Flujo por vela | `FLOW` | `TradeFlowProvider` (`fetch_flow`) | `FlowSeries` |
 | Funding, préstamo, financiación | `HOLDING_RATES` | `HoldingRatesProvider` (`fetch_rates`) | `RateSeries` |
 | *Open interest* y ratios largo/corto | `POSITIONING` | `PositioningProvider` (`fetch_positioning`) | `PositioningSeries` |
+| Profundidad del libro por bandas | `BOOK_DEPTH` | `BookDepthProvider` (`fetch_book_depth`) | `BookDepthSeries` |
 | Series económicas | `ECONOMIC` | `EconomicDataProvider` (`fetch_economic_series`) | `EconomicSeries` |
 
 Un adaptador implementa los que sirva; el mismo proveedor puede dar varios (Binance da velas,
@@ -30,7 +31,8 @@ En `adapters/providers/<nombre>/`:
   frecuencias, sus cuotas y su notación de símbolos (`identifiers`, una expresión regular).
   Si un dato usa otra notación u otras frecuencias que las velas, se declaran aparte con
   `identifiers_by_dataset` y `frequencies_by_dataset`. Para tipos de mantenimiento,
-  `rate_kinds`; para posicionamiento, `positioning_fields`.
+  `rate_kinds`; para posicionamiento, `positioning_fields`; para la profundidad del libro,
+  `book_bands`.
 * **Devuelve objetos de dominio validados**, nunca la respuesta cruda. Lo que la fuente no
   publica no existe (una columna ausente, un `NaN`), nunca se rellena.
 * **Sus propias reglas, en su docstring**: unidades, zona horaria, cómo etiqueta los periodos,

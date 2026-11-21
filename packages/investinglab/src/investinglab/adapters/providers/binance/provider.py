@@ -1,4 +1,4 @@
-"""Binance: spot bars and flow (ADR-0032); funding (ADR-0041) and positioning (ADR-0042) of swaps.
+"""Binance: spot bars and flow (ADR-0032); funding, positioning and book depth of its swaps.
 
 Binance publishes its spot market data without an API key. The adapter reads it from
 ``data-api.binance.vision``, the mirror of the ``/api/v3`` market endpoints that answers
@@ -36,8 +36,8 @@ import pandas as pd
 
 from investinglab.adapters.http import HttpClient, retry_after
 from investinglab.adapters.providers import venues
+from investinglab.adapters.providers.binance import book_depth, positioning
 from investinglab.adapters.providers.binance import dumps as _dumps
-from investinglab.adapters.providers.binance import positioning
 from investinglab.adapters.providers.binance.contracts import PERPETUAL
 from investinglab.adapters.providers.binance.funding import fetch_funding
 from investinglab.domain.errors import DomainError
@@ -63,12 +63,18 @@ if TYPE_CHECKING:
 
     from investinglab.adapters.http import RetryPolicy
     from investinglab.adapters.storage.published import PublishedFileCache
+    from investinglab.domain.book_depth import BookDepthSeries
     from investinglab.domain.flow import FlowSeries
     from investinglab.domain.positioning import PositioningSeries
     from investinglab.domain.rate_series import RateSeries
     from investinglab.domain.series import PriceSeries
     from investinglab.ports.errors import ProviderError
-    from investinglab.ports.market_data import BarsRequest, PositioningRequest, RatesRequest
+    from investinglab.ports.market_data import (
+        BarsRequest,
+        BookDepthRequest,
+        PositioningRequest,
+        RatesRequest,
+    )
 
 __all__ = [
     "BASE_URL",
@@ -237,20 +243,35 @@ class BinanceProvider:
 
     @property
     def capabilities(self) -> ProviderCapabilities:
-        """Bars and flow of pairs (``BASE/QUOTE``); funding of swaps (``BASE/QUOTE:SETTLE``)."""
-        swaps = {Dataset.HOLDING_RATES: PERPETUAL, Dataset.POSITIONING: PERPETUAL}
+        """Bars and flow of pairs; funding, positioning and book depth of perpetual swaps."""
+        swaps = {
+            Dataset.HOLDING_RATES: PERPETUAL,
+            Dataset.POSITIONING: PERPETUAL,
+            Dataset.BOOK_DEPTH: PERPETUAL,
+        }
+        snapshots = frozenset(POSITIONING_FREQUENCIES)
         return ProviderCapabilities(
             datasets=frozenset(
-                {Dataset.BARS, Dataset.FLOW, Dataset.HOLDING_RATES, Dataset.POSITIONING}
+                {
+                    Dataset.BARS,
+                    Dataset.FLOW,
+                    Dataset.HOLDING_RATES,
+                    Dataset.POSITIONING,
+                    Dataset.BOOK_DEPTH,
+                }
             ),
             asset_classes=frozenset({AssetClass.CRYPTO}),
             frequencies=frozenset(Frequency),
             rate_limits=RATE_LIMITS,
             identifiers=PAIR,
             identifiers_by_dataset=swaps,
-            frequencies_by_dataset={Dataset.POSITIONING: frozenset(POSITIONING_FREQUENCIES)},
+            frequencies_by_dataset={
+                Dataset.POSITIONING: snapshots,
+                Dataset.BOOK_DEPTH: snapshots,
+            },
             rate_kinds=frozenset({RateKind.FUNDING}),
             positioning_fields=positioning.FIELDS,
+            book_bands=book_depth.BANDS,
         )
 
     async def fetch_bars(self, request: BarsRequest) -> PriceSeries:
@@ -323,6 +344,24 @@ class BinanceProvider:
                 NAME, f"Binance serves its own positioning, not {request.venue}'s"
             )
         return await positioning.fetch_positioning(
+            NAME, self._listing, self._dumps, request, now=self._clock(), cache=self._dump_cache
+        )
+
+    async def fetch_book_depth(self, request: BookDepthRequest) -> BookDepthSeries:
+        """Read the depth of the book of a swap (see :mod:`.book_depth`).
+
+        Raises:
+            UnsupportedRequestError: If the request is not for a swap Binance could list, has
+                no start, or spans more days than are read at once.
+            SymbolNotFoundError: If Binance publishes no book depth of the swap.
+            ProviderDataError: If nothing is published in the range (today is published
+                tomorrow), or a file is damaged.
+        """
+        if request.venue not in {None, NAME}:
+            raise UnsupportedRequestError(
+                NAME, f"Binance serves its own book depth, not {request.venue}'s"
+            )
+        return await book_depth.fetch_book_depth(
             NAME, self._listing, self._dumps, request, now=self._clock(), cache=self._dump_cache
         )
 

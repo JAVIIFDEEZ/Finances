@@ -8,6 +8,7 @@ import pytest
 from investinglab.domain import AssetClass, DomainError, Frequency, RateKind
 from investinglab.ports import (
     BarsRequest,
+    BookDepthRequest,
     Dataset,
     EconomicRequest,
     PositioningRequest,
@@ -20,6 +21,7 @@ from support.fakes import (
     FLOW_CAPABILITIES,
     RATES_CAPABILITIES,
     FakeBarsProvider,
+    FakeBookDepthProvider,
     FakeEconomicProvider,
     FakeFlowProvider,
     FakePositioningProvider,
@@ -260,3 +262,18 @@ def test_positioning_follows_its_preference_and_a_named_venue_wins() -> None:
     assert [p.name for p in registry.positioning_candidates(named)] == ["history"]
     with pytest.raises(DomainError, match="Unknown positioning providers"):
         registry.prefer_positioning(["bars"])
+
+
+def test_book_depth_follows_its_preference_and_a_named_venue_wins() -> None:
+    registry = ProviderRegistry()
+    for name in ("history", "fresh"):
+        registry.register(FakeBookDepthProvider(name))
+
+    request = BookDepthRequest("BTC/USDT:USDT")
+    assert [p.name for p in registry.book_depth_candidates(request)] == ["history", "fresh"]
+    registry.prefer_book_depth(["fresh"])
+    assert [p.name for p in registry.book_depth_candidates(request)] == ["fresh", "history"]
+    named = BookDepthRequest("BTC/USDT:USDT", venue="history")
+    assert [p.name for p in registry.book_depth_candidates(named)] == ["history"]
+    with pytest.raises(DomainError, match="Unknown book depth providers"):
+        registry.prefer_book_depth(["nope"])

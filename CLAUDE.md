@@ -61,7 +61,8 @@ docs/            Zensical: guide/, adr/, architecture/, plan/, reference/, modul
    (experimentos, ejecución, auditoría) va al `AuditLog`, en la misma transacción que el cambio.
 6. Nuevo proveedor = nuevo adaptador en `adapters/providers/<nombre>/` que implementa los
    puertos que sirva (`MarketDataProvider`, `TradeFlowProvider`, `HoldingRatesProvider`,
-   `PositioningProvider`, `EconomicDataProvider`), declara sus `ProviderCapabilities`, usa
+   `PositioningProvider`, `BookDepthProvider`, `EconomicDataProvider`), declara sus
+   `ProviderCapabilities`, usa
    `HttpClient` para la red, se registra en `ProviderRegistry` y entra como un caso más en el
    contrato de su dato (`tests/contract/`). Nada más cambia: la lista de comprobación está en
    [Añadir una fuente de datos](docs/guide/adding-a-source.md).

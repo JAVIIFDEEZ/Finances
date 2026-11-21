@@ -56,6 +56,7 @@ from investinglab.domain.technical import technical_indicators
 from investinglab.domain.time import Frequency
 from investinglab.ports.market_data import (
     BarsRequest,
+    BookDepthRequest,
     Dataset,
     EconomicRequest,
     PositioningRequest,
@@ -75,6 +76,7 @@ if TYPE_CHECKING:
     from pathlib import Path
     from types import TracebackType
 
+    from investinglab.domain.book_depth import BookDepthSeries
     from investinglab.domain.card import AssetCard
     from investinglab.domain.confluence import TimeframeConfluence
     from investinglab.domain.economic import EconomicSeries
@@ -214,6 +216,9 @@ POSITIONING_ORDER: Final = ("okx", "binance")
 range starts before what it keeps; Binance's daily dumps keep 5-minute snapshots since 2021."""
 
 POSITIONING_DAYS: Final = 30
+
+BOOK_DEPTH_DAYS: Final = 7
+"""Days of book depth read when no start is given (a day of Binance's dumps is ~560 kB)."""
 """Days of positioning read when no start is given."""
 
 
@@ -654,6 +659,37 @@ class AsyncToolkit:
         request = PositioningRequest(symbol, venue, first, _as_date(end), Frequency(frequency))
         return await self._market_data.get_positioning(request, refresh=refresh)
 
+    async def book_depth(
+        self,
+        symbol: str,
+        *,
+        venue: str | None = None,
+        start: DateLike = None,
+        end: DateLike = None,
+        frequency: Frequency | str = Frequency.HOUR_1,
+        refresh: bool = False,
+    ) -> BookDepthSeries:
+        """Depth of the order book within bands around the price, on one venue (ADR-0044).
+
+        Example: ``tk.book_depth("BTC/USDT:USDT", start="2026-11-01").liquidity(2.0)`` is the
+        value resting within ±2 % of the price at the end of each hour.
+
+        Args:
+            symbol: The instrument, as a perpetual swap (``BTC/USDT:USDT``).
+            venue: Whose book; the first venue that serves it by default.
+            start: First day (UTC); the last :data:`BOOK_DEPTH_DAYS` days by default.
+            end: Last day (UTC); up to the latest by default.
+            frequency: Spacing of the snapshots, from 5 minutes to a day.
+            refresh: Download again even if a recent answer is remembered.
+
+        Raises:
+            DataUnavailableError: If no provider could deliver it.
+        """
+        last = _as_date(end) or datetime.now(UTC).date()
+        first = _as_date(start) or last - timedelta(days=BOOK_DEPTH_DAYS)
+        request = BookDepthRequest(symbol, venue, first, _as_date(end), Frequency(frequency))
+        return await self._market_data.get_book_depth(request, refresh=refresh)
+
     def venues(self, symbol: str, dataset: Dataset | str) -> tuple[str, ...]:
         """The venues that serve ``dataset`` of ``symbol``, in the order they are asked.
 
@@ -662,7 +698,8 @@ class AsyncToolkit:
         a fixed set.
 
         Raises:
-            DomainError: If ``dataset`` is not one served per venue (funding, positioning).
+            DomainError: If ``dataset`` is not one served per venue (funding, positioning,
+                book depth).
         """
         wanted = Dataset(dataset)
         if wanted is Dataset.HOLDING_RATES:
@@ -671,8 +708,12 @@ class AsyncToolkit:
         if wanted is Dataset.POSITIONING:
             request = PositioningRequest(symbol)
             return tuple(p.name for p in self._registry.positioning_candidates(request))
+        if wanted is Dataset.BOOK_DEPTH:
+            book = BookDepthRequest(symbol)
+            return tuple(p.name for p in self._registry.book_depth_candidates(book))
         raise DomainError(
-            f"{wanted.value} is not served per venue; ask for holding_rates or positioning"
+            f"{wanted.value} is not served per venue; ask for holding_rates, positioning or "
+            "book_depth"
         )
 
     def load(self, path: str | Path, **spec: Any) -> PriceSeries:  # noqa: ANN401
@@ -1111,6 +1152,23 @@ class Toolkit:
         """Open interest and long/short ratios (see :meth:`AsyncToolkit.positioning`)."""
         return self._run(
             self._inner.positioning(
+                symbol, venue=venue, start=start, end=end, frequency=frequency, refresh=refresh
+            )
+        )
+
+    def book_depth(
+        self,
+        symbol: str,
+        *,
+        venue: str | None = None,
+        start: DateLike = None,
+        end: DateLike = None,
+        frequency: Frequency | str = Frequency.HOUR_1,
+        refresh: bool = False,
+    ) -> BookDepthSeries:
+        """Depth of the order book (see :meth:`AsyncToolkit.book_depth`)."""
+        return self._run(
+            self._inner.book_depth(
                 symbol, venue=venue, start=start, end=end, frequency=frequency, refresh=refresh
             )
         )

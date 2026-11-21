@@ -18,6 +18,7 @@ from investinglab.domain import (
     OVERNIGHT_ACT_360,
     USD,
     AssetClass,
+    BookDepthSeries,
     DomainError,
     FrameIssue,
     Frequency,
@@ -46,6 +47,7 @@ from support.factories import (
 )
 from support.fakes import (
     FakeBarsProvider,
+    FakeBookDepthProvider,
     FakeEconomicProvider,
     FakePositioningProvider,
     FakeRatesProvider,
@@ -334,6 +336,30 @@ def test_positioning_reads_the_last_days_and_venues_lists_who_serves(tmp_path: P
     )
     assert on_binance.venue == "binance"
     assert binance.calls[0].start == date(2026, 11, 1)
+
+
+def test_book_depth_reads_the_last_week_and_venues_lists_who_serves(tmp_path: Path) -> None:
+    swap = make_instrument(
+        "BTC/USDT:USDT", currency=USD, asset_class=AssetClass.CRYPTO, exchange=None
+    )
+    hours = pd.date_range("2026-11-15", periods=2, freq="1h", tz="UTC")
+    values = {("quantity", "bid", 1.0): [10.0, 11.0], ("quantity", "ask", 1.0): [9.0, 12.0]}
+    frame = pd.DataFrame(values, index=hours)
+    frame.columns = pd.MultiIndex.from_tuples(list(values))
+    book = BookDepthSeries(swap, "binance", SYNTHETIC_SOURCE, Frequency.HOUR_1, frame)
+    binance = FakeBookDepthProvider("binance", {"BTC/USDT:USDT": book})
+    with Toolkit.from_settings(_settings(tmp_path), providers=[binance], cache=False) as tk:
+        found = tk.book_depth("BTC/USDT:USDT", end="2026-11-16")
+        venues = tk.venues("BTC/USDT:USDT", "book_depth")
+
+    assert venues == ("binance",)
+    assert found.imbalance(1.0).iloc[0] == pytest.approx(1 / 19)
+    asked = binance.calls[0]
+    assert (asked.start, asked.end, asked.frequency) == (
+        date(2026, 11, 9),  # a week before the end
+        date(2026, 11, 16),
+        Frequency.HOUR_1,
+    )
 
 
 def test_euro_fixings_and_rates_come_from_the_ecb(tmp_path: Path) -> None:

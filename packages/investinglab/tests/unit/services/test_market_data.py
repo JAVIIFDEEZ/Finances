@@ -11,6 +11,7 @@ from investinglab.domain import (
     EXCHANGES,
     USD,
     AssetClass,
+    BookDepthSeries,
     DataSource,
     DomainError,
     FlowSeries,
@@ -26,6 +27,7 @@ from investinglab.domain import (
 from investinglab.ports import (
     AuthenticationError,
     BarsRequest,
+    BookDepthRequest,
     CachedBars,
     EconomicRequest,
     PositioningRequest,
@@ -55,6 +57,7 @@ from support.fakes import (
     BARS_CAPABILITIES,
     FLOW_CAPABILITIES,
     FakeBarsProvider,
+    FakeBookDepthProvider,
     FakeEconomicProvider,
     FakeFlowProvider,
     FakePositioningProvider,
@@ -72,7 +75,8 @@ def _service(
     | FakeEconomicProvider
     | FakeFlowProvider
     | FakeRatesProvider
-    | FakePositioningProvider,
+    | FakePositioningProvider
+    | FakeBookDepthProvider,
     store: InMemoryStore | None = None,
     max_concurrency: int = 8,
 ) -> MarketDataService:
@@ -621,7 +625,10 @@ class _Clock:
 
 
 def _remembering(
-    *providers: FakeFlowProvider | FakeRatesProvider | FakePositioningProvider,
+    *providers: FakeFlowProvider
+    | FakeRatesProvider
+    | FakePositioningProvider
+    | FakeBookDepthProvider,
     entries: int = 256,
 ) -> tuple[MarketDataService, _Clock]:
     registry = ProviderRegistry()
@@ -745,3 +752,49 @@ async def test_positioning_is_remembered_for_its_own_time_to_live() -> None:
     await service.get_positioning(request, refresh=True)
 
     assert len(okx.calls) == 3
+
+
+def _book(
+    instrument: Instrument = SWAP, venue: str = "binance", frequency: Frequency = Frequency.HOUR_1
+) -> BookDepthSeries:
+    hours = pd.date_range("2026-11-20", periods=3, freq=frequency.pandas_rule, tz="UTC")
+    values = {
+        ("quantity", "bid", 1.0): [10.0, 11.0, 9.0],
+        ("quantity", "ask", 1.0): [8.0, 8.0, 9.0],
+    }
+    frame = pd.DataFrame(values, index=hours)
+    frame.columns = pd.MultiIndex.from_tuples(list(values))
+    return BookDepthSeries(instrument, venue, SYNTHETIC_SOURCE, frequency, frame)
+
+
+async def test_book_depth_falls_back_and_must_answer_the_request() -> None:
+    down = FakeBookDepthProvider(
+        "okx", errors={"BTC/USDT:USDT": ProviderUnavailableError("okx", "x")}
+    )
+    binance = FakeBookDepthProvider("binance", {"BTC/USDT:USDT": _book()})
+
+    found = await _service(down, binance).get_book_depth(BookDepthRequest("BTC/USDT:USDT"))
+
+    assert found.venue == "binance"
+    liar = FakeBookDepthProvider("okx", {"BTC/USDT:USDT": _book(venue="bybit")})
+    daily = FakeBookDepthProvider(
+        "okx", {"BTC/USDT:USDT": _book(venue="okx", frequency=Frequency.DAY_1)}
+    )
+    for provider, message in ((liar, "BTC/USDT:USDT@bybit"), (daily, "returned 1d book depth")):
+        with pytest.raises(DataUnavailableError, match=message):
+            await _service(provider).get_book_depth(BookDepthRequest("BTC/USDT:USDT", venue="okx"))
+
+
+async def test_book_depth_is_remembered_for_its_own_time_to_live() -> None:
+    binance = FakeBookDepthProvider("binance", {"BTC/USDT:USDT": _book()})
+    service, clock = _remembering(binance)
+    request = BookDepthRequest("BTC/USDT:USDT")
+
+    await service.get_book_depth(request)
+    clock.now += CachePolicy().book_depth_ttl - timedelta(seconds=1)
+    await service.get_book_depth(request)
+    clock.now += timedelta(seconds=1)
+    await service.get_book_depth(request)
+    await service.get_book_depth(request, refresh=True)
+
+    assert len(binance.calls) == 3

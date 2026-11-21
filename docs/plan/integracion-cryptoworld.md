@@ -784,6 +784,13 @@ disco tal como se publicaron, con la versión que da su listado
 una llamada, el listado; cada copia se verifica de nuevo contra su SHA-256, y una republicada o
 dañada se descarga otra vez. Pendiente de G1: foto del libro, el tercer *venue* y CoinGecko.
 
+**Avance (21-11-2026, profundidad del libro):** la «foto del libro» llega con historia: la
+profundidad acumulada dentro de ±0,2 %… ±5 % del precio, por lado, desde los volcados diarios
+`bookDepth` de Binance (una foto cada 30 segundos desde 2023), como conjunto de datos propio y
+ampliable por *venue* ([ADR-0044](../adr/0044-order-book-depth-by-bands.md)). `tk.book_depth`, el
+desequilibrio y la liquidez por banda, y un contrato. Pendiente: la API y la pantalla, el tercer
+*venue* y CoinGecko.
+
 **Decisión al implementarla (13-11-2026):** en lugar de ccxt, un adaptador por *venue* sobre `HttpClient`, con casetes ([ADR-0032](../adr/0032-crypto-venues-on-the-shared-http-client.md)): ccxt salta la capa de red común y sus peticiones no se pueden reproducir con `respx`. La notación de símbolos es la de ccxt (`BTC/USDT`, `BTC/USDT:USDT`) y el enrutado la reconoce sola, así que `tk.series("BTC/USDT", frequency="1h")` va a Binance sin indicar el *venue*. Hechos: Binance *spot* (velas y flujo), funding de OKX, volumen de Yahoo como flujo. Pendientes: el resto de la lista.
 
 ### G2 — Análisis técnico multiactivo y ficha de activo
