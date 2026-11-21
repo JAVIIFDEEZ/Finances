@@ -313,6 +313,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/market/book-depth": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Depth of the order book within bands around the price
+         * @description What rests to buy and to sell within each distance from the price (ADR-0044).
+         *
+         *     Each value is the book when its period ended; the period in progress is left out. Depth
+         *     is cumulative, and a band or a value the venue does not publish is absent, never filled
+         *     in. Binance reads at most 92 days at once: a longer range is a 422.
+         */
+        get: operations["book_depth_api_v1_market_book_depth_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/market/venues": {
         parameters: {
             query?: never;
@@ -639,6 +663,84 @@ export interface components {
             adj_close?: number | null;
             /** Volume */
             volume?: number | null;
+        };
+        /**
+         * BookBandOut
+         * @description Depth within one distance from the price, aligned on :attr:`BookDepthOut.times`.
+         *
+         *     Depth is cumulative: a wider band holds at least what a narrower one does. A value is
+         *     null where the venue skipped a snapshot.
+         */
+        BookBandOut: {
+            /**
+             * Band
+             * @description Distance from the price, in percent (2.0 is ±2 %).
+             */
+            band: number;
+            /**
+             * Bid
+             * @description Quantity to buy, in the base asset.
+             */
+            bid: (number | null)[];
+            /**
+             * Ask
+             * @description Quantity to sell, in the base asset.
+             */
+            ask: (number | null)[];
+            /**
+             * Bid Notional
+             * @description Value to buy, in ``notional_currency`` (null when the venue gives none).
+             */
+            bid_notional: (number | null)[] | null;
+            /**
+             * Ask Notional
+             * @description Value to sell, in ``notional_currency`` (null when the venue gives none).
+             */
+            ask_notional: (number | null)[] | null;
+            /**
+             * Imbalance
+             * @description (bid - ask) / (bid + ask) in quantity: from -1 (only offers) to +1.
+             */
+            imbalance: (number | null)[];
+            /**
+             * Liquidity
+             * @description Value on both sides, in ``notional_currency`` (null without notional).
+             */
+            liquidity: (number | null)[] | null;
+            /** Latest Bid */
+            latest_bid: number | null;
+            /** Latest Ask */
+            latest_ask: number | null;
+            /** Latest Imbalance */
+            latest_imbalance: number | null;
+            /** Latest Liquidity */
+            latest_liquidity: number | null;
+        };
+        /**
+         * BookDepthOut
+         * @description Depth of the order book within bands around the price, on one venue (ADR-0044).
+         */
+        BookDepthOut: {
+            instrument: components["schemas"]["InstrumentOut"];
+            /** Venue */
+            venue: string;
+            frequency: components["schemas"]["Frequency"];
+            source: components["schemas"]["SourceOut"];
+            /**
+             * Notional Currency
+             * @description Currency of the notional values (null when the venue gives none).
+             */
+            notional_currency: string | null;
+            /**
+             * Times
+             * @description Start of each period (UTC); its values are the book when it ended.
+             */
+            times: string[];
+            /**
+             * Bands
+             * @description The bands the venue publishes, narrowest first.
+             */
+            bands: components["schemas"]["BookBandOut"][];
         };
         /**
          * CalibrationOut
@@ -2746,7 +2848,7 @@ export interface components {
              * Dataset
              * @enum {string}
              */
-            dataset: "holding_rates" | "positioning";
+            dataset: "holding_rates" | "positioning" | "book_depth";
             /**
              * Venues
              * @description First the one asked when no venue is named.
@@ -3452,13 +3554,74 @@ export interface operations {
             };
         };
     };
+    book_depth_api_v1_market_book_depth_get: {
+        parameters: {
+            query: {
+                /** @description Instrument symbol: Yahoo style (SAN.MC, ^GSPC), a venue's pair (BTC/USDT) or a perpetual swap (BTC/USDT:USDT). */
+                symbol: string;
+                /** @description Venue (okx...); any. */
+                venue?: string | null;
+                /** @description Spacing of the snapshots. */
+                interval?: "5m" | "15m" | "30m" | "1h" | "4h" | "1d";
+                /** @description First day (UTC); the last 7 days by default. */
+                start?: string | null;
+                /** @description Last day (UTC), inclusive. */
+                end?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookDepthOut"];
+                };
+            };
+            /** @description No provider has the requested data. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The request breaks the schema, a limit or a domain rule. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Every provider able to serve the data failed; retry later. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     venues_api_v1_market_venues_get: {
         parameters: {
             query: {
                 /** @description Instrument symbol: Yahoo style (SAN.MC, ^GSPC), a venue's pair (BTC/USDT) or a perpetual swap (BTC/USDT:USDT). */
                 symbol: string;
-                /** @description Funding (holding_rates) or positioning. */
-                dataset: "holding_rates" | "positioning";
+                /** @description Funding (holding_rates), positioning or book_depth. */
+                dataset: "holding_rates" | "positioning" | "book_depth";
             };
             header?: never;
             path?: never;

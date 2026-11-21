@@ -7,12 +7,13 @@ shape (DataFrames to lists, timestamps to ISO dates) and turn undefined numbers 
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Final, Literal
+from typing import TYPE_CHECKING, Final
 
 import numpy as np
 import pandas as pd
 
 from investinglab import __version__ as core_version
+from investinglab.domain.book_depth import BookSide, DepthMeasure
 from investinglab.domain.confluence import MIN_BARS
 from investinglab.domain.flow import FlowField
 from investinglab.domain.positioning import AMOUNTS, PositioningField
@@ -37,6 +38,8 @@ from investinglab_api.schemas.common import Matrix, Point, finite
 from investinglab_api.schemas.economic import EconomicObservationOut, EconomicSeriesOut
 from investinglab_api.schemas.market import (
     BarOut,
+    BookBandOut,
+    BookDepthOut,
     CardOut,
     CompareSeriesOut,
     ComparisonOut,
@@ -77,6 +80,7 @@ from investinglab_api.schemas.market import (
     TrendOut,
     UnavailableIndicatorOut,
     UnavailablePatternOut,
+    VenueDataset,
     VenuesOut,
 )
 from investinglab_api.schemas.meta import (
@@ -103,6 +107,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping, Sequence
     from datetime import date, datetime
 
+    from investinglab.domain.book_depth import BookDepthSeries
     from investinglab.domain.card import AssetCard
     from investinglab.domain.confluence import FrameReading, TimeframeConfluence
     from investinglab.domain.economic import EconomicSeries
@@ -125,6 +130,7 @@ if TYPE_CHECKING:
     from investinglab.services import BatchResult
 
 __all__ = [
+    "book_depth_out",
     "comparison_out",
     "economic_series_out",
     "flow_out",
@@ -680,9 +686,55 @@ def positioning_out(series: PositioningSeries) -> PositioningOut:
     )
 
 
-def venues_out(
-    symbol: str, dataset: Literal["holding_rates", "positioning"], venues: Iterable[str]
-) -> VenuesOut:
+def _values(series: pd.Series) -> list[float | None]:
+    return [finite(float(value)) for value in series.to_numpy()]
+
+
+def _last(series: pd.Series) -> float | None:
+    present = series.dropna()
+    return finite(float(present.iloc[-1])) if len(present) else None
+
+
+def _band_out(depth: BookDepthSeries, band: float) -> BookBandOut:
+    noted = DepthMeasure.NOTIONAL in depth.measures
+    bid = depth.depth(BookSide.BID, band)
+    ask = depth.depth(BookSide.ASK, band)
+    imbalance = depth.imbalance(band)
+    liquidity = depth.liquidity(band) if noted else None
+    return BookBandOut(
+        band=band,
+        bid=_values(bid),
+        ask=_values(ask),
+        bid_notional=(
+            _values(depth.depth(BookSide.BID, band, DepthMeasure.NOTIONAL)) if noted else None
+        ),
+        ask_notional=(
+            _values(depth.depth(BookSide.ASK, band, DepthMeasure.NOTIONAL)) if noted else None
+        ),
+        imbalance=_values(imbalance),
+        liquidity=None if liquidity is None else _values(liquidity),
+        latest_bid=_last(bid),
+        latest_ask=_last(ask),
+        latest_imbalance=_last(imbalance),
+        latest_liquidity=None if liquidity is None else _last(liquidity),
+    )
+
+
+def book_depth_out(depth: BookDepthSeries) -> BookDepthOut:
+    """Depth by band, aligned on one list of instants, with the latest of each figure."""
+    currency = depth.notional_currency
+    return BookDepthOut(
+        instrument=instrument_out(depth.instrument),
+        venue=depth.venue,
+        frequency=depth.frequency,
+        source=_source_out(depth.source),
+        notional_currency=None if currency is None else str(currency),
+        times=[stamp.to_pydatetime() for stamp in pd.DatetimeIndex(depth.snapshots.index)],
+        bands=[_band_out(depth, band) for band in depth.bands],
+    )
+
+
+def venues_out(symbol: str, dataset: VenueDataset, venues: Iterable[str]) -> VenuesOut:
     """The venues that serve a dataset, in the order they are asked."""
     return VenuesOut(symbol=symbol, dataset=dataset, venues=list(venues))
 
