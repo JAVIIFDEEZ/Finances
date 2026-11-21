@@ -27,6 +27,9 @@ uv run just db-upgrade     # crea o actualiza las tablas
 uv run just dev            # también aplica las migraciones pendientes antes de arrancar
 ```
 
+Si la base de datos no responde, `db upgrade` (y con él `just dev`) se rinde a los
+10 segundos con un mensaje que dice dónde la buscó, sin mostrar la contraseña.
+
 El ejemplo completo de la URL para la base de datos de `just db-up` está en `.env.example`.
 En la web, la pantalla **Cartera** muestra entonces «Carteras guardadas».
 
