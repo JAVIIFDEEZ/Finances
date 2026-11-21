@@ -26,6 +26,8 @@ from investinglab.ports.errors import (
 )
 from investinglab.ports.market_data import (
     BarsRequest,
+    BookDepthProvider,
+    BookDepthRequest,
     Dataset,
     EconomicDataProvider,
     EconomicRequest,
@@ -60,6 +62,8 @@ __all__ = [
     "AuthenticationError",
     "BannedError",
     "BarsRequest",
+    "BookDepthProvider",
+    "BookDepthRequest",
     "CachedBars",
     "CachedEconomicSeries",
     "CalendarUnavailableError",

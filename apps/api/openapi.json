@@ -3491,7 +3491,8 @@
           "economic",
           "flow",
           "holding_rates",
-          "positioning"
+          "positioning",
+          "book_depth"
         ],
         "title": "Dataset",
         "description": "Kind of data a provider serves."

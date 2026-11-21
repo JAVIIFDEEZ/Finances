@@ -793,7 +793,7 @@ export interface components {
          * @description Kind of data a provider serves.
          * @enum {string}
          */
-        Dataset: "bars" | "economic" | "flow" | "holding_rates" | "positioning";
+        Dataset: "bars" | "economic" | "flow" | "holding_rates" | "positioning" | "book_depth";
         /**
          * DivergenceOut
          * @description The close and its RSI disagree on the last two pivots.
