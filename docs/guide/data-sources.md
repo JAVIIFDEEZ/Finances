@@ -225,6 +225,30 @@ with Toolkit.from_settings() as tk:
 * **Sin `venue`**, se pregunta primero a OKX; si el rango empieza antes de lo que OKX guarda,
   OKX lo dice y responde Binance.
 
+## Profundidad del libro de órdenes
+
+```python
+with Toolkit.from_settings() as tk:
+    libro = tk.book_depth("BTC/USDT:USDT", start="2026-11-01", frequency="1h")
+    libro.bands  # (0.2, 1.0, 2.0, 3.0, 4.0, 5.0): distancias al precio, en %
+    libro.depth("bid", 2.0)  # bitcoins para comprar dentro de un 2 % bajo el precio
+    libro.imbalance(1.0)  # (compras − ventas) / (compras + ventas), de −1 a +1
+    libro.liquidity(2.0)  # valor de los dos lados dentro de ±2 %, en libro.notional_currency
+```
+
+* **Por bandas** ([ADR-0044](../adr/0044-order-book-depth-by-bands.md)): lo que hay dentro de
+  cada distancia al precio, por lado (compras bajo el precio, ventas sobre él), en cantidad del
+  activo base y, si el *venue* lo da, en valor. Es **acumulado**: ±2 % incluye ±1 %, y un libro
+  que diga otra cosa se rechaza.
+* **Periodos**: cada fila es la última foto completa del periodo, etiquetada por su inicio, de
+  5 minutos a un día; el periodo en curso no aparece.
+* **Binance**, desde sus volcados diarios verificados (`bookDepth`): una foto cada 30 segundos
+  desde 2023, bandas de ±0,2 % a ±5 %. Cada día se publica a la mañana siguiente y pesa unos
+  560 kB, así que se pide con fecha de inicio y 92 días como mucho (7 días por defecto); con la
+  caché, cada día se descarga una sola vez. En los inversos (`BTC/USD:BTC`) va en bitcoins, sin
+  ±0,2 % y sin valor en dólares. Binance no documenta desde qué precio mide las distancias; los
+  datos son coherentes con el precio medio.
+
 ## alternative.me: miedo y codicia cripto
 
 ```python
@@ -247,7 +271,8 @@ memoria mientras vive el proceso (la API, un notebook): el flujo, lo mismo que l
 frecuencia (15 minutos las intradía, 12 horas las diarias), y el funding, una hora. Con
 `refresh=True` se vuelven a descargar.
 
-Los **volcados de Binance** (el funding por meses y el posicionamiento por días) se guardan en
+Los **volcados de Binance** (el funding por meses, y el posicionamiento y la profundidad del
+libro por días) se guardan en
 `<caché>/dumps/binance/` tal como se publicaron, con su *checksum* y la versión que da el listado
 ([ADR-0043](../adr/0043-verified-published-files-cache.md)). La segunda vez solo se pide el
 listado: cada fichero se lee del disco y se verifica otra vez contra su SHA-256. Si Binance lo

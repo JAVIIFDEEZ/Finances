@@ -48,6 +48,7 @@ actualiza el estado del antiguo.
 | [0041](0041-binance-funding-from-public-dumps.md) | Funding de Binance desde sus volcados públicos verificados | Aceptado |
 | [0042](0042-positioning-as-a-dataset.md) | Posicionamiento en derivados como conjunto de datos propio, ampliable por *venue* | Aceptado |
 | [0043](0043-verified-published-files-cache.md) | Caché en disco de los ficheros publicados con su *checksum*, por versión y verificada al leer | Aceptado |
+| [0044](0044-order-book-depth-by-bands.md) | Profundidad del libro de órdenes por bandas alrededor del precio, con historia | Aceptado |
 
 ## Cómo añadir un ADR
 
