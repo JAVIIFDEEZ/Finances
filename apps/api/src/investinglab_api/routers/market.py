@@ -13,6 +13,7 @@ from investinglab.domain.time import Frequency
 from investinglab_api import use_cases
 from investinglab_api.dependencies import SettingsDep, ToolkitDep, at_most
 from investinglab_api.mappers import (
+    book_depth_out,
     card_out,
     comparison_out,
     confluence_out,
@@ -29,6 +30,7 @@ from investinglab_api.mappers import (
 )
 from investinglab_api.routers import problems
 from investinglab_api.schemas.market import (
+    BookDepthOut,
     CardOut,
     CompareRequest,
     ComparisonOut,
@@ -42,6 +44,7 @@ from investinglab_api.schemas.market import (
     StructureOut,
     Symbol,
     TechnicalOut,
+    VenueDataset,
     VenuesOut,
 )
 from investinglab_api.schemas.meta import RiskFreeOut
@@ -268,7 +271,7 @@ async def holding_rates(
 
 
 PositioningInterval = Literal["5m", "15m", "30m", "1h", "4h", "1d"]
-"""Frequencies positioning is read at (``POSITIONING_FREQUENCIES``)."""
+"""Frequencies positioning and book depth are read at (``POSITIONING_FREQUENCIES``)."""
 
 
 @router.get(
@@ -300,6 +303,35 @@ async def positioning(
 
 
 @router.get(
+    "/market/book-depth",
+    summary="Depth of the order book within bands around the price",
+    response_model=BookDepthOut,
+    responses=problems(404, 422, 503),
+)
+async def book_depth(
+    toolkit: ToolkitDep,
+    symbol: SymbolQuery,
+    *,
+    venue: Venue = None,
+    interval: Annotated[PositioningInterval, Query(description="Spacing of the snapshots.")] = "1h",
+    start: Annotated[
+        date | None, Query(description="First day (UTC); the last 7 days by default.")
+    ] = None,
+    end: Annotated[date | None, Query(description="Last day (UTC), inclusive.")] = None,
+) -> BookDepthOut:
+    """What rests to buy and to sell within each distance from the price (ADR-0044).
+
+    Each value is the book when its period ended; the period in progress is left out. Depth
+    is cumulative, and a band or a value the venue does not publish is absent, never filled
+    in. Binance reads at most 92 days at once: a longer range is a 422.
+    """
+    depth = await toolkit.book_depth(
+        symbol, venue=venue, start=start, end=end, frequency=Frequency(interval)
+    )
+    return await asyncio.to_thread(book_depth_out, depth)
+
+
+@router.get(
     "/market/venues",
     summary="Venues that serve a dataset of an instrument",
     response_model=VenuesOut,
@@ -309,8 +341,8 @@ async def venues(
     toolkit: ToolkitDep,
     symbol: SymbolQuery,
     dataset: Annotated[
-        Literal["holding_rates", "positioning"],
-        Query(description="Funding (holding_rates) or positioning."),
+        VenueDataset,
+        Query(description="Funding (holding_rates), positioning or book_depth."),
     ],
 ) -> VenuesOut:
     """The venues able to answer, in the order they are asked when none is named.

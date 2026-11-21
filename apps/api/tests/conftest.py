@@ -21,6 +21,7 @@ from investinglab.config import Settings, get_settings
 from investinglab.domain import (
     USD,
     AssetClass,
+    BookDepthSeries,
     FlowSeries,
     Frequency,
     PositioningField,
@@ -46,6 +47,7 @@ from support.factories import (
 )
 from support.fakes import (
     FakeBarsProvider,
+    FakeBookDepthProvider,
     FakeEconomicProvider,
     FakeFlowProvider,
     FakePositioningProvider,
@@ -195,6 +197,33 @@ def synthetic_positioning() -> PositioningSeries:
     )
 
 
+def synthetic_book() -> BookDepthSeries:
+    """SYNTHETIC hourly book depth of a perpetual swap within ±1 % and ±2 %.
+
+    Cumulative by construction (±2 % holds at least ±1 %); one hour misses its asks within
+    ±2 %, as a venue sometimes skips a band: they must stay null.
+    """
+    hours = pd.date_range("2024-03-01", periods=24, freq="1h", tz="UTC")
+    rng = np.random.default_rng(24)
+    columns: dict[tuple[str, str, float], np.ndarray] = {}
+    for side in ("bid", "ask"):
+        narrow = rng.uniform(50.0, 150.0, len(hours))
+        wide = narrow + rng.uniform(0.0, 300.0, len(hours))
+        for band, quantity in ((1.0, narrow), (2.0, wide)):
+            columns["quantity", side, band] = quantity
+            columns["notional", side, band] = quantity * 50.0
+    columns["quantity", "ask", 2.0][3] = np.nan
+    columns["notional", "ask", 2.0][3] = np.nan
+    frame = pd.DataFrame(columns, index=hours)
+    frame.columns = pd.MultiIndex.from_tuples(list(columns))
+    swap = make_instrument(
+        "SYN/USDT:USDT", currency=USD, asset_class=AssetClass.CRYPTO, exchange=None
+    )
+    return BookDepthSeries(
+        swap, "synthetic-book", SYNTHETIC_SOURCE, Frequency.HOUR_1, frame, notional_currency=USD
+    )
+
+
 def synthetic_estr() -> object:
     """A synthetic €STR at 3 %, each month published at the start of the next."""
     months = pd.date_range("2022-12-01", "2025-06-01", freq="MS")
@@ -242,8 +271,9 @@ def toolkit(bars: FakeBarsProvider, core_settings: Settings) -> AsyncToolkit:
     positioning = FakePositioningProvider(
         "synthetic-oi", {"SYN/USDT:USDT": synthetic_positioning()}
     )
+    book = FakeBookDepthProvider("synthetic-book", {"SYN/USDT:USDT": synthetic_book()})
     return AsyncToolkit.from_settings(
-        core_settings, providers=[bars, rates, flow, funding, positioning], cache=False
+        core_settings, providers=[bars, rates, flow, funding, positioning, book], cache=False
     )
 
 

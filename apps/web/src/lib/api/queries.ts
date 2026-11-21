@@ -173,7 +173,7 @@ export function useFunding(swap: string | null, start: string | null, venue: str
  * The venues that serve the funding (``holding_rates``) or the positioning of ``symbol``, in
  * the order the platform asks them: pickers list these instead of a fixed set.
  */
-export function useVenues(symbol: string | null, dataset: "holding_rates" | "positioning") {
+export function useVenues(symbol: string | null, dataset: "holding_rates" | "positioning" | "book_depth") {
   return useQuery({
     queryKey: ["venues", symbol, dataset],
     queryFn: async () =>
@@ -190,6 +190,23 @@ export function usePositioning(swap: string | null, venue: string | null, interv
     queryFn: async () =>
       unwrap(
         await api.GET("/api/v1/market/positioning", {
+          params: { query: { symbol: swap ?? "", venue: venue ?? undefined, interval, start } },
+        }),
+      ),
+    enabled: swap !== null && venue !== null,
+    placeholderData: keepPreviousData,
+    staleTime: 5 * MINUTE,
+    retry: (count, error) => !isNotFound(error) && count < 2,
+  });
+}
+
+/** Depth of the order book of a perpetual swap within bands around its price (ADR-0044). */
+export function useBookDepth(swap: string | null, venue: string | null, interval: "1h" | "4h" | "1d", start: string) {
+  return useQuery({
+    queryKey: ["book-depth", swap, venue, interval, start],
+    queryFn: async () =>
+      unwrap(
+        await api.GET("/api/v1/market/book-depth", {
           params: { query: { symbol: swap ?? "", venue: venue ?? undefined, interval, start } },
         }),
       ),

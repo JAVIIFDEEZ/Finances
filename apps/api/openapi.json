@@ -1494,6 +1494,173 @@
         }
       }
     },
+    "/api/v1/market/book-depth": {
+      "get": {
+        "tags": [
+          "market"
+        ],
+        "summary": "Depth of the order book within bands around the price",
+        "description": "What rests to buy and to sell within each distance from the price (ADR-0044).\n\nEach value is the book when its period ended; the period in progress is left out. Depth\nis cumulative, and a band or a value the venue does not publish is absent, never filled\nin. Binance reads at most 92 days at once: a longer range is a 422.",
+        "operationId": "book_depth_api_v1_market_book_depth_get",
+        "parameters": [
+          {
+            "name": "symbol",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 32,
+              "pattern": "^[A-Za-z0-9.^=\\-_/:]+$",
+              "description": "Instrument symbol: Yahoo style (SAN.MC, ^GSPC), a venue's pair (BTC/USDT) or a perpetual swap (BTC/USDT:USDT).",
+              "examples": [
+                "SAN.MC",
+                "^GSPC",
+                "EURUSD=X",
+                "BTC/USDT",
+                "BTC/USDT:USDT"
+              ],
+              "title": "Symbol"
+            },
+            "description": "Instrument symbol: Yahoo style (SAN.MC, ^GSPC), a venue's pair (BTC/USDT) or a perpetual swap (BTC/USDT:USDT)."
+          },
+          {
+            "name": "venue",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9_.\\-]{0,39}$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Venue (okx...); any.",
+              "title": "Venue"
+            },
+            "description": "Venue (okx...); any."
+          },
+          {
+            "name": "interval",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "5m",
+                "15m",
+                "30m",
+                "1h",
+                "4h",
+                "1d"
+              ],
+              "type": "string",
+              "description": "Spacing of the snapshots.",
+              "default": "1h",
+              "title": "Interval"
+            },
+            "description": "Spacing of the snapshots."
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First day (UTC); the last 7 days by default.",
+              "title": "Start"
+            },
+            "description": "First day (UTC); the last 7 days by default."
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last day (UTC), inclusive.",
+              "title": "End"
+            },
+            "description": "Last day (UTC), inclusive."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookDepthOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No provider has the requested data.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request breaks the schema, a limit or a domain rule.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Every provider able to serve the data failed; retry later.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/market/venues": {
       "get": {
         "tags": [
@@ -1531,13 +1698,14 @@
             "schema": {
               "enum": [
                 "holding_rates",
-                "positioning"
+                "positioning",
+                "book_depth"
               ],
               "type": "string",
-              "description": "Funding (holding_rates) or positioning.",
+              "description": "Funding (holding_rates), positioning or book_depth.",
               "title": "Dataset"
             },
-            "description": "Funding (holding_rates) or positioning."
+            "description": "Funding (holding_rates), positioning or book_depth."
           }
         ],
         "responses": {
@@ -3132,6 +3300,244 @@
         ],
         "title": "BarOut",
         "description": "One bar; absent columns are ``null``."
+      },
+      "BookBandOut": {
+        "properties": {
+          "band": {
+            "type": "number",
+            "title": "Band",
+            "description": "Distance from the price, in percent (2.0 is \u00b12 %)."
+          },
+          "bid": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Bid",
+            "description": "Quantity to buy, in the base asset."
+          },
+          "ask": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Ask",
+            "description": "Quantity to sell, in the base asset."
+          },
+          "bid_notional": {
+            "anyOf": [
+              {
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bid Notional",
+            "description": "Value to buy, in ``notional_currency`` (null when the venue gives none)."
+          },
+          "ask_notional": {
+            "anyOf": [
+              {
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ask Notional",
+            "description": "Value to sell, in ``notional_currency`` (null when the venue gives none)."
+          },
+          "imbalance": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Imbalance",
+            "description": "(bid - ask) / (bid + ask) in quantity: from -1 (only offers) to +1."
+          },
+          "liquidity": {
+            "anyOf": [
+              {
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Liquidity",
+            "description": "Value on both sides, in ``notional_currency`` (null without notional)."
+          },
+          "latest_bid": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Bid"
+          },
+          "latest_ask": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Ask"
+          },
+          "latest_imbalance": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Imbalance"
+          },
+          "latest_liquidity": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Liquidity"
+          }
+        },
+        "type": "object",
+        "required": [
+          "band",
+          "bid",
+          "ask",
+          "bid_notional",
+          "ask_notional",
+          "imbalance",
+          "liquidity",
+          "latest_bid",
+          "latest_ask",
+          "latest_imbalance",
+          "latest_liquidity"
+        ],
+        "title": "BookBandOut",
+        "description": "Depth within one distance from the price, aligned on :attr:`BookDepthOut.times`.\n\nDepth is cumulative: a wider band holds at least what a narrower one does. A value is\nnull where the venue skipped a snapshot."
+      },
+      "BookDepthOut": {
+        "properties": {
+          "instrument": {
+            "$ref": "#/components/schemas/InstrumentOut"
+          },
+          "venue": {
+            "type": "string",
+            "title": "Venue"
+          },
+          "frequency": {
+            "$ref": "#/components/schemas/Frequency"
+          },
+          "source": {
+            "$ref": "#/components/schemas/SourceOut"
+          },
+          "notional_currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notional Currency",
+            "description": "Currency of the notional values (null when the venue gives none)."
+          },
+          "times": {
+            "items": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "type": "array",
+            "title": "Times",
+            "description": "Start of each period (UTC); its values are the book when it ended."
+          },
+          "bands": {
+            "items": {
+              "$ref": "#/components/schemas/BookBandOut"
+            },
+            "type": "array",
+            "title": "Bands",
+            "description": "The bands the venue publishes, narrowest first."
+          }
+        },
+        "type": "object",
+        "required": [
+          "instrument",
+          "venue",
+          "frequency",
+          "source",
+          "notional_currency",
+          "times",
+          "bands"
+        ],
+        "title": "BookDepthOut",
+        "description": "Depth of the order book within bands around the price, on one venue (ADR-0044)."
       },
       "CalibrationOut": {
         "properties": {
@@ -8111,7 +8517,8 @@
             "type": "string",
             "enum": [
               "holding_rates",
-              "positioning"
+              "positioning",
+              "book_depth"
             ],
             "title": "Dataset"
           },

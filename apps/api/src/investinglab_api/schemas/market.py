@@ -19,6 +19,8 @@ from investinglab_api.schemas.common import ApiModel, DateRange, Matrix, Point
 
 __all__ = [
     "BarOut",
+    "BookBandOut",
+    "BookDepthOut",
     "CardOut",
     "CompareRequest",
     "CompareSeriesOut",
@@ -59,6 +61,7 @@ __all__ = [
     "TrendOut",
     "UnavailableIndicatorOut",
     "UnavailablePatternOut",
+    "VenueDataset",
     "VenuesOut",
 ]
 
@@ -352,11 +355,59 @@ class PositioningOut(ApiModel):
     )
 
 
+class BookBandOut(ApiModel):
+    """Depth within one distance from the price, aligned on :attr:`BookDepthOut.times`.
+
+    Depth is cumulative: a wider band holds at least what a narrower one does. A value is
+    null where the venue skipped a snapshot.
+    """
+
+    band: float = Field(description="Distance from the price, in percent (2.0 is ±2 %).")
+    bid: list[float | None] = Field(description="Quantity to buy, in the base asset.")
+    ask: list[float | None] = Field(description="Quantity to sell, in the base asset.")
+    bid_notional: list[float | None] | None = Field(
+        description="Value to buy, in ``notional_currency`` (null when the venue gives none)."
+    )
+    ask_notional: list[float | None] | None = Field(
+        description="Value to sell, in ``notional_currency`` (null when the venue gives none)."
+    )
+    imbalance: list[float | None] = Field(
+        description="(bid - ask) / (bid + ask) in quantity: from -1 (only offers) to +1."
+    )
+    liquidity: list[float | None] | None = Field(
+        description="Value on both sides, in ``notional_currency`` (null without notional)."
+    )
+    latest_bid: float | None
+    latest_ask: float | None
+    latest_imbalance: float | None
+    latest_liquidity: float | None
+
+
+class BookDepthOut(ApiModel):
+    """Depth of the order book within bands around the price, on one venue (ADR-0044)."""
+
+    instrument: InstrumentOut
+    venue: str
+    frequency: Frequency
+    source: SourceOut
+    notional_currency: str | None = Field(
+        description="Currency of the notional values (null when the venue gives none)."
+    )
+    times: list[datetime] = Field(
+        description="Start of each period (UTC); its values are the book when it ended."
+    )
+    bands: list[BookBandOut] = Field(description="The bands the venue publishes, narrowest first.")
+
+
+VenueDataset = Literal["holding_rates", "positioning", "book_depth"]
+"""Datasets served per venue."""
+
+
 class VenuesOut(ApiModel):
     """The venues that serve a dataset of an instrument, in the order they are asked."""
 
     symbol: str
-    dataset: Literal["holding_rates", "positioning"]
+    dataset: VenueDataset
     venues: list[str] = Field(description="First the one asked when no venue is named.")
 
 

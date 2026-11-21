@@ -16,7 +16,7 @@ import { perpetualOf } from "@/lib/util/instruments";
 import { byFamily, occurrences, recentEvents, type Direction } from "@/lib/util/patterns";
 import { groupUnavailable } from "@/lib/util/technical";
 import { InstrumentCard } from "@/components/markets/card";
-import { FundingCard, PositioningCard } from "@/components/markets/derivatives";
+import { BookDepthCard, FundingCard, PositioningCard } from "@/components/markets/derivatives";
 import { ConfluenceCard } from "@/components/markets/confluence";
 import { StructureCard } from "@/components/markets/structure";
 import { TechnicalCard, TechnicalSummary } from "@/components/markets/technical";
@@ -210,6 +210,8 @@ function InstrumentView({ symbol }: { symbol: string }) {
       </div>
 
       {swap ? <PositioningCard swap={swap} /> : null}
+
+      {swap ? <BookDepthCard swap={swap} /> : null}
     </div>
   );
 }

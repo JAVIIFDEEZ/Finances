@@ -302,7 +302,11 @@ def test_positioning_requests_are_checked(
 
 @pytest.mark.parametrize(
     ("dataset", "venues"),
-    [("holding_rates", ["synthetic-venue"]), ("positioning", ["synthetic-oi"])],
+    [
+        ("holding_rates", ["synthetic-venue"]),
+        ("positioning", ["synthetic-oi"]),
+        ("book_depth", ["synthetic-book"]),
+    ],
 )
 def test_the_venues_of_a_dataset_are_those_registered(
     client: TestClient, dataset: str, venues: list[str]
@@ -321,6 +325,48 @@ def test_only_funding_and_positioning_are_served_per_venue(client: TestClient) -
     )
 
     assert response.status_code == 422
+
+
+def test_book_depth_comes_by_band_aligned_on_its_instants(client: TestClient) -> None:
+    response = client.get(
+        "/api/v1/market/book-depth", params={"symbol": "SYN/USDT:USDT", "start": "2024-03-01"}
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert (body["venue"], body["frequency"], body["notional_currency"]) == (
+        "synthetic-book",
+        "1h",
+        "USD",
+    )
+    assert len(body["times"]) == 24
+    assert body["times"][0] == "2024-03-01T00:00:00Z"
+    narrow, wide = body["bands"]
+    assert (narrow["band"], wide["band"]) == (1.0, 2.0)
+    first = 0
+    bid, ask = narrow["bid"][first], narrow["ask"][first]
+    assert narrow["imbalance"][first] == pytest.approx((bid - ask) / (bid + ask))
+    assert narrow["liquidity"][first] == pytest.approx((bid + ask) * 50.0)
+    assert narrow["bid_notional"][first] == pytest.approx(bid * 50.0)
+    assert wide["ask"][3] is None  # a skipped band stays missing, never filled in
+    assert wide["imbalance"][3] is None
+    assert wide["latest_bid"] == wide["bid"][-1]
+    assert all(w >= n for w, n in zip(wide["bid"], narrow["bid"], strict=True))  # cumulative
+
+
+@pytest.mark.parametrize(
+    ("params", "status"),
+    [
+        ({"symbol": "SYN/USDT:USDT", "venue": "other"}, 404),
+        ({"symbol": "SYN/USDT:USDT", "interval": "1w"}, 422),
+        ({"symbol": "NOPE/USDT:USDT"}, 404),
+    ],
+    ids=["other-venue", "unread-interval", "unknown-swap"],
+)
+def test_book_depth_requests_are_checked(
+    client: TestClient, params: dict[str, str], status: int
+) -> None:
+    assert client.get("/api/v1/market/book-depth", params=params).status_code == status
 
 
 # ── Technical indicators (SYNTHETIC) ─────────────────────────────────

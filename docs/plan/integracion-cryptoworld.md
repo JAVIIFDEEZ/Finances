@@ -791,6 +791,11 @@ ampliable por *venue* ([ADR-0044](../adr/0044-order-book-depth-by-bands.md)). `t
 desequilibrio y la liquidez por banda, y un contrato. Pendiente: la API y la pantalla, el tercer
 *venue* y CoinGecko.
 
+**Avance (21-11-2026, profundidad en la API y la web):** `GET /api/v1/market/book-depth` y
+`book_depth` en `/market/venues`; en Mercados, la tarjeta de profundidad del libro (liquidez y
+desequilibrio en la banda elegida, tabla por bandas del último periodo). Pendiente de G1: el tercer
+*venue* y CoinGecko.
+
 **Decisión al implementarla (13-11-2026):** en lugar de ccxt, un adaptador por *venue* sobre `HttpClient`, con casetes ([ADR-0032](../adr/0032-crypto-venues-on-the-shared-http-client.md)): ccxt salta la capa de red común y sus peticiones no se pueden reproducir con `respx`. La notación de símbolos es la de ccxt (`BTC/USDT`, `BTC/USDT:USDT`) y el enrutado la reconoce sola, así que `tk.series("BTC/USDT", frequency="1h")` va a Binance sin indicar el *venue*. Hechos: Binance *spot* (velas y flujo), funding de OKX, volumen de Yahoo como flujo. Pendientes: el resto de la lista.
 
 ### G2 — Análisis técnico multiactivo y ficha de activo

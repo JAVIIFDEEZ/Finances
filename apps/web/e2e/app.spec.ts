@@ -226,6 +226,7 @@ test("every instrument shows its flow, or why it has none", async ({ page }) => 
   await expect(page.getByText("Ninguna fuente publica el flujo", { exact: false })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Funding del perpetuo" })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Posicionamiento del perpetuo" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Profundidad del libro" })).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 
