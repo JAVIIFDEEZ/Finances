@@ -247,6 +247,13 @@ memoria mientras vive el proceso (la API, un notebook): el flujo, lo mismo que l
 frecuencia (15 minutos las intradía, 12 horas las diarias), y el funding, una hora. Con
 `refresh=True` se vuelven a descargar.
 
+Los **volcados de Binance** (el funding por meses y el posicionamiento por días) se guardan en
+`<caché>/dumps/binance/` tal como se publicaron, con su *checksum* y la versión que da el listado
+([ADR-0043](../adr/0043-verified-published-files-cache.md)). La segunda vez solo se pide el
+listado: cada fichero se lee del disco y se verifica otra vez contra su SHA-256. Si Binance lo
+publica de nuevo o la copia está dañada, se descarga otra vez. Con `cache=False` no se guarda
+nada, y borrar la carpeta siempre es seguro.
+
 Lo que sirven tus **ficheros locales** no pasa por la caché: leer el fichero cuesta lo mismo que
 leer la caché, y así un fichero editado (otra columna, un precio corregido) se ve en la
 siguiente consulta, no cuando caduque una copia guardada. Solo se cachea lo que se descarga.

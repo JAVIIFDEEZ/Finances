@@ -36,6 +36,7 @@ from investinglab.ports.errors import (
 
 if TYPE_CHECKING:
     from investinglab.adapters.http import HttpClient
+    from investinglab.adapters.storage.published import PublishedFileCache
 
 __all__ = ["FUNDING_DATASET", "PERPETUAL", "contract", "fetch_funding"]
 
@@ -90,8 +91,11 @@ async def fetch_funding(
     start: date | None,
     end: date | None,
     now: datetime,
+    cache: PublishedFileCache | None = None,
 ) -> RateSeries:
     """The funding settled on a Binance perpetual swap between two UTC dates (inclusive).
+
+    Each month is one file; with a ``cache``, a month already verified is read from disk.
 
     Raises:
         UnsupportedRequestError: If the symbol is not a perpetual swap Binance could list, or
@@ -117,9 +121,9 @@ async def fetch_funding(
             f"{symbol}: no funding published between {start or 'the listing'} and "
             f"{end or 'now'}; Binance publishes each month once it ends (last: {latest})",
         )
-    texts = await dumps.read_all(provider, files, keys)
+    texts = await dumps.read_all(provider, files, keys, cache=cache)
     payments = pd.concat(
-        [_payments(provider, key, text) for key, text in zip(keys, texts, strict=True)]
+        [_payments(provider, listed.key, text) for listed, text in zip(keys, texts, strict=True)]
     ).sort_index(kind="stable")
     payments = payments[~payments.index.duplicated(keep="last")]
     first = _midnight(start) if start else None
@@ -145,5 +149,5 @@ async def fetch_funding(
 async def _last_month(provider: str, listing: HttpClient, prefix: str) -> str:
     """The last month published under ``prefix`` (the listing is sorted)."""
     keys = await dumps.published(provider, listing, prefix)
-    found = _MONTH.search(keys[-1]) if keys else None
+    found = _MONTH.search(keys[-1].key) if keys else None
     return found.group(1) if found else "none"

@@ -17,7 +17,8 @@ import pandas as pd
 import pytest
 import respx
 
-from investinglab.adapters.providers.binance import BinanceProvider
+from investinglab.adapters.providers.binance import BinanceProvider, dumps
+from investinglab.adapters.storage import PublishedFileCache
 from investinglab.domain import Frequency, PositioningField
 from investinglab.ports import (
     PositioningRequest,
@@ -28,6 +29,7 @@ from support.cassettes import Cassette, Exchange, load_cassette
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
+    from pathlib import Path
 
 LINEAR = load_cassette("binance/btc_usdt_positioning")
 INVERSE = load_cassette("binance/btc_usd_inverse_positioning")
@@ -148,3 +150,24 @@ async def test_a_file_that_does_not_read_as_metrics_is_refused(
     async with BinanceProvider(clock=LINEAR.clock) as provider:
         with pytest.raises(ProviderDataError, match=message):
             await provider.fetch_positioning(LINEAR.positioning_request)
+
+
+async def test_the_days_already_verified_are_read_from_disk(
+    router: respx.MockRouter, tmp_path: Path
+) -> None:
+    routes = LINEAR.play(router)
+    cache = PublishedFileCache(tmp_path)
+    files = [
+        route
+        for route, exchange in zip(routes, LINEAR.exchanges, strict=True)
+        if exchange.url.startswith(dumps.DUMPS_URL)
+    ]
+
+    async with BinanceProvider(clock=LINEAR.clock, dump_cache=cache) as provider:
+        first = await provider.fetch_positioning(LINEAR.positioning_request)
+    async with BinanceProvider(clock=LINEAR.clock, dump_cache=cache) as provider:
+        again = await provider.fetch_positioning(LINEAR.positioning_request)
+
+    assert files
+    assert all(route.call_count == 1 for route in files)  # each day downloaded once
+    assert again.snapshots.equals(first.snapshots)

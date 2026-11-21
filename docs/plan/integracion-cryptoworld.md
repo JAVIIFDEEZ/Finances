@@ -778,6 +778,12 @@ cuentas y de posiciones del *top*, la *venue* y la fecha de la última foto. El 
 posicionamiento se leen cada uno si una fuente los sirve. Pendiente de G1: foto del libro, el
 tercer *venue*, CoinGecko y la caché en disco de los volcados mensuales.
 
+**Avance (21-11-2026, caché de volcados):** los ficheros de Binance verificados se guardan en
+disco tal como se publicaron, con la versión que da su listado
+([ADR-0043](../adr/0043-verified-published-files-cache.md)). Leer otra vez lo ya leído cuesta
+una llamada, el listado; cada copia se verifica de nuevo contra su SHA-256, y una republicada o
+dañada se descarga otra vez. Pendiente de G1: foto del libro, el tercer *venue* y CoinGecko.
+
 **Decisión al implementarla (13-11-2026):** en lugar de ccxt, un adaptador por *venue* sobre `HttpClient`, con casetes ([ADR-0032](../adr/0032-crypto-venues-on-the-shared-http-client.md)): ccxt salta la capa de red común y sus peticiones no se pueden reproducir con `respx`. La notación de símbolos es la de ccxt (`BTC/USDT`, `BTC/USDT:USDT`) y el enrutado la reconoce sola, así que `tk.series("BTC/USDT", frequency="1h")` va a Binance sin indicar el *venue*. Hechos: Binance *spot* (velas y flujo), funding de OKX, volumen de Yahoo como flujo. Pendientes: el resto de la lista.
 
 ### G2 — Análisis técnico multiactivo y ficha de activo

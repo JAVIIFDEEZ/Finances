@@ -254,6 +254,24 @@ def test_funding_of_a_perpetual_swap_comes_from_okx(tmp_path: Path) -> None:
     assert (funding.venue, funding.kind, len(funding)) == ("okx", RateKind.FUNDING, 30)
 
 
+def test_binance_keeps_its_verified_dumps_in_the_cache_folder(tmp_path: Path) -> None:
+    online = _settings(tmp_path, offline=False)
+    cassette = load_cassette("binance/btc_usdt_swap_funding")
+    request = cassette.rates_request
+    kept = tmp_path / "data" / "cache" / "dumps" / "binance"
+
+    for cache in (False, True):
+        with respx.mock() as router, Toolkit.from_settings(online, cache=cache) as tk:
+            cassette.play(router)
+            tk.holding_rates(request.symbol, venue="binance", start=request.start, end=request.end)
+        archives = sorted(path.name for path in kept.rglob("*.zip"))
+        assert archives == (
+            []
+            if not cache
+            else [f"BTCUSDT-fundingRate-2026-{month}.zip" for month in ("08", "09", "10")]
+        )
+
+
 def test_series_are_downloaded_from_yahoo(tmp_path: Path) -> None:
     cassette = load_cassette("yahoo/san_mc_1d")
     online = _settings(tmp_path, offline=False)

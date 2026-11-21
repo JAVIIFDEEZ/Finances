@@ -62,6 +62,7 @@ if TYPE_CHECKING:
     import httpx
 
     from investinglab.adapters.http import RetryPolicy
+    from investinglab.adapters.storage.published import PublishedFileCache
     from investinglab.domain.flow import FlowSeries
     from investinglab.domain.positioning import PositioningSeries
     from investinglab.domain.rate_series import RateSeries
@@ -201,6 +202,8 @@ class BinanceProvider:
         retry: Retry policy for transient failures (default client only).
         clock: Current time (injectable for tests); decides which bars are finished.
         page_size: Bars per call, up to :data:`PAGE_SIZE` (smaller pages are for tests).
+        dump_cache: Where verified dump files are kept so that they are downloaded once
+            (ADR-0043); none by default.
 
     Raises:
         DomainError: If ``page_size`` is out of range.
@@ -216,6 +219,7 @@ class BinanceProvider:
         retry: RetryPolicy | None = None,
         clock: Callable[[], datetime] = _utc_now,
         page_size: int = PAGE_SIZE,
+        dump_cache: PublishedFileCache | None = None,
     ) -> None:
         if not 1 <= page_size <= PAGE_SIZE:
             raise DomainError(f"page_size must be between 1 and {PAGE_SIZE}, got {page_size}")
@@ -224,6 +228,7 @@ class BinanceProvider:
         self._listing = listing or _dumps.listing_client(NAME, timeout=timeout, retry=retry)
         self._clock = clock
         self._page_size = page_size
+        self._dump_cache = dump_cache
 
     @property
     def name(self) -> str:
@@ -300,6 +305,7 @@ class BinanceProvider:
             start=request.start,
             end=request.end,
             now=self._clock(),
+            cache=self._dump_cache,
         )
 
     async def fetch_positioning(self, request: PositioningRequest) -> PositioningSeries:
@@ -317,7 +323,7 @@ class BinanceProvider:
                 NAME, f"Binance serves its own positioning, not {request.venue}'s"
             )
         return await positioning.fetch_positioning(
-            NAME, self._listing, self._dumps, request, now=self._clock()
+            NAME, self._listing, self._dumps, request, now=self._clock(), cache=self._dump_cache
         )
 
     async def aclose(self) -> None:
