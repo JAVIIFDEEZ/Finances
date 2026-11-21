@@ -116,6 +116,23 @@ pnpm dev
   Para tener los dos proyectos a la vez, pon `INVESTINGLAB_API_PORT=8001` en `.env` (`just dev`
   propone un puerto libre): la API lo lee de ahí y la web lo sigue sola. En cuanto la API
   responde, la web se recupera sin recargar la página.
+* **`just dev` se queda un rato sin decir nada al arrancar** o, si se interrumpe, muestra una
+  traza que acaba en `KeyboardInterrupt`. Con `INVESTINGLAB_API_DATABASE_URL` en `.env`,
+  `just dev` primero lleva la base de datos al esquema de esta versión, y lo avisa
+  («Bringing the database to this version's schema…»). Ese paso solo carga Alembic,
+  SQLAlchemy y los modelos. Aun así, la primera vez tras actualizar Python compila lo que
+  cambió, y eso tarda más. Si PostgreSQL no responde, se rinde a los 10 segundos con un mensaje
+  que dice dónde lo buscó y qué hacer (`uv run just db-up`, o quitar la variable para trabajar
+  sin base de datos). Si se interrumpe con Ctrl+C, la base de datos queda como estaba: cada
+  migración va en una transacción.
+
+  **Si el repositorio está dentro de OneDrive** (o de otra carpeta sincronizada), todo va mucho
+  más lento. OneDrive sube cada fichero que se crea, entre ellos los miles de `.venv`,
+  `node_modules` y `__pycache__`. Con «Archivos a petición» puede que ni siquiera estén en el
+  disco y se descarguen al leerlos, y el antivirus revisa cada uno. Lo recomendable es mover
+  el repositorio fuera, a una carpeta local (por ejemplo `C:\dev\Finances`); Git ya guarda
+  el código en GitHub. Desde allí, `uv sync --all-groups --compile-bytecode` compila todo una
+  vez al instalar, y el primer arranque deja de pagar esa compilación.
 * **`uv` no se reconoce** en una terminal: no está en el PATH de esa terminal. Abre una nueva
   después de instalarlo, o mira dónde está en una terminal donde sí funcione
   (`(Get-Command uv).Source` en PowerShell) y añade esa carpeta al PATH. Con el entorno del

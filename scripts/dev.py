@@ -498,6 +498,13 @@ def busy_ports(api: int) -> list[str]:
     return problems
 
 
+MIGRATING = (
+    "Bringing the database to this version's schema (INVESTINGLAB_API_DATABASE_URL); "
+    "the first run after an update compiles more code and takes longer..."
+)
+NOT_STARTED = "The API and the web app were not started."
+
+
 def database_configured() -> bool:
     """Whether the API will use a database (the environment or ``.env`` name one)."""
     from investinglab_api.settings import ApiSettings  # noqa: PLC0415 - only the launcher needs it
@@ -637,14 +644,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         steps.append([*node, "build"])
     try:
         if database_configured():
+            print(MIGRATING, flush=True)  # noqa: T201
             migrate = [sys.executable, "-m", "investinglab_api", "db", "upgrade"]
             if (code := subprocess.run(migrate, cwd=ROOT, check=False).returncode) != 0:  # noqa: S603
+                print(NOT_STARTED, file=sys.stderr)  # noqa: T201
                 return code
         for step in steps:
             done = subprocess.run(step, cwd=WEB, env=web_env, check=False)  # noqa: S603
             if done.returncode != 0:
                 return done.returncode
     except KeyboardInterrupt:
+        print(NOT_STARTED, file=sys.stderr)  # noqa: T201
         return 130
     api = [sys.executable, "-m", "investinglab_api", *([] if arguments.preview else ["--reload"])]
     host = "0.0.0.0" if arguments.lan else LOCALHOST  # noqa: S104 - asked for with --lan

@@ -585,7 +585,9 @@ def test_listening_tells_whether_a_program_holds_a_port() -> None:
 
 
 def test_the_schema_is_migrated_first_when_a_database_is_configured(
-    launcher: dict[str, list[Any]], monkeypatch: pytest.MonkeyPatch
+    launcher: dict[str, list[Any]],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     monkeypatch.setattr(dev, "database_configured", lambda: True)
     migrate = [sys.executable, "-m", "investinglab_api", "db", "upgrade"]
@@ -593,6 +595,7 @@ def test_the_schema_is_migrated_first_when_a_database_is_configured(
     assert dev.main([]) == 0
     assert launcher["steps"][0] == (migrate, dev.ROOT, False)
     assert len(launcher["servers"]) == 2
+    assert dev.MIGRATING in capsys.readouterr().out  # never a silent wait
 
     launcher["steps"].clear()
     launcher["servers"].clear()
@@ -601,6 +604,23 @@ def test_the_schema_is_migrated_first_when_a_database_is_configured(
     assert dev.main([]) == 1
     assert [command for command, _, _ in launcher["steps"]] == [migrate]
     assert launcher["servers"] == []
+    assert dev.NOT_STARTED in capsys.readouterr().err
+
+
+def test_ctrl_c_while_migrating_starts_nothing(
+    launcher: dict[str, list[Any]],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    def interrupted(*args: object, **kwargs: object) -> subprocess.CompletedProcess[bytes]:
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(dev, "database_configured", lambda: True)
+    monkeypatch.setattr(subprocess, "run", interrupted)
+
+    assert dev.main([]) == 130
+    assert launcher["servers"] == []
+    assert dev.NOT_STARTED in capsys.readouterr().err
 
 
 def test_the_launcher_reads_the_database_from_the_api_settings(

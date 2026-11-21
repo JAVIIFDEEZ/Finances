@@ -18,8 +18,24 @@ from investinglab_api.settings import get_api_settings
 __all__ = ["main"]
 
 
+def _unreachable(url: str, error: Exception) -> str:
+    """Why the database did not answer and what to do, without its password."""
+    from sqlalchemy.engine import make_url  # noqa: PLC0415 - only for this command
+
+    parts = make_url(url)
+    where = f"{parts.host or 'localhost'}:{parts.port or 5432}/{parts.database or ''}"
+    reason = str(getattr(error, "orig", None) or error).strip().splitlines()[0]
+    return (
+        f"Could not reach the database at {where}: {reason}\n"
+        "Is PostgreSQL running? Locally: `uv run just db-up`. To run without a database, "
+        "remove INVESTINGLAB_API_DATABASE_URL from .env.\n"
+    )
+
+
 def _database(argv: list[str]) -> int:
     """``db upgrade``, ``db current`` and (for development) ``db revision -m "what changes"``."""
+    from sqlalchemy.exc import OperationalError  # noqa: PLC0415 - only for this command
+
     from investinglab_api.persistence import migrate  # noqa: PLC0415 - only for this command
 
     parser = argparse.ArgumentParser(prog="investinglab-api db", description=_database.__doc__)
@@ -31,13 +47,18 @@ def _database(argv: list[str]) -> int:
     if url is None:
         sys.stderr.write("Set INVESTINGLAB_API_DATABASE_URL to the database to migrate.\n")
         return 2
-    if action == "revision":
-        if not arguments.message:
-            parser.error("revision needs -m with what it changes")
-        migrate.revision(url.get_secret_value(), arguments.message)
-    if action == "upgrade":
-        migrate.upgrade(url.get_secret_value())
-    current = migrate.current_revision(url.get_secret_value())
+    if action == "revision" and not arguments.message:
+        parser.error("revision needs -m with what it changes")
+    secret = url.get_secret_value()
+    try:
+        if action == "revision":
+            migrate.revision(secret, arguments.message)
+        if action == "upgrade":
+            migrate.upgrade(secret)
+        current = migrate.current_revision(secret)
+    except OperationalError as error:
+        sys.stderr.write(_unreachable(secret, error))
+        return 1
     sys.stdout.write(
         f"Database at revision {current} (this version needs {migrate.head_revision()})\n"
     )
@@ -48,7 +69,12 @@ def main(argv: list[str] | None = None) -> int:
     """Serve the API, write its OpenAPI document (``--openapi PATH``) or migrate (``db``)."""
     arguments_in = sys.argv[1:] if argv is None else argv
     if arguments_in[:1] == ["db"]:
-        return _database(arguments_in[1:])
+        try:
+            return _database(arguments_in[1:])
+        except KeyboardInterrupt:
+            # Ctrl+C: a migration runs in one transaction, so nothing is left half done.
+            sys.stderr.write("Interrupted: the database was left as it was.\n")
+            return 130
     argv = arguments_in
     parser = argparse.ArgumentParser(prog="investinglab-api", description=__doc__)
     parser.add_argument("--reload", action="store_true", help="restart on code changes")
