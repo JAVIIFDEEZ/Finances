@@ -13,6 +13,10 @@ What this module guarantees:
   bytes per file once uncompressed (a damaged or hostile archive cannot fill the memory).
 * **Safe listing.** The bucket answers XML; a document that declares a DTD or entities is
   refused before it is parsed, which rules out entity expansion attacks.
+* **Downloaded once.** With a :class:`~investinglab.adapters.storage.PublishedFileCache`, a
+  verified file is kept with the version the listing gives it (its ``ETag``) and read from
+  disk while the listing names that version, verified again against its checksum
+  (ADR-0043). Only the listing, one call, goes to the network.
 """
 
 from __future__ import annotations
@@ -21,10 +25,12 @@ import asyncio
 import hashlib
 import io
 import zipfile
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Final
 from xml.etree import ElementTree as ET
 
 from investinglab.adapters.http import HttpClient
+from investinglab.config.logging import get_logger
 from investinglab.ports.errors import ProviderDataError, UnsupportedRequestError
 from investinglab.ports.market_data import RateLimit
 
@@ -34,6 +40,7 @@ if TYPE_CHECKING:
     import httpx
 
     from investinglab.adapters.http import RetryPolicy
+    from investinglab.adapters.storage.published import PublishedFileCache
 
 __all__ = [
     "BUCKET",
@@ -41,6 +48,7 @@ __all__ = [
     "LISTING_URL",
     "MAX_FILES",
     "MAX_UNZIPPED",
+    "Listed",
     "dumps_client",
     "listing_client",
     "published",
@@ -71,6 +79,22 @@ LISTING_LIMITS: Final = (RateLimit(5, 1.0),)
 
 _S3: Final = "{http://s3.amazonaws.com/doc/2006-03-01/}"
 _CHECKSUM: Final = ".CHECKSUM"
+
+log = get_logger(__name__)
+
+
+@dataclass(frozen=True, slots=True)
+class Listed:
+    """A ZIP file the bucket lists.
+
+    Attributes:
+        key: Its path in the bucket (``data/futures/um/monthly/fundingRate/...zip``).
+        version: The ``ETag`` the listing gives it: another one means the file was
+            published again. ``None`` if the listing gives none (then it is never cached).
+    """
+
+    key: str
+    version: str | None = None
 
 
 def dumps_client(
@@ -109,8 +133,8 @@ def listing_client(
     )
 
 
-def _keys(provider: str, document: str) -> tuple[list[str], bool]:
-    """The keys of one page of an S3 listing, and whether more pages follow."""
+def _entries(provider: str, document: str) -> tuple[list[Listed], bool]:
+    """The keys of one page of an S3 listing with their versions, and whether more follow."""
     if "<!DOCTYPE" in document or "<!ENTITY" in document:
         raise ProviderDataError(provider, "the dump listing declares a DTD: refused")
     try:
@@ -119,9 +143,12 @@ def _keys(provider: str, document: str) -> tuple[list[str], bool]:
         raise ProviderDataError(provider, f"unreadable dump listing ({error})") from None
     if root.tag != f"{_S3}ListBucketResult":
         raise ProviderDataError(provider, f"unexpected dump listing ({root.tag})")
-    keys = [node.text or "" for node in root.iter(f"{_S3}Key")]
+    entries = []
+    for node in root.iter(f"{_S3}Contents"):
+        etag = (node.findtext(f"{_S3}ETag") or "").strip().strip('"')
+        entries.append(Listed(node.findtext(f"{_S3}Key") or "", etag or None))
     truncated = (root.findtext(f"{_S3}IsTruncated") or "").strip().lower() == "true"
-    return keys, truncated
+    return entries, truncated
 
 
 async def published(
@@ -133,8 +160,8 @@ async def published(
     until: str | None = None,
     limit: int | None = None,
     page_size: int = LISTING_PAGE,
-) -> list[str]:
-    """The ZIP files published under ``prefix``, in key order.
+) -> list[Listed]:
+    """The ZIP files published under ``prefix``, in key order, with their versions.
 
     Args:
         provider: Provider slug, for errors.
@@ -150,24 +177,24 @@ async def published(
             calls.
         ProviderDataError: If a page is not a bucket listing.
     """
-    found: list[str] = []
+    found: list[Listed] = []
     marker = after
     for _ in range(MAX_LISTING_PAGES):
         params: dict[str, str | int] = {"prefix": prefix, "max-keys": page_size}
         if marker is not None:
             params["marker"] = marker
         document = await listing.get_text(f"/{BUCKET}", params)
-        keys, truncated = _keys(provider, document)
-        for key in keys:
-            if until is not None and key > until:
+        entries, truncated = _entries(provider, document)
+        for entry in entries:
+            if until is not None and entry.key > until:
                 return found
-            if key.startswith(prefix) and key.endswith(".zip"):
-                found.append(key)
+            if entry.key.startswith(prefix) and entry.key.endswith(".zip"):
+                found.append(entry)
                 if limit is not None and len(found) >= limit:
                     return found
-        if not truncated or not keys:
+        if not truncated or not entries:
             return found
-        marker = keys[-1]
+        marker = entries[-1].key
     raise UnsupportedRequestError(provider, f"{prefix}: too many files to list; ask for less")
 
 
@@ -207,37 +234,81 @@ def _expected_digest(provider: str, key: str, checksum: bytes) -> str:
     return digest.lower()
 
 
-async def read_verified(provider: str, dumps: HttpClient, key: str) -> str:
-    """Download ``key`` and its checksum, verify it and return the CSV inside.
-
-    Raises:
-        ProviderDataError: If the file does not match its checksum or is not one CSV.
-        ProviderError: Any failure of the download, translated by the HTTP client.
-    """
-    archive, checksum = await asyncio.gather(
-        dumps.get_bytes(f"/{key}"), dumps.get_bytes(f"/{key}{_CHECKSUM}")
-    )
+def _verified(provider: str, key: str, archive: bytes, checksum: bytes) -> str:
+    """The CSV inside ``archive`` once it matches its published SHA-256."""
     expected = _expected_digest(provider, key, checksum)
     if hashlib.sha256(archive).hexdigest() != expected:
         raise ProviderDataError(provider, f"{key}: does not match its published SHA-256")
     return _member(provider, key, archive)
 
 
-async def read_all(provider: str, dumps: HttpClient, keys: Sequence[str]) -> list[str]:
-    """The CSV of every file in ``keys``, verified, in the same order.
+async def _cached(provider: str, cache: PublishedFileCache, key: str, version: str) -> str | None:
+    """The CSV of a kept copy of ``key``, verified again; ``None`` if there is none."""
+    stored = await asyncio.to_thread(cache.load, key, version)
+    if stored is None:
+        return None
+    try:
+        return _verified(provider, key, *stored)
+    except ProviderDataError as error:
+        # A copy damaged on disk is downloaded again, never read.
+        log.warning("dump_cache_damaged", provider=provider, key=key, error=str(error))
+        await asyncio.to_thread(cache.discard, key)
+        return None
+
+
+async def read_verified(
+    provider: str,
+    dumps: HttpClient,
+    key: str,
+    *,
+    version: str | None = None,
+    cache: PublishedFileCache | None = None,
+) -> str:
+    """Download ``key`` and its checksum, verify it and return the CSV inside.
+
+    With a ``cache`` and the listing's ``version``, a copy kept with that version is read
+    (and verified) instead, and a downloaded file is kept once verified.
+
+    Raises:
+        ProviderDataError: If the file does not match its checksum or is not one CSV.
+        ProviderError: Any failure of the download, translated by the HTTP client.
+    """
+    if cache is not None and version is not None:
+        found = await _cached(provider, cache, key, version)
+        if found is not None:
+            return found
+    archive, checksum = await asyncio.gather(
+        dumps.get_bytes(f"/{key}"), dumps.get_bytes(f"/{key}{_CHECKSUM}")
+    )
+    text = _verified(provider, key, archive, checksum)
+    if cache is not None and version is not None:
+        await asyncio.to_thread(cache.save, key, version, archive, checksum)
+    return text
+
+
+async def read_all(
+    provider: str,
+    dumps: HttpClient,
+    files: Sequence[Listed],
+    *,
+    cache: PublishedFileCache | None = None,
+) -> list[str]:
+    """The CSV of every listed file, verified, in the same order.
 
     Raises:
         UnsupportedRequestError: If they are more than :data:`MAX_FILES`.
         ProviderError: As :func:`read_verified`.
     """
-    if len(keys) > MAX_FILES:
+    if len(files) > MAX_FILES:
         raise UnsupportedRequestError(
-            provider, f"{len(keys)} files to download, more than {MAX_FILES}; ask for less"
+            provider, f"{len(files)} files to download, more than {MAX_FILES}; ask for less"
         )
     gate = asyncio.Semaphore(PARALLEL)
 
-    async def one(key: str) -> str:
+    async def one(listed: Listed) -> str:
         async with gate:
-            return await read_verified(provider, dumps, key)
+            return await read_verified(
+                provider, dumps, listed.key, version=listed.version, cache=cache
+            )
 
-    return list(await asyncio.gather(*(one(key) for key in keys)))
+    return list(await asyncio.gather(*(one(listed) for listed in files)))

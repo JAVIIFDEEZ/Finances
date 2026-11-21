@@ -37,6 +37,7 @@ from investinglab.ports.errors import (
 
 if TYPE_CHECKING:
     from investinglab.adapters.http import HttpClient
+    from investinglab.adapters.storage.published import PublishedFileCache
     from investinglab.ports.market_data import PositioningRequest
 
 __all__ = ["FIELDS", "METRICS_DATASET", "fetch_positioning"]
@@ -105,8 +106,11 @@ async def fetch_positioning(
     request: PositioningRequest,
     *,
     now: datetime,
+    cache: PublishedFileCache | None = None,
 ) -> PositioningSeries:
     """The positioning snapshots of a Binance perpetual swap, at ``request.frequency``.
+
+    Each day is one file; with a ``cache``, a day already verified is read from disk.
 
     Raises:
         UnsupportedRequestError: If the symbol is not a swap Binance could list, no start
@@ -137,9 +141,12 @@ async def fetch_positioning(
             f"{request.end or 'now'}; Binance publishes each day the next morning",
         )
     columns = _LINEAR if market == "um" else _INVERSE
-    texts = await dumps.read_all(provider, files, keys)
+    texts = await dumps.read_all(provider, files, keys, cache=cache)
     frame = pd.concat(
-        [_snapshots(provider, key, text, columns) for key, text in zip(keys, texts, strict=True)]
+        [
+            _snapshots(provider, listed.key, text, columns)
+            for listed, text in zip(keys, texts, strict=True)
+        ]
     ).sort_index(kind="stable")
     frame = frame[~frame.index.duplicated(keep="last")].dropna(axis="columns", how="all")
     first = _midnight(request.start)
@@ -149,7 +156,7 @@ async def fetch_positioning(
         raise ProviderDataError(
             provider,
             f"{request.symbol}: no positioning published between {request.start} and "
-            f"{request.end or 'now'} (last day: {_day(keys[-1])})",
+            f"{request.end or 'now'} (last day: {_day(keys[-1].key)})",
         )
     source = DataSource(provider, now, f"futures/{market}/daily/{METRICS_DATASET}")
     valued = PositioningField.OPEN_INTEREST_VALUE.value in frame.columns

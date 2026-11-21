@@ -10,6 +10,7 @@ from __future__ import annotations
 import csv
 import hashlib
 import io
+import re
 import zipfile
 from datetime import date
 from typing import TYPE_CHECKING
@@ -22,6 +23,7 @@ import respx
 from investinglab.adapters.http import HttpClient
 from investinglab.adapters.providers.binance import BinanceProvider, dumps
 from investinglab.adapters.providers.binance.contracts import contract
+from investinglab.adapters.storage import PublishedFileCache
 from investinglab.domain import AssetClass, RateKind
 from investinglab.ports import (
     ProviderDataError,
@@ -33,6 +35,7 @@ from support.cassettes import Cassette, Exchange, load_cassette
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
+    from pathlib import Path
 
 LINEAR = load_cassette("binance/btc_usdt_swap_funding")
 INVERSE = load_cassette("binance/btc_usd_inverse_funding")
@@ -229,7 +232,7 @@ async def test_a_listing_that_is_not_a_plain_bucket_listing_is_refused(
 
 async def test_the_work_of_one_request_is_bounded() -> None:
     client = HttpClient("binance", base_url=dumps.DUMPS_URL)
-    keys = [f"k{n}.zip" for n in range(dumps.MAX_FILES + 1)]
+    keys = [dumps.Listed(f"k{n}.zip") for n in range(dumps.MAX_FILES + 1)]
     async with client:
         with pytest.raises(UnsupportedRequestError, match="more than"):
             await dumps.read_all("binance", client, keys)
@@ -280,3 +283,105 @@ async def test_only_the_months_of_the_range_are_listed_and_read(router: respx.Mo
     }
     assert all(route.call_count == 1 for route in routes)
     assert LINEAR.rates_request.end == date(2026, 10, 10)
+
+
+# ── Kept once verified (ADR-0043) ────────────────────────────────────
+
+
+def _kept_files(root: Path) -> list[Path]:
+    """Every file the cache left under ``root``."""
+    return [path for path in root.rglob("*") if path.is_file()]
+
+
+def _archives(routes: list[respx.Route]) -> int:
+    """Calls made to the files (archives and checksums), not to the listing."""
+    exchanges = LINEAR.exchanges
+    return sum(
+        route.call_count
+        for route, exchange in zip(routes, exchanges, strict=True)
+        if exchange.url.startswith(dumps.DUMPS_URL)
+    )
+
+
+async def test_a_verified_month_is_read_from_disk_the_next_time(
+    router: respx.MockRouter, tmp_path: Path
+) -> None:
+    routes = LINEAR.play(router)
+    cache = PublishedFileCache(tmp_path)
+
+    async with BinanceProvider(clock=LINEAR.clock, dump_cache=cache) as provider:
+        first = await provider.fetch_rates(LINEAR.rates_request)
+    downloaded = _archives(routes)
+    async with BinanceProvider(clock=LINEAR.clock, dump_cache=cache) as provider:
+        again = await provider.fetch_rates(LINEAR.rates_request)
+
+    assert downloaded == 6  # three months, each archive and its checksum
+    assert _archives(routes) == downloaded  # nothing downloaded the second time...
+    assert routes[0].call_count == 2  # ...but the listing is always asked
+    assert again.rates.equals(first.rates)
+    september = _file(LINEAR, "2026-09.zip")
+    kept = tmp_path / september.url.split("data.binance.vision/", 1)[1]
+    assert kept.read_bytes() == september.content  # as published, still verifiable
+
+
+async def test_a_month_published_again_is_downloaded_again(
+    router: respx.MockRouter, tmp_path: Path
+) -> None:
+    LINEAR.play(router)
+    cache = PublishedFileCache(tmp_path)
+    async with BinanceProvider(clock=LINEAR.clock, dump_cache=cache) as provider:
+        await provider.fetch_rates(LINEAR.rates_request)
+    listing = LINEAR.exchanges[0]
+    assert listing.text is not None
+    republished = listing.text.replace(
+        "<Key>data/futures/um/monthly/fundingRate/BTCUSDT/BTCUSDT-fundingRate-2026-09.zip</Key>"
+        "<LastModified>",
+        "<Key>data/futures/um/monthly/fundingRate/BTCUSDT/BTCUSDT-fundingRate-2026-09.zip</Key>"
+        "<ETag>&quot;republished&quot;</ETag><LastModified>",
+    )
+    assert republished != listing.text
+    router.routes.clear()
+    router.get(listing.url).mock(return_value=httpx.Response(200, text=republished))
+    routes = LINEAR.play(router)
+
+    async with BinanceProvider(clock=LINEAR.clock, dump_cache=cache) as provider:
+        await provider.fetch_rates(LINEAR.rates_request)
+
+    assert _archives(routes) == 2  # only September, archive and checksum
+
+
+async def test_a_copy_damaged_on_disk_is_never_read(
+    router: respx.MockRouter, tmp_path: Path
+) -> None:
+    routes = LINEAR.play(router)
+    cache = PublishedFileCache(tmp_path)
+    async with BinanceProvider(clock=LINEAR.clock, dump_cache=cache) as provider:
+        first = await provider.fetch_rates(LINEAR.rates_request)
+    downloaded = _archives(routes)
+    september = _file(LINEAR, "2026-09.zip")
+    kept = tmp_path / september.url.split("data.binance.vision/", 1)[1]
+    damaged = bytearray(kept.read_bytes())
+    damaged[-1] ^= 0xFF  # one bit flipped on disk
+    kept.write_bytes(bytes(damaged))
+
+    async with BinanceProvider(clock=LINEAR.clock, dump_cache=cache) as provider:
+        again = await provider.fetch_rates(LINEAR.rates_request)
+
+    assert again.rates.equals(first.rates)
+    assert _archives(routes) == downloaded + 2  # downloaded again, verified, kept again
+    assert kept.read_bytes() == september.content
+
+
+async def test_without_a_version_in_the_listing_nothing_is_kept(
+    router: respx.MockRouter, tmp_path: Path
+) -> None:
+    listing = LINEAR.exchanges[0]
+    assert listing.text is not None
+    unversioned = re.sub(r"<ETag>[^<]*</ETag>", "", listing.text)
+    router.get(listing.url).mock(return_value=httpx.Response(200, text=unversioned))
+    LINEAR.play(router)
+
+    async with BinanceProvider(clock=LINEAR.clock, dump_cache=PublishedFileCache(tmp_path)) as p:
+        await p.fetch_rates(LINEAR.rates_request)
+
+    assert not _kept_files(tmp_path)
