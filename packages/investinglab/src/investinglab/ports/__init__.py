@@ -41,6 +41,11 @@ from investinglab.ports.market_data import (
     TradeFlowProvider,
     VintageMode,
 )
+from investinglab.ports.reference import (
+    MarketCapRequest,
+    MarketSnapshotRequest,
+    ReferenceDataProvider,
+)
 from investinglab.ports.repositories import (
     DuplicateNameError,
     Page,
@@ -75,7 +80,9 @@ __all__ = [
     "HoldingRatesProvider",
     "JsonValue",
     "LogEntry",
+    "MarketCapRequest",
     "MarketDataProvider",
+    "MarketSnapshotRequest",
     "Page",
     "PortfolioRepository",
     "PortfolioSpec",
@@ -89,6 +96,7 @@ __all__ = [
     "RateLimitedError",
     "RatesRequest",
     "RecordNotFoundError",
+    "ReferenceDataProvider",
     "RepositoryError",
     "RepositoryUnavailableError",
     "SeriesStore",

@@ -10,6 +10,7 @@ from investinglab.ports import (
     BookDepthRequest,
     Dataset,
     EconomicRequest,
+    MarketCapRequest,
     PositioningRequest,
     ProviderCapabilities,
     RateLimit,
@@ -221,3 +222,22 @@ def test_a_book_depth_request_is_validated() -> None:
         BookDepthRequest(" ")
     with pytest.raises(DomainError, match="is after end"):
         BookDepthRequest("BTC/USDT:USDT", start=date(2026, 11, 2), end=date(2026, 11, 1))
+
+
+def test_reference_data_is_served_by_market() -> None:
+    crypto = ProviderCapabilities(
+        datasets=frozenset({Dataset.REFERENCE}), asset_classes=frozenset({AssetClass.CRYPTO})
+    )
+
+    assert crypto.can_serve_reference(AssetClass.CRYPTO)
+    assert not crypto.can_serve_reference(AssetClass.EQUITY)
+    bars_only = ProviderCapabilities(
+        datasets=frozenset({Dataset.BARS}), asset_classes=frozenset({AssetClass.CRYPTO})
+    )
+    assert not bars_only.can_serve_reference(AssetClass.CRYPTO)
+
+
+def test_a_ranking_request_asks_for_one_asset_or_more() -> None:
+    assert MarketCapRequest().top == 100
+    with pytest.raises(DomainError, match="one asset or more"):
+        MarketCapRequest(top=0)

@@ -62,6 +62,8 @@ class Dataset(StrEnum):
     """Open interest of a derivative and how traders stand in it (long/short ratios)."""
     BOOK_DEPTH = "book_depth"
     """Depth of an order book within bands around its price, snapshot by snapshot."""
+    REFERENCE = "reference"
+    """Snapshots of a whole market: its capitalisation, dominance and ranking."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -342,6 +344,10 @@ class ProviderCapabilities:
             and request.frequency in self.frequencies_of(Dataset.BOOK_DEPTH)
             and self.serves(request.symbol, Dataset.BOOK_DEPTH)
         )
+
+    def can_serve_reference(self, asset_class: AssetClass) -> bool:
+        """Whether the provider gives the reference data of the market of ``asset_class``."""
+        return Dataset.REFERENCE in self.datasets and asset_class in self.asset_classes
 
     def can_serve_rates(self, request: RatesRequest) -> bool:
         """Whether the provider can, in principle, answer ``request``."""
