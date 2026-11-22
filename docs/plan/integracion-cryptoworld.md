@@ -796,6 +796,12 @@ desequilibrio y la liquidez por banda, y un contrato. Pendiente: la API y la pan
 desequilibrio en la banda elegida, tabla por bandas del último periodo). Pendiente de G1: el tercer
 *venue* y CoinGecko.
 
+**Avance (22-11-2026, CoinGecko):** el tamaño, la dominancia y la clasificación del mercado cripto,
+tras su puerto (`ReferenceDataProvider`), como fotos fechadas y nunca como series
+([ADR-0045](../adr/0045-market-reference-snapshots.md)). `tk.market_snapshot` y `tk.market_caps`,
+sin clave (una *demo* opcional sube la cuota). Pendiente de G1: su API y pantalla y el tercer
+*venue*.
+
 **Decisión al implementarla (13-11-2026):** en lugar de ccxt, un adaptador por *venue* sobre `HttpClient`, con casetes ([ADR-0032](../adr/0032-crypto-venues-on-the-shared-http-client.md)): ccxt salta la capa de red común y sus peticiones no se pueden reproducir con `respx`. La notación de símbolos es la de ccxt (`BTC/USDT`, `BTC/USDT:USDT`) y el enrutado la reconoce sola, así que `tk.series("BTC/USDT", frequency="1h")` va a Binance sin indicar el *venue*. Hechos: Binance *spot* (velas y flujo), funding de OKX, volumen de Yahoo como flujo. Pendientes: el resto de la lista.
 
 ### G2 — Análisis técnico multiactivo y ficha de activo

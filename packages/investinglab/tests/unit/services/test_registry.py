@@ -26,6 +26,7 @@ from support.fakes import (
     FakeFlowProvider,
     FakePositioningProvider,
     FakeRatesProvider,
+    FakeReferenceProvider,
 )
 
 TODAY = date(2026, 10, 31)
@@ -277,3 +278,11 @@ def test_book_depth_follows_its_preference_and_a_named_venue_wins() -> None:
     assert [p.name for p in registry.book_depth_candidates(named)] == ["history"]
     with pytest.raises(DomainError, match="Unknown book depth providers"):
         registry.prefer_book_depth(["nope"])
+
+
+def test_reference_data_is_asked_of_who_covers_that_market() -> None:
+    registry = ProviderRegistry()
+    registry.register(FakeReferenceProvider("gecko"))
+
+    assert [p.name for p in registry.reference_candidates(AssetClass.CRYPTO)] == ["gecko"]
+    assert registry.reference_candidates(AssetClass.EQUITY) == []

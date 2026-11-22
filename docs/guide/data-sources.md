@@ -263,6 +263,28 @@ with Toolkit.from_settings() as tk:
 * **Solo lo pedido.** Con fecha de inicio se piden los días desde entonces, no toda la historia
   (un valor al día desde febrero de 2018).
 
+## CoinGecko: tamaño, dominancia y clasificación del mercado cripto
+
+```python
+with Toolkit.from_settings() as tk:
+    mercado = tk.market_snapshot()  # el mercado cripto en dólares, ahora
+    mercado.total_market_cap, mercado.share_of("BTC"), mercado.others
+    tk.market_caps(10, currency="EUR").frame()  # los diez mayores, en euros
+```
+
+* **Fotos fechadas, no series** ([ADR-0045](../adr/0045-market-reference-snapshots.md)): cada
+  una lleva el instante que describe (`as_of`). CoinGecko no guarda su historia gratis, así que
+  no se estira hacia atrás. Para estudiarlas en el tiempo hay que irlas guardando.
+* **Dominancia**: la cuota de los diez mayores, de 0 a 1; lo que queda fuera es `others`. Una
+  cuota que no se publica es `None`, no cero.
+* **El cambio de 24 horas, solo en dólares**: CoinGecko no lo da en otra divisa, así que en euros
+  queda vacío en vez de mostrar el de dólares.
+* **La clasificación**: hasta 250 activos, cada uno con cuándo se actualizó; una capitalización
+  que CoinGecko no conoce (la pone a 0) queda vacía. La clasificación de hoy no sirve como
+  universo histórico: eso es sesgo de supervivencia.
+* **Sin clave**, CoinGecko admite unas 5 llamadas por minuto, y la API las recuerda 5 minutos. Una
+  clave *demo* gratuita (`INVESTINGLAB_COINGECKO_API_KEY` en `.env`, de uso personal) sube la cuota.
+
 ## Caché
 
 Las velas y las series económicas se guardan en la caché Parquet (`INVESTINGLAB_DATA_DIR`),

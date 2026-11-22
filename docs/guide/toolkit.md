@@ -11,7 +11,8 @@ sirve para:
   de precio (`tk.patterns`), su estructura (`tk.structure`), la confluencia entre marcos
   temporales (`tk.confluence`) y su ficha por pilares (`tk.card`);
 * leer series económicas *point-in-time* (`tk.economic`), como el €STR o el índice de miedo y
-  codicia cripto;
+  codicia cripto, y la foto del mercado cripto: su tamaño y dominancia (`tk.market_snapshot`) y
+  sus mayores activos (`tk.market_caps`);
 * construir carteras en una divisa base;
 * revisar la calidad de los datos con el calendario oficial de cada mercado;
 * escribir informes que ya usan el tipo libre de riesgo *point-in-time*.

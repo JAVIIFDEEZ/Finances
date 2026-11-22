@@ -1,0 +1,30 @@
+{
+ "provider": "coingecko",
+ "purpose": "A currency CoinGecko does not know: HTTP 400 with its reason.",
+ "recorded_at": "2026-11-22T15:37:32+00:00",
+ "request": {
+  "dataset": "market_caps",
+  "asset_class": "crypto",
+  "currency": "MAD",
+  "top": "5"
+ },
+ "outcome": "UnsupportedRequestError: [coingecko] /coins/markets: invalid vs_currency",
+ "exchanges": [
+  {
+   "method": "GET",
+   "url": "https://api.coingecko.com/api/v3/coins/markets",
+   "params": {
+    "vs_currency": "mad",
+    "order": "market_cap_desc",
+    "per_page": "5",
+    "page": "1",
+    "sparkline": "false"
+   },
+   "status": 400,
+   "content_type": "application/json",
+   "json": {
+    "error": "invalid vs_currency"
+   }
+  }
+ ]
+}

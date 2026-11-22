@@ -35,6 +35,7 @@ from investinglab.adapters.http import RetryPolicy
 from investinglab.adapters.providers.alternative_me import AlternativeMeProvider
 from investinglab.adapters.providers.binance import BinanceProvider
 from investinglab.adapters.providers.coinbase import CoinbaseProvider
+from investinglab.adapters.providers.coingecko import CoinGeckoProvider
 from investinglab.adapters.providers.ecb import EcbProvider
 from investinglab.adapters.providers.files import LocalFilesProvider
 from investinglab.adapters.providers.kraken import KrakenProvider
@@ -46,6 +47,7 @@ from investinglab.config.settings import Settings, get_settings
 from investinglab.domain.card import Pillar, asset_card, pillars_for
 from investinglab.domain.confluence import timeframe_confluence
 from investinglab.domain.errors import DomainError, InvalidSeriesError, InvestingLabError
+from investinglab.domain.instruments import AssetClass
 from investinglab.domain.metrics import DEFAULT_CONFIDENCE_LEVELS
 from investinglab.domain.money import Currency
 from investinglab.domain.patterns import price_patterns
@@ -63,6 +65,7 @@ from investinglab.ports.market_data import (
     RatesRequest,
     VintageMode,
 )
+from investinglab.ports.reference import MarketCapRequest, MarketSnapshotRequest
 from investinglab.reporting.options import ReportOptions
 from investinglab.services.fx import CurrencyService
 from investinglab.services.market_data import DataUnavailableError, MarketDataService
@@ -81,6 +84,7 @@ if TYPE_CHECKING:
     from investinglab.domain.confluence import TimeframeConfluence
     from investinglab.domain.economic import EconomicSeries
     from investinglab.domain.flow import FlowSeries
+    from investinglab.domain.market_reference import MarketCapRanking, MarketSnapshot
     from investinglab.domain.metrics import RiskMetrics
     from investinglab.domain.patterns import PricePatterns
     from investinglab.domain.portfolio import RebalancePolicy
@@ -109,6 +113,7 @@ type RemoteProvider = (
     | CoinbaseProvider
     | OkxProvider
     | AlternativeMeProvider
+    | CoinGeckoProvider
 )
 
 
@@ -185,7 +190,8 @@ def _remote_providers(
     euros. The funding of perpetual swaps written ``BASE/QUOTE:SETTLE`` comes from OKX's
     API, up to date, and from Binance's monthly dumps, which keep the whole history
     (ADR-0032, ADR-0041); ``venue`` picks one. alternative.me
-    publishes the crypto Fear & Greed Index (``FNG``).
+    publishes the crypto Fear & Greed Index (``FNG``), and CoinGecko the size, dominance and
+    ranking of the crypto market (ADR-0045).
 
     With ``cache``, Binance keeps the dump files it verifies under
     ``<cache_dir>/dumps/binance`` and reads them from there while they are not published
@@ -202,6 +208,9 @@ def _remote_providers(
         "coinbase": lambda: CoinbaseProvider(timeout=timeout, retry=retry),
         "okx": lambda: OkxProvider(timeout=timeout, retry=retry),
         "alternative_me": lambda: AlternativeMeProvider(timeout=timeout, retry=retry),
+        "coingecko": lambda: CoinGeckoProvider(
+            api_key=config.coingecko_api_key, timeout=timeout, retry=retry
+        ),
     }
     return [build() for name, build in factories.items() if name not in registry]
 
@@ -690,6 +699,43 @@ class AsyncToolkit:
         request = BookDepthRequest(symbol, venue, first, _as_date(end), Frequency(frequency))
         return await self._market_data.get_book_depth(request, refresh=refresh)
 
+    async def market_snapshot(
+        self,
+        asset_class: AssetClass | str = AssetClass.CRYPTO,
+        *,
+        currency: Currency | str = "USD",
+        refresh: bool = False,
+    ) -> MarketSnapshot:
+        """The whole market of an asset class as its source last computed it (ADR-0045).
+
+        Example: ``tk.market_snapshot().share_of("BTC")`` is bitcoin's dominance. It is a
+        snapshot, dated by :attr:`~investinglab.domain.MarketSnapshot.as_of`: no free source
+        keeps its history.
+
+        Raises:
+            DataUnavailableError: If no provider could deliver it.
+        """
+        request = MarketSnapshotRequest(AssetClass(asset_class), Currency(str(currency)))
+        return await self._market_data.get_market_snapshot(request, refresh=refresh)
+
+    async def market_caps(
+        self,
+        top: int = 100,
+        *,
+        asset_class: AssetClass | str = AssetClass.CRYPTO,
+        currency: Currency | str = "USD",
+        refresh: bool = False,
+    ) -> MarketCapRanking:
+        """The ``top`` largest assets of a market by capitalisation, as last ranked.
+
+        Example: ``tk.market_caps(10).frame()``. A snapshot, like :meth:`market_snapshot`.
+
+        Raises:
+            DataUnavailableError: If no provider could deliver it.
+        """
+        request = MarketCapRequest(AssetClass(asset_class), Currency(str(currency)), top)
+        return await self._market_data.get_market_caps(request, refresh=refresh)
+
     def venues(self, symbol: str, dataset: Dataset | str) -> tuple[str, ...]:
         """The venues that serve ``dataset`` of ``symbol``, in the order they are asked.
 
@@ -1170,6 +1216,33 @@ class Toolkit:
         return self._run(
             self._inner.book_depth(
                 symbol, venue=venue, start=start, end=end, frequency=frequency, refresh=refresh
+            )
+        )
+
+    def market_snapshot(
+        self,
+        asset_class: AssetClass | str = AssetClass.CRYPTO,
+        *,
+        currency: Currency | str = "USD",
+        refresh: bool = False,
+    ) -> MarketSnapshot:
+        """The whole market of an asset class (see :meth:`AsyncToolkit.market_snapshot`)."""
+        return self._run(
+            self._inner.market_snapshot(asset_class, currency=currency, refresh=refresh)
+        )
+
+    def market_caps(
+        self,
+        top: int = 100,
+        *,
+        asset_class: AssetClass | str = AssetClass.CRYPTO,
+        currency: Currency | str = "USD",
+        refresh: bool = False,
+    ) -> MarketCapRanking:
+        """The largest assets of a market (see :meth:`AsyncToolkit.market_caps`)."""
+        return self._run(
+            self._inner.market_caps(
+                top, asset_class=asset_class, currency=currency, refresh=refresh
             )
         )
 

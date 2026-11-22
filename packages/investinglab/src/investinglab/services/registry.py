@@ -22,6 +22,7 @@ from investinglab.ports.market_data import (
     PositioningProvider,
     TradeFlowProvider,
 )
+from investinglab.ports.reference import ReferenceDataProvider
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -48,6 +49,7 @@ type AnyProvider = (
     | HoldingRatesProvider
     | PositioningProvider
     | BookDepthProvider
+    | ReferenceDataProvider
 )
 """A provider of at least one dataset."""
 
@@ -60,6 +62,7 @@ _METHODS: dict[Dataset, tuple[type, str]] = {
     Dataset.HOLDING_RATES: (HoldingRatesProvider, "fetch_rates"),
     Dataset.POSITIONING: (PositioningProvider, "fetch_positioning"),
     Dataset.BOOK_DEPTH: (BookDepthProvider, "fetch_book_depth"),
+    Dataset.REFERENCE: (ReferenceDataProvider, "fetch_market_snapshot"),
 }
 
 
@@ -76,6 +79,7 @@ class ProviderRegistry:
         self._positioning_order: tuple[str, ...] = ()
         self._book_depth: dict[str, BookDepthProvider] = {}
         self._book_depth_order: tuple[str, ...] = ()
+        self._reference: dict[str, ReferenceDataProvider] = {}
         self._routes: dict[_RouteKey, tuple[str, ...]] = {}
         self._rate_routes: dict[RateKind, tuple[str, ...]] = {}
 
@@ -109,6 +113,8 @@ class ProviderRegistry:
             self._positioning[name] = provider
         if isinstance(provider, BookDepthProvider) and Dataset.BOOK_DEPTH in datasets:
             self._book_depth[name] = provider
+        if isinstance(provider, ReferenceDataProvider) and Dataset.REFERENCE in datasets:
+            self._reference[name] = provider
 
     def prefer(
         self,
@@ -239,6 +245,14 @@ class ProviderRegistry:
             for name in ordered
             if request.venue in {None, name}
             and self._book_depth[name].capabilities.can_serve_book_depth(request)
+        ]
+
+    def reference_candidates(self, asset_class: AssetClass) -> list[ReferenceDataProvider]:
+        """Providers of the reference data of ``asset_class``'s market, in registration order."""
+        return [
+            provider
+            for provider in self._reference.values()
+            if provider.capabilities.can_serve_reference(asset_class)
         ]
 
     def economic_candidates(self, request: EconomicRequest) -> list[EconomicDataProvider]:

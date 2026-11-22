@@ -39,6 +39,7 @@ from investinglab.adapters.providers import (
     alternative_me,
     binance,
     coinbase,
+    coingecko,
     ecb,
     kraken,
     okx,
@@ -46,12 +47,16 @@ from investinglab.adapters.providers import (
 )
 from investinglab.adapters.providers.binance import dumps as binance_dumps
 from investinglab.config import LogLevel, configure_logging
+from investinglab.domain.instruments import AssetClass
+from investinglab.domain.money import USD, Currency
 from investinglab.domain.rate_series import RateKind
 from investinglab.domain.time import Frequency
 from investinglab.ports import (
     BarsRequest,
     BookDepthRequest,
     EconomicRequest,
+    MarketCapRequest,
+    MarketSnapshotRequest,
     PositioningRequest,
     ProviderError,
     RatesRequest,
@@ -60,13 +65,22 @@ from investinglab.ports import (
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-type Request = BarsRequest | EconomicRequest | RatesRequest | PositioningRequest | BookDepthRequest
+type Request = (
+    BarsRequest
+    | EconomicRequest
+    | RatesRequest
+    | PositioningRequest
+    | BookDepthRequest
+    | MarketSnapshotRequest
+    | MarketCapRequest
+)
 type Provider = (
     yahoo.YahooFinanceProvider
     | ecb.EcbProvider
     | binance.BinanceProvider
     | okx.OkxProvider
     | alternative_me.AlternativeMeProvider
+    | coingecko.CoinGeckoProvider
     | kraken.KrakenProvider
     | coinbase.CoinbaseProvider
 )
@@ -415,6 +429,31 @@ def _recordings(today: date) -> list[Recording]:
             "Crypto Fear & Greed Index: one reading a day, asked for since the first day.",
         ),
         Recording(
+            "coingecko/global_usd",
+            MarketSnapshotRequest(AssetClass.CRYPTO, USD),
+            "The whole crypto market in dollars: total, volume, change and dominance.",
+        ),
+        Recording(
+            "coingecko/global_eur",
+            MarketSnapshotRequest(AssetClass.CRYPTO, Currency("EUR")),
+            "The same in euros: CoinGecko gives the 24-hour change in dollars only.",
+        ),
+        Recording(
+            "coingecko/global_unknown_currency",
+            MarketSnapshotRequest(AssetClass.CRYPTO, Currency("MAD")),
+            "A currency CoinGecko does not value the market in.",
+        ),
+        Recording(
+            "coingecko/markets_usd_top20",
+            MarketCapRequest(AssetClass.CRYPTO, USD, top=20),
+            "The twenty largest crypto assets by capitalisation, in dollars.",
+        ),
+        Recording(
+            "coingecko/markets_unknown_currency",
+            MarketCapRequest(AssetClass.CRYPTO, Currency("MAD"), top=5),
+            "A currency CoinGecko does not know: HTTP 400 with its reason.",
+        ),
+        Recording(
             "okx/not_found",
             RatesRequest(
                 "NOPE/USDT:USDT", RateKind.FUNDING, start=date(2026, 10, 1), end=date(2026, 10, 2)
@@ -472,11 +511,29 @@ def _provider(
         alternative_me.NAME: lambda: alternative_me.AlternativeMeProvider(
             client=alternative_me.http_client(retry=retry, transport=transport), clock=clock
         ),
+        # Recorded without a key: a demo key would only raise the quota.
+        coingecko.NAME: lambda: coingecko.CoinGeckoProvider(
+            client=coingecko.http_client(retry=retry, transport=transport), clock=clock
+        ),
     }
     return factories[recording.provider]()
 
 
+def _describe_reference(request: MarketSnapshotRequest | MarketCapRequest) -> dict[str, str | None]:
+    """A request for a whole market: no dates, a currency and, for a ranking, its length."""
+    described: dict[str, str | None] = {
+        "dataset": "market_caps" if isinstance(request, MarketCapRequest) else "market_snapshot",
+        "asset_class": request.asset_class.value,
+        "currency": str(request.currency),
+    }
+    if isinstance(request, MarketCapRequest):
+        described["top"] = str(request.top)
+    return described
+
+
 def _describe(request: Request) -> dict[str, str | None]:
+    if isinstance(request, MarketSnapshotRequest | MarketCapRequest):
+        return _describe_reference(request)
     bounds = {
         "start": request.start.isoformat() if request.start else None,
         "end": request.end.isoformat() if request.end else None,
@@ -509,6 +566,17 @@ def _describe(request: Request) -> dict[str, str | None]:
     return {"series_id": request.series_id, "mode": request.mode.value, **bounds}
 
 
+async def _reference_outcome(
+    provider: coingecko.CoinGeckoProvider, request: MarketSnapshotRequest | MarketCapRequest
+) -> str:
+    """What CoinGecko gave for a whole market."""
+    if isinstance(request, MarketCapRequest):
+        return f"{len(await provider.fetch_market_caps(request))} assets"
+    snapshot = await provider.fetch_market_snapshot(request)
+    shares = len(snapshot.dominance)
+    return f"{snapshot.total_market_cap:,.0f} {snapshot.currency}, {shares} shares"
+
+
 async def _outcome(provider: Provider, request: Request) -> str:
     """What the adapter made of the recorded responses, for the person recording."""
     if isinstance(request, BarsRequest) and isinstance(
@@ -529,6 +597,10 @@ async def _outcome(provider: Provider, request: Request) -> str:
         provider, okx.OkxProvider | binance.BinanceProvider
     ):
         return f"{len(await provider.fetch_rates(request))} payments"
+    if isinstance(request, MarketSnapshotRequest | MarketCapRequest) and isinstance(
+        provider, coingecko.CoinGeckoProvider
+    ):
+        return await _reference_outcome(provider, request)
     if isinstance(request, BookDepthRequest) and isinstance(provider, binance.BinanceProvider):
         depth = await provider.fetch_book_depth(request)
         return f"{len(depth)} snapshots of {len(depth.bands)} bands"

@@ -66,6 +66,8 @@ class Settings(BaseSettings):
             timeout).
         fred_api_key: FRED/ALFRED API key (free at fred.stlouisfed.org).
         alphavantage_api_key: Alpha Vantage API key (free at alphavantage.co).
+        coingecko_api_key: CoinGecko demo key (free at coingecko.com, personal use): a
+            higher quota for the crypto market's snapshots; it works without one.
     """
 
     model_config = SettingsConfigDict(
@@ -91,6 +93,7 @@ class Settings(BaseSettings):
     toolkit_timeout_seconds: float | None = Field(default=None, gt=0)
     fred_api_key: SecretStr | None = None
     alphavantage_api_key: SecretStr | None = None
+    coingecko_api_key: SecretStr | None = None
 
     @property
     def effective_cache_dir(self) -> Path:

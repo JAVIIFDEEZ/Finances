@@ -12,15 +12,20 @@ from investinglab.domain import (
     USD,
     AssetClass,
     BookDepthSeries,
+    Currency,
     DataSource,
     DomainError,
     FlowSeries,
     Frequency,
     Instrument,
     InvalidSeriesError,
+    MarketCapRanking,
+    MarketShare,
+    MarketSnapshot,
     PositioningField,
     PositioningSeries,
     PriceSeries,
+    RankedAsset,
     RateKind,
     RateSeries,
 )
@@ -30,6 +35,8 @@ from investinglab.ports import (
     BookDepthRequest,
     CachedBars,
     EconomicRequest,
+    MarketCapRequest,
+    MarketSnapshotRequest,
     PositioningRequest,
     ProviderUnavailableError,
     RatesRequest,
@@ -62,6 +69,7 @@ from support.fakes import (
     FakeFlowProvider,
     FakePositioningProvider,
     FakeRatesProvider,
+    FakeReferenceProvider,
     InMemoryStore,
 )
 
@@ -76,7 +84,8 @@ def _service(
     | FakeFlowProvider
     | FakeRatesProvider
     | FakePositioningProvider
-    | FakeBookDepthProvider,
+    | FakeBookDepthProvider
+    | FakeReferenceProvider,
     store: InMemoryStore | None = None,
     max_concurrency: int = 8,
 ) -> MarketDataService:
@@ -628,7 +637,8 @@ def _remembering(
     *providers: FakeFlowProvider
     | FakeRatesProvider
     | FakePositioningProvider
-    | FakeBookDepthProvider,
+    | FakeBookDepthProvider
+    | FakeReferenceProvider,
     entries: int = 256,
 ) -> tuple[MarketDataService, _Clock]:
     registry = ProviderRegistry()
@@ -798,3 +808,57 @@ async def test_book_depth_is_remembered_for_its_own_time_to_live() -> None:
     await service.get_book_depth(request, refresh=True)
 
     assert len(binance.calls) == 3
+
+
+def _market(currency: Currency = USD) -> MarketSnapshot:
+    return MarketSnapshot(
+        AssetClass.CRYPTO,
+        currency,
+        NOW,
+        SYNTHETIC_SOURCE,
+        2.0e12,
+        dominance=(MarketShare("BTC", 0.6),),
+    )
+
+
+def _ranking(count: int = 3, currency: Currency = USD) -> MarketCapRanking:
+    assets = tuple(
+        RankedAsset(rank, f"coin-{rank}", f"C{rank}", f"Synthetic {rank}")
+        for rank in range(1, count + 1)
+    )
+    return MarketCapRanking(AssetClass.CRYPTO, currency, NOW, SYNTHETIC_SOURCE, assets)
+
+
+async def test_the_market_snapshot_is_remembered_for_a_few_minutes() -> None:
+    gecko = FakeReferenceProvider("gecko", snapshot=_market(), ranking=_ranking())
+    service, clock = _remembering(gecko)
+    request = MarketSnapshotRequest()
+
+    first = await service.get_market_snapshot(request)
+    await service.get_market_snapshot(request)
+    clock.now += CachePolicy().reference_ttl
+    await service.get_market_snapshot(request)
+    await service.get_market_caps(MarketCapRequest(top=2))
+    await service.get_market_caps(MarketCapRequest(top=2), refresh=True)
+
+    assert first.share_of("BTC") == 0.6
+    assert len(gecko.calls) == 4  # snapshot twice (expired once), ranking twice (refreshed)
+
+
+async def test_reference_data_must_answer_the_request() -> None:
+    euros = FakeReferenceProvider("gecko", snapshot=_market(Currency("EUR")))
+    longer = FakeReferenceProvider("gecko", ranking=_ranking(5))
+
+    with pytest.raises(DataUnavailableError, match="in EUR for the crypto market in USD"):
+        await _service(euros).get_market_snapshot(MarketSnapshotRequest())
+
+    class Liar(FakeReferenceProvider):
+        async def fetch_market_caps(self, request: MarketCapRequest) -> MarketCapRanking:
+            return _ranking(5)
+
+    with pytest.raises(DataUnavailableError, match="returned 5 crypto assets"):
+        await _service(Liar("gecko")).get_market_caps(MarketCapRequest(top=2))
+    found = await _service(longer).get_market_caps(MarketCapRequest(top=2))
+    assert len(found) == 2
+    with pytest.raises(DataUnavailableError, match="no registered provider"):
+        await _service(longer).get_market_snapshot(MarketSnapshotRequest(AssetClass.EQUITY))
