@@ -22,6 +22,8 @@ from investinglab.ports import (
     CachedEconomicSeries,
     Dataset,
     EconomicRequest,
+    MarketCapRequest,
+    MarketSnapshotRequest,
     PositioningRequest,
     ProviderCapabilities,
     RatesRequest,
@@ -36,6 +38,8 @@ if TYPE_CHECKING:
         BookDepthSeries,
         EconomicSeries,
         FlowSeries,
+        MarketCapRanking,
+        MarketSnapshot,
         PositioningSeries,
         PriceSeries,
         RateSeries,
@@ -60,6 +64,9 @@ POSITIONING_CAPABILITIES = ProviderCapabilities(
     datasets=frozenset({Dataset.POSITIONING}),
     frequencies_by_dataset={Dataset.POSITIONING: frozenset(POSITIONING_FREQUENCIES)},
     positioning_fields=frozenset(PositioningField),
+)
+REFERENCE_CAPABILITIES = ProviderCapabilities(
+    datasets=frozenset({Dataset.REFERENCE}), asset_classes=frozenset({AssetClass.CRYPTO})
 )
 BOOK_DEPTH_CAPABILITIES = ProviderCapabilities(
     datasets=frozenset({Dataset.BOOK_DEPTH}),
@@ -178,6 +185,34 @@ class FakePositioningProvider:
         if request.symbol not in self.series:
             raise SymbolNotFoundError(self.name, f"unknown symbol {request.symbol}")
         return self.series[request.symbol]
+
+
+@dataclass
+class FakeReferenceProvider:
+    """Serves a pre-built snapshot and ranking of the crypto market; records calls."""
+
+    name: str
+    snapshot: MarketSnapshot | None = None
+    ranking: MarketCapRanking | None = None
+    error: ProviderError | None = None
+    capabilities: ProviderCapabilities = REFERENCE_CAPABILITIES
+    calls: list[MarketSnapshotRequest | MarketCapRequest] = field(default_factory=list)
+
+    async def fetch_market_snapshot(self, request: MarketSnapshotRequest) -> MarketSnapshot:
+        self.calls.append(request)
+        if self.error is not None:
+            raise self.error
+        if self.snapshot is None:
+            raise SymbolNotFoundError(self.name, "no snapshot")
+        return self.snapshot
+
+    async def fetch_market_caps(self, request: MarketCapRequest) -> MarketCapRanking:
+        self.calls.append(request)
+        if self.error is not None:
+            raise self.error
+        if self.ranking is None:
+            raise SymbolNotFoundError(self.name, "no ranking")
+        return self.ranking.top(request.top) if len(self.ranking) > request.top else self.ranking
 
 
 @dataclass

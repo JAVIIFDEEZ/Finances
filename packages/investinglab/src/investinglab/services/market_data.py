@@ -38,6 +38,7 @@ from investinglab.config.logging import get_logger
 from investinglab.domain.book_depth import BookDepthSeries
 from investinglab.domain.errors import DomainError, InvestingLabError
 from investinglab.domain.flow import FlowSeries
+from investinglab.domain.market_reference import MarketCapRanking, MarketSnapshot
 from investinglab.domain.positioning import PositioningSeries
 from investinglab.domain.rate_series import RateSeries
 from investinglab.domain.series import MIN_OBSERVATIONS, PriceField
@@ -61,6 +62,11 @@ if TYPE_CHECKING:
         PositioningRequest,
         RatesRequest,
         TradeFlowProvider,
+    )
+    from investinglab.ports.reference import (
+        MarketCapRequest,
+        MarketSnapshotRequest,
+        ReferenceDataProvider,
     )
     from investinglab.ports.storage import CachedBars, SeriesStore
     from investinglab.services.registry import ProviderRegistry
@@ -106,6 +112,7 @@ class CachePolicy:
         rates_ttl: Holding rates settle every few hours.
         positioning_ttl: Positioning snapshots are published every 5 minutes or more.
         book_depth_ttl: Book depth is kept every 5 minutes or more.
+        reference_ttl: Snapshots of a whole market are recomputed every few minutes.
         memory_entries: Most flow and rates answers kept in memory (least recently used
             go first).
     """
@@ -117,6 +124,7 @@ class CachePolicy:
     rates_ttl: timedelta = timedelta(hours=1)
     positioning_ttl: timedelta = timedelta(minutes=15)
     book_depth_ttl: timedelta = timedelta(minutes=15)
+    reference_ttl: timedelta = timedelta(minutes=5)
     memory_entries: int = 256
 
     def ttl_for(self, frequency: Frequency) -> timedelta:
@@ -504,6 +512,76 @@ class MarketDataService:
         series = await _first_answer("book depth", request.symbol, str(request), candidates, fetch)
         self._memory.put(key, now, series)
         return series
+
+    async def get_market_snapshot(
+        self, request: MarketSnapshotRequest, *, refresh: bool = False
+    ) -> MarketSnapshot:
+        """The snapshot of a whole market, from the first provider able to give it.
+
+        Remembered in memory for ``CachePolicy.reference_ttl``.
+
+        Raises:
+            DataUnavailableError: If no provider could deliver it.
+        """
+        now = self._clock()
+        key = ("market_snapshot", request)
+        if not refresh and isinstance(
+            remembered := self._memory.get(key, now, self._cache_policy.reference_ttl),
+            MarketSnapshot,
+        ):
+            return remembered
+        candidates = self._registry.reference_candidates(request.asset_class)
+
+        async def fetch(provider: ReferenceDataProvider) -> MarketSnapshot:
+            snapshot = await provider.fetch_market_snapshot(request)
+            if (snapshot.asset_class, snapshot.currency) != (request.asset_class, request.currency):
+                raise ProviderDataError(
+                    provider.name,
+                    f"returned the {snapshot.asset_class.value} market in {snapshot.currency} "
+                    f"for the {request.asset_class.value} market in {request.currency}",
+                )
+            return snapshot
+
+        label = f"{request.asset_class.value} market"
+        snapshot = await _first_answer("reference", label, str(request), candidates, fetch)
+        self._memory.put(key, now, snapshot)
+        return snapshot
+
+    async def get_market_caps(
+        self, request: MarketCapRequest, *, refresh: bool = False
+    ) -> MarketCapRanking:
+        """The largest assets of a market, from the first provider able to rank them.
+
+        Remembered in memory for ``CachePolicy.reference_ttl``.
+
+        Raises:
+            DataUnavailableError: If no provider could deliver them.
+        """
+        now = self._clock()
+        key = ("market_caps", request)
+        if not refresh and isinstance(
+            remembered := self._memory.get(key, now, self._cache_policy.reference_ttl),
+            MarketCapRanking,
+        ):
+            return remembered
+        candidates = self._registry.reference_candidates(request.asset_class)
+
+        async def fetch(provider: ReferenceDataProvider) -> MarketCapRanking:
+            ranking = await provider.fetch_market_caps(request)
+            wanted = (request.asset_class, request.currency)
+            if (ranking.asset_class, ranking.currency) != wanted or len(ranking) > request.top:
+                raise ProviderDataError(
+                    provider.name,
+                    f"returned {len(ranking)} {ranking.asset_class.value} assets in "
+                    f"{ranking.currency} for the top {request.top} "
+                    f"{request.asset_class.value} assets in {request.currency}",
+                )
+            return ranking
+
+        label = f"{request.asset_class.value} market"
+        ranking = await _first_answer("reference", label, str(request), candidates, fetch)
+        self._memory.put(key, now, ranking)
+        return ranking
 
     # ── Internals ────────────────────────────────────────────────────
 
