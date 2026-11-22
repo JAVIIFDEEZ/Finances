@@ -14,6 +14,8 @@ con lo aprendido en el Máster MIAX. Objetivo de calidad: repositorio profesiona
 - Decisiones de arquitectura: `docs/adr/` (MADR 4)
 - Proyecto hermano a migrar progresivamente: CryptoWorld. Programa por fases G0-G13, mapa pieza a
   pieza y matriz de paridad: `docs/plan/integracion-cryptoworld.md`
+- Ampliación H1-H6 (renta fija, índice de referencia y estrés, MCP, señales, COT y calendario,
+  cribado) a partir de FinceptTerminal, awesome-quant y ML4T: `docs/plan/referencias-externas.md`
 
 ## Estructura
 
@@ -98,6 +100,17 @@ docs/            Zensical: guide/, adr/, architecture/, plan/, reference/, modul
   inglés; docs, ADRs y este fichero en español; UI e informes bilingües.
 - Textos de informes y gráficos: pares `(español, inglés)` en `reporting/i18n.py`; cifras con
   `Translator.percent/number/date`, nunca con f-strings sueltas.
+
+## Código y dependencias de terceros
+
+- Solo se copia código con licencia permisiva (MIT, BSD, Apache-2.0, ISC…), con un comentario
+  de procedencia (proyecto, versión, licencia) y una entrada en `THIRD_PARTY_NOTICES.md`.
+- De proyectos con copyleft o licencias restringidas se toman ideas y fórmulas publicadas, nunca
+  código: FinceptTerminal y backtesting.py (AGPL), FinancePy (GPL), vectorbt (*Commons Clause*),
+  rateslib (no comercial).
+- Las librerías de referencia (QuantLib, empyrical-reloaded…) son oráculos de los tests: van en
+  el grupo `oracles` y no se importan desde `src/`. Política completa en
+  [ADR-0046](docs/adr/0046-third-party-code-and-dependency-licenses.md) (propuesto).
 
 ## Comandos
 

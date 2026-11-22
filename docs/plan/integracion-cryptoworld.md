@@ -14,6 +14,8 @@
 
 **Relación con el plan maestro:** este documento detalla la sección 9 del [plan maestro](plan-maestro.md) y sustituye a su fase F12. Los defectos que CryptoWorld tenga abiertos no se listan aquí (este repositorio es público): cuando uno condiciona el diseño, aparece como requisito de la pieza correspondiente en «Al llevarlo a Finances».
 
+**Ampliación del 23-11-2026:** [Referencias externas](referencias-externas.md) añade las fases H1-H6 y amplía G3-G12 a partir de FinceptTerminal, awesome-quant y Machine Learning for Trading. Las ampliaciones aparecen al final de cada fase de §8; la matriz de paridad (§9) no cambia, porque no son capacidades de CryptoWorld.
+
 **Índice:** 0 Decisiones · 1 Resumen ejecutivo · 2 Los dos proyectos lado a lado · 3 Cómo leer el inventario · 4 Inventario funcional de CryptoWorld (19 módulos) · 5 Inventario de Finances · 6 Arquitectura destino · 7 Mapa de correspondencia módulo a módulo · 8 Plan por fases G0-G13 · 9 Matriz de paridad · 10 Decisiones abiertas · 11 Riesgos, regulación y licencias · 12 Prompts para Claude Code · 13 Cambios en la documentación de Finances
 
 ---
@@ -873,6 +875,8 @@ fundamentales (F11), ML y pesos aprendidos con su muestra (G4).
 
 **Terminado cuando:** un backtest de una estrategia sobre una acción española y sobre BTC sale con costes reales y veredicto; el test nocturno de mundos nulos está en verde y publica su tasa.
 
+**Ampliación (23-11-2026, [Referencias externas](referencias-externas.md), §5).** *Spread* estimado desde velas diarias (Roll, Corwin-Schultz) para el `CostModel` de mercados sin cotizaciones, contrastado con SIX Market Signal; coste de equilibrio y caída del Sharpe de bruto a neto en el informe; MAE/MFE por operación; test de paridad entre pesos × retornos y el motor por eventos. Antes de G3, la evaluación de señales de H4 criba el catálogo.
+
 ### G4 — Laboratorio de estrategias
 
 Es la propuesta de §4.8 bis llevada a fase.
@@ -888,6 +892,8 @@ Es la propuesta de §4.8 bis llevada a fase.
 
 **Terminado cuando:** repetir el experimento del 6-ago sobre Finances da < 5 % de ejecuciones con falsos positivos en todos los *presets*, y una estrategia propia (por ejemplo, tu TCP en versión Python) sale con su percentil frente al nulo.
 
+**Ampliación (23-11-2026, [Referencias externas](referencias-externas.md), §5).** Kelly fraccional con la incertidumbre de la estimación, nunca Kelly completo; SHAP para explicar los modelos (*extra* `ml`); el Laboratorio recibe las señales cribadas por H4.
+
 ### G5 — Volatilidad, fragilidad, carry y relaciones entre activos
 
 **Contenido.**
@@ -897,6 +903,8 @@ Es la propuesta de §4.8 bis llevada a fase.
 - Todo con endpoint y pantalla: aquí se cierra el hueco de §1.6.
 
 **Terminado cuando:** las siete investigaciones que en CryptoWorld solo eran comandos tienen API, pantalla y nota de metodología, y el Índice de Fragilidad publica su R² fuera de muestra (sea bueno o malo).
+
+**Ampliación (23-11-2026, [Referencias externas](referencias-externas.md), §5).** Regímenes macro por agrupamiento sobre macro *point-in-time*, validados contra el mercado; filtro de Kalman para beta y ratio de cobertura dinámicos; indicador de recesión con la pendiente de la curva (EE. UU. y, con H1, área euro) y probit evaluado fuera de muestra; sonrisa, superficie y exposición gamma por *strike* de las opciones de Deribit. El estudio de eventos usa el calendario de H5.
 
 ### G6 — Libro de operaciones y riesgo del usuario
 
@@ -910,17 +918,23 @@ Es la propuesta de §4.8 bis llevada a fase.
 
 **Terminado cuando:** una cartera real mixta (acciones en EUR, un ETF en USD y BTC) muestra valor, P&L y riesgo coherentes en euros, con la antigüedad de cada precio.
 
+**Ampliación (23-11-2026, [Referencias externas](referencias-externas.md), §5).** El estrés y las métricas frente a un índice llegan antes, en H2, sobre carteras modelo; aquí se aplican al libro. Atribución con Fama-French 3 y 5 más momentum, con betas móviles y errores HAC.
+
 ### G7 — Paper trading y ejecución propia
 
 **Contenido.** Todo lo de §4.11 «Al llevarlo a Finances»: dominio de órdenes con máquina de estados y `Decimal`, *outbox* con `client_order_id`, posición por *fills*, estado `UNKNOWN` reconciliable, bloqueo de cuenta, `apps/trader` como proceso único, *paper* con el mismo simulador que el backtest, puerta PSR/MinTRL + incubación, *kill-switch*, límites de pérdida diaria y concentración, TCA contra el precio de llegada, rastro *append-only*, coste a tu tamaño y ventana de ejecución, claves solo de *trade* con lista de IP.
 
 **Terminado cuando:** pasan los cinco tests de fallo (*rollback* tras envío, *timeout* con orden ejecutada, *fill* parcial, dos *workers*, reinicio con órdenes en vuelo) contra un *exchange* falso, y una orden real mínima en tu cuenta sale, se reconcilia y aparece en la auditoría. Con `INVESTINGLAB_LIVE_TRADING=false`, ninguna ruta del sistema puede enviar una orden: un test lo comprueba.
 
+**Ampliación (23-11-2026, [Referencias externas](referencias-externas.md), §5).** Un *circuit breaker* como máquina de estados única (activo, pausado, en prueba, activo) para todas las reglas de parada: pérdida diaria, *drawdown*, datos obsoletos, deriva del modelo y anomalía de ejecución. Calibración de impacto y Almgren-Chriss en el TCA.
+
 ### G8 — Alertas, notificaciones y tiempo real
 
 **Contenido.** Reglas de alerta con flanco y *cooldown* sobre un registro de métricas multiactivo (las 16 de CryptoWorld + *drawdown* de cartera, desviación de pesos, frescura de datos, eventos del Laboratorio y de la fragilidad); canales en la app, email, Web Push, Telegram y *webhook* firmado con HMAC; SSE para notificaciones y precios; digests de mercado y de riesgo.
 
 **Terminado cuando:** una alerta de RSI en `ITX.MC` y otra de funding en BTC llegan por Telegram una sola vez por cruce.
+
+**Ampliación (23-11-2026, [Referencias externas](referencias-externas.md), §5).** Alertas de deriva de *features* y predicciones del Laboratorio (PSI, KS), y alertas sobre las listas de seguimiento de H6.
 
 ### G9 — On-chain y forense (P3)
 
@@ -930,6 +944,8 @@ Puerto `OnChainDataProvider` y adaptadores (Blockscout, Blockchair, Blockchain.c
 
 `NewsProvider` (CryptoCompare; GDELT o Finnhub para el resto), clasificación geográfica y temática, léxico Loughran-McDonald, Fear & Greed. Sin promesas predictivas salvo que el estudio de eventos las respalde.
 
+**Ampliación (23-11-2026, [Referencias externas](referencias-externas.md), §5).** RAG sobre informes (10-K, comunicados del BCE) con cita de la fuente y evaluación; agentes de investigación sobre las herramientas del MCP de H3.
+
 ### G11 — Orderflow (P2)
 
 La propuesta de orderflow en cuatro pasos (F0-F3), adaptada a Finances: la F0 ya entra en G1; `apps/collector` como proceso único con bloqueo; normalización por *venue* (con el test de la inversión de lado de Coinbase); *footprint* 1m, perfil de volumen (POC, VA, HVN/LVN), VWAP, *big trades* por percentil, liquidaciones reales (Bybit completo, Binance como cota inferior), VPIN, OBI/OFI, *heatmap* de liquidez, absorción confirmada con libro; agregados en **Parquet** en vez de `ArrayField`; reconciliación nocturna *footprint* = vela; estudio de evidencias con BH e insignia en cada indicador. Necesita WebSocket hacia la web (§10.3).
@@ -937,6 +953,8 @@ La propuesta de orderflow en cuatro pasos (F0-F3), adaptada a Finances: la F0 ya
 ### G12 — Preparado para SaaS (P3, opcional)
 
 Bandera de registro público, planes y *feature flags* por nivel, *landing* SSR por activo con `sitemap` y JSON-LD, academia y *tour*, PWA y Web Push para todos, servidor MCP de solo lectura (ficha, fragilidad, carry, test nulo), página pública de salud de datos. **Antes de activarlo:** licencias de datos comerciales (§11.3), revisión regulatoria (§11.1-11.2), RGPD, y `apps/trader` fuera del despliegue SaaS.
+
+**Cambio (23-11-2026).** El servidor MCP local de solo lectura se adelanta a H3 ([Referencias externas](referencias-externas.md)). Aquí queda la versión publicada, con autenticación.
 
 ### G13 — Retirada de CryptoWorld
 
@@ -1011,6 +1029,8 @@ Una ficha pública que dice «COMPRA» sobre un activo concreto se acerca a una 
 
 Es la restricción más fácil de olvidar en el modo SaaS. Yahoo Finance no tiene API oficial y sus términos son de uso personal; la licencia gratuita de Tiingo es de uso personal; las claves *demo* de CoinGecko no son comerciales; el plan gratuito de Alpaca bloquea los últimos 15 minutos. Para uso personal todo esto vale. Para servir datos a terceros hace falta revisar cada fuente y, probablemente, pagar licencias. Recomiendo que cada `ProviderCapabilities` declare su licencia (el plan maestro ya lo prevé) y que el modo SaaS solo active proveedores con licencia de redistribución.
 
+Las fuentes de H5 añaden sus propios términos: el JSON de Forex Factory no es una API documentada, y Polymarket y Kalshi tienen condiciones y restricciones por jurisdicción ([Referencias externas](referencias-externas.md), §8). La licencia del **código** de terceros es otro asunto: la regula [ADR-0046](../adr/0046-third-party-code-and-dependency-licenses.md) (propuesto), y de FinceptTerminal (AGPL-3.0) solo se toman ideas.
+
 ### 11.4 Datos personales
 
 Libro de operaciones, claves de *exchange*, dosieres de direcciones *on-chain* y, en SaaS, cuentas de usuario: RGPD (base legal, minimización, derecho de supresión, registro de tratamientos). El borrado de cuenta de CryptoWorld es un buen punto de partida.
@@ -1060,4 +1080,4 @@ Todos parten de `development`, en su rama `feat/*`, respetan `CLAUDE.md` (inglé
 3. **§4 (fuentes):** añadir Bybit y OKX (vía ccxt), Deribit, Blockscout, data.binance.vision.
 4. **§16 (dominios):** añadir los de esos proveedores (por ejemplo `api.bybit.com`, `www.okx.com`, `www.deribit.com`, `data.binance.vision` y las instancias de Blockscout que se usen).
 5. **`CLAUDE.md`:** tres reglas nuevas cuando lleguen sus fases: (a) ninguna cifra propia sin nota de metodología; (b) ningún cambio del Laboratorio sin volver a pasar los mundos nulos; (c) dinero real: solo `apps/trader`, *outbox* obligatorio, `Decimal`, bandera apagada por defecto.
-6. **ADR previstos:** 0029 persistencia y multiusuario; 0030 cola de trabajos; 0031 tipos `FlowSeries`/`RateSeries`; 0032 *venues* cripto sobre `HttpClient` (escrito); 0033 registro de capacidades de producto; 0034 indicadores en NumPy (escrito); 0035 gráfico de velas; 0036 motor de backtest y modelo de costes; 0037 mundos nulos como puerta; 0038 `apps/trader` y *outbox*; 0039 custodia de claves; 0040 tiempo real.
+6. **ADR previstos** (numeración superada; el estado vigente está en el plan maestro, §14): 0029 persistencia y multiusuario; 0030 cola de trabajos; 0031 tipos `FlowSeries`/`RateSeries`; 0032 *venues* cripto sobre `HttpClient` (escrito); 0033 registro de capacidades de producto; 0034 indicadores en NumPy (escrito); 0035 gráfico de velas; 0036 motor de backtest y modelo de costes; 0037 mundos nulos como puerta; 0038 `apps/trader` y *outbox*; 0039 custodia de claves; 0040 tiempo real.

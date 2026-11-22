@@ -11,7 +11,7 @@ site_dir = "site"
 copyright = "© InvestingLab — uso privado"
 nav = [
   { "Inicio" = "index.md" },
-  { "Plan" = ["plan/plan-maestro.md", "plan/integracion-cryptoworld.md"] },
+  { "Plan" = ["plan/plan-maestro.md", "plan/integracion-cryptoworld.md", "plan/referencias-externas.md"] },
   { "Guías" = ["guide/toolkit.md", "guide/data-sources.md", "guide/adding-a-source.md", "guide/optimization.md", "guide/planning.md", "guide/api.md", "guide/persistence.md", "guide/web.md"] },
   { "Módulos del máster" = ["modules/b1-toolkit.md"] },
   { "Arquitectura" = [
@@ -67,6 +67,7 @@ nav = [
     "adr/0043-verified-published-files-cache.md",
     "adr/0044-order-book-depth-by-bands.md",
     "adr/0045-market-reference-snapshots.md",
+    "adr/0046-third-party-code-and-dependency-licenses.md",
   ] },
   { "Referencia API" = [
     "reference/index.md",
