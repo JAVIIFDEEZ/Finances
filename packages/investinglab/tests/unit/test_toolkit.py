@@ -22,17 +22,21 @@ from investinglab.domain import (
     DomainError,
     FrameIssue,
     Frequency,
+    MarketCapRanking,
+    MarketShare,
+    MarketSnapshot,
     Pillar,
     PillarIssue,
     Portfolio,
     PositioningField,
     PositioningSeries,
     PriceSeries,
+    RankedAsset,
     RateKind,
     RateSeries,
     price_patterns,
 )
-from investinglab.ports import Dataset, ProviderCapabilities, RatesRequest
+from investinglab.ports import Dataset, MarketCapRequest, ProviderCapabilities, RatesRequest
 from investinglab.services import DataUnavailableError, ProviderRegistry
 from investinglab.toolkit import AsyncToolkit, Toolkit, _EventLoopThread, _prefer_fresh_funding
 from support.cassettes import load_cassette
@@ -51,6 +55,7 @@ from support.fakes import (
     FakeEconomicProvider,
     FakePositioningProvider,
     FakeRatesProvider,
+    FakeReferenceProvider,
 )
 
 if TYPE_CHECKING:
@@ -206,7 +211,7 @@ def test_local_files_are_served_as_a_provider(tmp_path: Path) -> None:
     assert again.prices.equals(series.prices)
 
 
-REMOTE = ("ecb", "yahoo", "binance", "kraken", "coinbase", "okx", "alternative_me")
+REMOTE = ("ecb", "yahoo", "binance", "kraken", "coinbase", "okx", "alternative_me", "coingecko")
 
 
 def test_the_default_remote_providers(tmp_path: Path) -> None:
@@ -360,6 +365,27 @@ def test_book_depth_reads_the_last_week_and_venues_lists_who_serves(tmp_path: Pa
         date(2026, 11, 16),
         Frequency.HOUR_1,
     )
+
+
+def test_the_crypto_market_is_read_as_dated_snapshots(tmp_path: Path) -> None:
+    now = pd.Timestamp("2026-11-22 15:00", tz="UTC").to_pydatetime()
+    snapshot = MarketSnapshot(
+        AssetClass.CRYPTO, USD, now, SYNTHETIC_SOURCE, 2.0e12, dominance=(MarketShare("BTC", 0.6),)
+    )
+    assets = tuple(RankedAsset(rank, f"c{rank}", f"C{rank}", f"Coin {rank}") for rank in (1, 2, 3))
+    ranking = MarketCapRanking(AssetClass.CRYPTO, USD, now, SYNTHETIC_SOURCE, assets)
+    gecko = FakeReferenceProvider("gecko", snapshot=snapshot, ranking=ranking)
+    with Toolkit.from_settings(_settings(tmp_path), providers=[gecko], cache=False) as tk:
+        found = tk.market_snapshot()
+        top = tk.market_caps(2)
+        everything = tk.market_caps()
+
+    assert found.share_of("BTC") == 0.6
+    assert [asset.symbol for asset in top.assets] == ["C1", "C2"]
+    assert len(everything) == 3
+    asked = gecko.calls[-1]
+    assert isinstance(asked, MarketCapRequest)
+    assert (asked.asset_class, str(asked.currency), asked.top) == (AssetClass.CRYPTO, "USD", 100)
 
 
 def test_euro_fixings_and_rates_come_from_the_ecb(tmp_path: Path) -> None:
