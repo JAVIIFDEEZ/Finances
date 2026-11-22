@@ -5,6 +5,11 @@
 >
 > Este documento es la hoja de ruta viva: se actualiza al cerrar cada fase. Las decisiones
 > detalladas se registran como [ADRs](../adr/index.md).
+>
+> Revisión del 23-11-2026: ampliación H1-H6 a partir de FinceptTerminal, awesome-quant y Machine
+> Learning for Trading (§3.2, §4, §5 y §10-§17), con su análisis en
+> [Referencias externas](referencias-externas.md) y la política de licencias de
+> [ADR-0046](../adr/0046-third-party-code-and-dependency-licenses.md) (propuesto).
 
 ---
 
@@ -308,6 +313,17 @@ classDiagram
 | `PortfolioRepository` | persistencia de carteras guardadas (implementado en `apps/api`) |
 | `Clock` | tiempo inyectable para tests de TTL y reproducibilidad |
 
+Desde esta tabla se añadieron `TradeFlowProvider`, `HoldingRatesProvider`, `PositioningProvider`,
+`BookDepthProvider`, `EconomicDataProvider` y `ReferenceDataProvider` (G1; la lista vigente está
+en `CLAUDE.md`). Previstos por la ampliación H ([Referencias externas](referencias-externas.md)):
+
+| Puerto | Responsabilidad | Fase |
+|--------|-----------------|------|
+| `YieldCurveProvider` | Curvas de tipos fechadas (nodos o parámetros del modelo) por divisa y tipo de emisor | H1 |
+| `PositioningProvider` (amplía [ADR-0042](../adr/0042-positioning-as-a-dataset.md)) | Informes COT de la CFTC indexados por fecha de publicación | H5 |
+| `EventCalendarProvider` | Eventos macro programados (hora, país, impacto, previsión, anterior) como fotos fechadas | H5 |
+| `PredictionMarketProvider` | Probabilidades implícitas de eventos, con volumen y liquidez | H5 |
+
 ### 3.3 Servicios (casos de uso)
 
 | Servicio | Responsabilidad |
@@ -346,14 +362,14 @@ Investigué el estado actual de cada proveedor. Los límites de los planes gratu
 | **Yahoo Finance** (endpoint `chart`, [ADR-0025](../adr/0025-yahoo-chart-adapter-and-cassettes.md)) | Acciones, índices, ETFs, FX, futuros y cripto; fundamentales, dividendos/splits, opciones | 1m…1mo (1m ≈ 30 días; ≤30m ≈ 60 días; 1h ≈ 2 años) | Sin clave | Sin SLA y con throttling (429) frecuente → caché, rate limit y fallback | F2 |
 | **Alpha Vantage** | Acciones/ETF, FX, cripto, intradía, fundamentales, noticias con sentimiento | 1m…1mo | Clave gratuita | 25 peticiones/día; el ajustado es premium; sin índices. Fallback de equities y validación cruzada | F2 |
 | **FRED + ALFRED** | Macro, tipos, FX (`DEX*`), vintages point-in-time | D…A | Clave gratuita (la misma para ambos) | **Modo ALFRED por defecto**: cada dato con su fecha de publicación (primera publicación, `output_type=4`); el modo "último valor revisado" es opcional. Sin clave, *fallback* al CSV público `fredgraph.csv`, que solo da el último valor y queda marcado como no point-in-time | F2 |
-| **BCE Data Portal** (SDMX) | €STR, tipos de cambio de referencia, curvas cupón cero, HICP | D, M | Sin clave | Fuente oficial para EUR | F2 |
+| **BCE Data Portal** (SDMX) | €STR, tipos de cambio de referencia, HICP; curvas del área euro (*dataset* `YC`: tipos *spot*, *forward* y par por vencimiento y parámetros Svensson, para la deuda AAA y para todas las emisiones) | D, M | Sin clave | Fuente oficial para EUR. Las curvas, en H1 | F2 · H1 |
 | **Tiingo** | EOD EE. UU. ajustado (30+ años), intradía IEX, cripto | 1m…1d | Clave gratuita | Licencia de uso personal | F11 |
 | **Alpaca Market Data** | Barras de EE. UU. por minuto desde 2016; cripto | 1m…1d | Cuenta gratuita | En el plan free se bloquean los últimos 15 minutos; la mejor fuente gratuita de intradía de EE. UU. | F11 |
-| **SEC EDGAR** | Fundamentales XBRL con fecha de presentación (point-in-time), 10-K/10-Q/8-K para NLP | Q, A, eventos | User-Agent con email | 10 peticiones/s | F11 |
+| **SEC EDGAR** | Fundamentales XBRL con fecha de presentación (point-in-time), 10-K/10-Q/8-K para NLP, operaciones de directivos (Form 4) | Q, A, eventos | User-Agent con email | 10 peticiones/s. Adaptador propio sobre `HttpClient`; edgartools solo como oráculo ([ADR-0046](../adr/0046-third-party-code-and-dependency-licenses.md)) | F11 |
 | **OpenFIGI + SEC tickers + GLEIF** | Maestro de instrumentos (FIGI, CIK, LEI) | — | Clave opcional | El ticker deja de ser la clave primaria | F11 |
 | **DBnomics** | Agregador: FMI, OCDE, BIS, Banco Mundial, Eurostat… | Varias | Sin clave | Un adaptador da acceso a más de 90 organismos | F11 |
 | **Eurostat, Banco de España, INE** | Macro europea y española | M, Q, A | Sin clave | APIs oficiales | F11 |
-| **US Treasury** (FiscalData, par yield curve) | Curva oficial de EE. UU. | D | Sin clave | | F11 |
+| **US Treasury** (FiscalData, par yield curve) | Curva oficial de EE. UU. | D | Sin clave | Entra en el puerto de curvas de H1 | F11 · H1 |
 | **Kenneth French Data Library** | Factores Fama-French, momentum, carteras | D, W, M | Sin clave | Base de los modelos factoriales de bloques futuros | F11 |
 | **Global-q (Hou-Xue-Zhang)** y **Goyal-Welch** | Factores q5; predictores macro clásicos (dp, ep, tms, dfy, infl…) | M, A | Sin clave | Vistos en los notebooks del máster (con `tidyfinance` como referencia) | F11 |
 | **SIX Market Signal** (SIX 1BBO) | Cotizaciones (bid/ask) y operaciones de más de 4.000 acciones europeas, BME incluida, por ISIN | Tiempo real (solo el día en curso) | Token (`pk_…`) | Prueba de 1 mes con 1 petición/s y sin redistribución. Base de analítica de liquidez (spread en pb) | F11 |
@@ -366,7 +382,9 @@ Investigué el estado actual de cada proveedor. Los límites de los planes gratu
 | **Blockscout, Blockchain.com, Blockchair, DefiLlama** | Métricas on-chain, transferencias y direcciones en varias cadenas, TVL | D, eventos | Sin clave | Portadas de CryptoWorld, más DefiLlama | G9 |
 | **CryptoCompare** | Noticias cripto | Eventos | Clave | Portada de CryptoWorld | G10 |
 | **Massive** (antes Polygon) | Agregados de EE. UU. | 1m…1d | Clave gratuita | 5 peticiones/min, 2 años de histórico | Backlog |
-| **CFTC COT** | Posicionamiento en futuros | W | Sin clave | | Backlog |
+| **CFTC COT** | Posicionamiento en futuros (informes *legacy*, desagregado y TFF): oro, divisas, bonos, índices | W | Sin clave (Public Reporting Environment) | Datos del martes publicados el viernes: se indexan por fecha de publicación, en el conjunto de posicionamiento ([ADR-0042](../adr/0042-positioning-as-a-dataset.md)) | H5 |
+| **Forex Factory** (JSON semanal) | Calendario económico: hora, país, impacto, previsión y dato anterior | Eventos | Sin clave | Solo la semana en curso y sin dato publicado: se guarda como fotos fechadas. No es una API documentada; revisar términos | H5 |
+| **Polymarket, Kalshi** | Probabilidades implícitas de eventos macro (bancos centrales, recesión, IPC), con volumen | Eventos, D | Lectura sin clave | Adaptadores propios sobre `HttpClient`. Revisar términos y restricciones por jurisdicción | H5 |
 | **GDELT, Finnhub (noticias)** | Noticias y tono | Eventos | Varía | Futuro módulo de sentimiento | Backlog |
 | **CNMV** | Posiciones cortas y hechos relevantes (España) | Eventos | Scraping ético | Frágil: sin API | Backlog |
 
@@ -404,7 +422,8 @@ Investigué el estado actual de cada proveedor. Los límites de los planes gratu
 - `GBM` multivariante con Cholesky (por defecto). Si la matriz no es definida positiva, se repara a la matriz PSD más cercana.
 - `StudentT` multivariante para colas gruesas.
 - `StationaryBootstrap` (Politis-Romano), que conserva la autocorrelación y las correlaciones cruzadas.
-- Después: *Filtered Historical Simulation* con GARCH.
+- Después: *Filtered Historical Simulation* con GARCH, comprobada contra `arch` como oráculo de los tests ([ADR-0046](../adr/0046-third-party-code-and-dependency-licenses.md)).
+- Estrés inverso (H2): el *shock* que lleva la cartera a una pérdida dada.
 
 **Estimación de parámetros:**
 - Covarianza con shrinkage Ledoit-Wolf, más estable que la muestral.
@@ -593,6 +612,23 @@ Los errores siguen **RFC 9457** (`application/problem+json`). La paginación es 
 
 Los routers no contienen lógica de negocio: validan con Pydantic, llaman a un caso de uso y mapean el resultado a un schema.
 
+**Ampliación prevista (H1-H6, [Referencias externas](referencias-externas.md)).** Sigue la forma
+de las rutas actuales (`apps/api/openapi.json`):
+
+| Método | Ruta | Descripción | Fase |
+|--------|------|-------------|------|
+| GET | `/api/v1/rates/curves` | Curva del día (*spot*, *forward*, par) con su modelo, e historia de los nodos | H1 |
+| POST | `/api/v1/fixed-income/bonds/analytics` | Precio limpio y sucio, cupón corrido, TIR, duraciones, convexidad, PVBP y *spreads* frente a una curva | H1 |
+| POST | `/api/v1/fixed-income/portfolios/hedge` | Contratos de futuros para una duración objetivo y nominal de CDS para el crédito | H1 |
+| POST | `/api/v1/portfolios/analytics` (amplía) | Campo `benchmark`: métricas relativas y móviles, tablas mensual y anual | H2 |
+| POST | `/api/v1/portfolios/stress` | Estrés histórico (con cobertura por activo), hipotético e inverso | H2 |
+| GET | `/api/v1/signals/evaluation` | IC por horizonte con HAC, cuantiles, decaimiento y p-valores ajustados | H4 |
+| GET | `/api/v1/market/positioning` (amplía) | *Venue* `CFTC`: informes COT por fecha de publicación | H5 |
+| GET | `/api/v1/economic/calendar` | Eventos programados con previsión y anterior, y el dato publicado de su fuente oficial | H5 |
+| GET | `/api/v1/economic/prediction-markets` | Probabilidades implícitas con volumen | H5 |
+| POST | `/api/v1/screens` | Cribado sobre un universo *point-in-time* | H6 |
+| GET, POST | `/api/v1/watchlists` | Listas de seguimiento por usuario | H6 |
+
 ---
 
 ## 11. Frontend
@@ -612,6 +648,11 @@ Los routers no contienen lógica de negocio: validan con Pydantic, llaman a un c
 | **Simulador Monte Carlo** | Parámetros editables (modelo, trayectorias, horizonte, drift, volatilidad, semilla), abanico de percentiles, histograma del valor final con VaR/CVaR marcados, tabla de riesgo con intervalos de confianza |
 | **Módulos del máster** | Navegación generada desde `GET /modules` más `src/modules/registry.ts`. B1-T1 incluye la matriz requisito → código → test y la demo |
 | **Ajustes** | Seguridad (passkeys, 2FA, sesiones activas, PATs), preferencias (idioma, divisa base) |
+| **Renta fija** *(H1)* | Curva del día (*spot*, *forward*, par) con su tabla, historia de los nodos, pendientes 10-2 años y 10 años-3 meses, factores del PCA, calculadora de bonos, análisis y cobertura de una cartera de bonos |
+| **Análisis de cartera: frente a un índice y estrés** *(H2)* | Métricas relativas y móviles, tabla mensual y anual; ventanas históricas con la cobertura de cada activo, *shocks* por factor y estrés inverso |
+| **Laboratorio · Señales** *(H4)* | IC del catálogo por horizonte, con p-valores ajustados y decaimiento |
+| **Calendario** *(H5)* | Semana de eventos con impacto, previsión, anterior y dato publicado; probabilidades implícitas de los mercados de predicción |
+| **Cribado** *(H6)* | Filtros sobre pilares, lecturas técnicas, riesgo y liquidez de un universo; cribados guardados; lista de seguimiento en el Dashboard |
 | *Más adelante* | Macro, fundamentales, cripto (portado de CryptoWorld), alertas |
 
 **Calidad:**
@@ -642,6 +683,11 @@ Los routers no contienen lógica de negocio: validan con Pydantic, llaman a un c
 **Fixtures:**
 - `just record-fixtures` graba respuestas reales de las APIs.
 - Los datos sintéticos (GBM con semilla) viven en una carpeta aparte y se marcan como sintéticos.
+
+**Oráculos externos y licencias** ([ADR-0046](../adr/0046-third-party-code-and-dependency-licenses.md), propuesto):
+- Las cifras nuevas se comparan con implementaciones maduras e independientes, igual que la paridad con CryptoWorld. Por ejemplo: QuantLib en renta fija (H1), empyrical-reloaded y quantstats en métricas relativas (H2), alphalens-reloaded en IC (H4), skfolio en optimización (F5c).
+- Esas librerías van en el grupo de dependencias `oracles` y solo las importan los tests. Un contrato de `import-linter` impide importarlas desde `src/`.
+- La CI comprueba que las dependencias de ejecución tienen licencia permisiva. El código copiado de terceros lleva su origen y una entrada en `THIRD_PARTY_NOTICES.md`.
 
 **Contrato OpenAPI ↔ cliente:**
 - La CI regenera el cliente con orval y falla si hay diferencias. Así no hay tipos duplicados que se desincronicen.
@@ -679,7 +725,7 @@ Cada fase va en su rama `feat/*`, con commits Conventional pequeños, y se cierr
 | **F8** | `feat/web-foundation` | Next.js, Tailwind, shadcn, tema oscuro, layout y navegación con registro de módulos, orval + TanStack Query, i18n, pantallas de auth | Shell del frontend |
 | **F9** | `feat/web-core-screens` | Dashboard, Explorador, Constructor, Análisis, Simulador; Vitest + Playwright | **Plataforma completa → `v0.2.0`** |
 | **F10** | `chore/containers` | Dockerfiles multi-stage sin root, compose completo (api, web, postgres), CI de imágenes, `just dev` levanta todo | Un comando |
-| **F11** | `feat/data-expansion` | Tiingo, Alpaca (intradía), SEC EDGAR (fundamentales point-in-time y filings), OpenFIGI (maestro de instrumentos), DBnomics, Eurostat, Banco de España, INE, US Treasury, Kenneth French, Cboe | Catálogo de datos |
+| **F11** | `feat/data-expansion` | Tiingo, Alpaca (intradía), SEC EDGAR (fundamentales point-in-time y filings), OpenFIGI (maestro de instrumentos), DBnomics, Eurostat, Banco de España, INE, US Treasury, Kenneth French, Cboe; operaciones de directivos (Form 4) y ratios de crédito para H1; después, valoración por DCF y múltiplos ([Referencias externas](referencias-externas.md), §5) | Catálogo de datos |
 | **F12 → G0-G13** | varias | La integración de CryptoWorld no es una fase sino un programa: ver [Integración de CryptoWorld](integracion-cryptoworld.md) y la tabla siguiente | Paridad con CryptoWorld |
 | **F13** | `feat/jobs` | Worker (refrescos programados, alertas, simulaciones largas) — ADR: Procrastinate (cola sobre Postgres, sin Redis) frente a Taskiq + Redis; notificaciones en tiempo real por SSE | Plataforma "viva" |
 | **F14** | `chore/cloud` | Parquet en almacenamiento de objetos, secretos, observabilidad (OpenTelemetry + Sentry), backups, despliegue (ADR: Railway, Fly.io o VPS + Caddy) | Producción |
@@ -696,35 +742,77 @@ Sustituye a F12. G0 reúne las fases F6, F7, F13 y F10 de la tabla anterior y se
 | **G1** | Datos cripto y derivados: *venues* sobre `HttpClient` ([ADR-0032](../adr/0032-crypto-venues-on-the-shared-http-client.md)), flujo por vela (delta y CVD), funding e interés abierto, universo *point-in-time*, CoinGecko, Fear & Greed. **En curso:** tipos `FlowSeries`, `RateSeries` y `Universe` ([ADR-0031](../adr/0031-flow-holding-rates-and-universes.md)) ✅; Binance *spot* (velas y flujo), funding de OKX, volumen de Yahoo y de los ficheros propios como flujo y `tk.flow()`/`tk.holding_rates()` ✅; API (`/market/flow`, `/market/holding-rates`) y tarjetas de flujo y funding en Mercados ✅; Fear & Greed de alternative.me como serie económica (`tk.economic("FNG")`) ✅. *Venues* de respaldo Kraken y Coinbase ✅. Fear & Greed en la pantalla de inicio ✅; funding de Binance desde sus volcados verificados de `data.binance.vision` ([ADR-0041](../adr/0041-binance-funding-from-public-dumps.md)) ✅; posicionamiento (interés abierto y ratios largo/corto) de OKX y Binance como conjunto de datos propio, con API, tarjeta en Mercados, *venues* descubiertas desde la API y pilar de derivados de la ficha ([ADR-0042](../adr/0042-positioning-as-a-dataset.md)) ✅. caché en disco de los volcados verificados, por versión ([ADR-0043](../adr/0043-verified-published-files-cache.md)) ✅. profundidad del libro por bandas con historia desde los volcados de Binance ([ADR-0044](../adr/0044-order-book-depth-by-bands.md)) ✅. con API y tarjeta en Mercados ✅. CoinGecko (tamaño, dominancia y clasificación del mercado cripto, como fotos fechadas; [ADR-0045](../adr/0045-market-reference-snapshots.md)) ✅. Pendiente: su API y pantalla y un tercer *venue* (Bybit rechaza el contenedor) | Cripto como clase de activo |
 | **G2** | Análisis técnico multiactivo (indicadores, patrones, estructura, confluencia multimarco) y ficha de activo. **En curso:** los 26 indicadores del catálogo de CryptoWorld en `analytics/technical/` con paridad comprobada ([ADR-0034](../adr/0034-technical-indicators-in-numpy.md)) ✅; fachada de dominio, `tk.technical`, `/api/v1/market/technical` y panel técnico en la web ✅; 25 patrones de precio causales en `analytics/patterns/` con paridad ([ADR-0035](../adr/0035-causal-price-patterns.md)) ✅. patrones en dominio, `tk.patterns`, `/api/v1/market/patterns` y panel con marcas en el gráfico ✅. estructura de precio con paridad, dominio, `tk.structure` y `/api/v1/market/structure` ✅. lecturas convencionales y espacio de análisis técnico en la web (resumen, osciladores con zonas, estructura y superposiciones) ✅. panel de reglas por estilo y confluencia entre marcos con paridad, `tk.confluence`, `/api/v1/market/confluence` y su panel ✅. gráfico de precio con paneles apilados, cursor único, escala logarítmica y zoom ([ADR-0039](../adr/0039-price-chart-workspace.md)) ✅. ficha de activo con pilares por clase de activo, sin veredicto fusionado ([ADR-0040](../adr/0040-asset-card-with-pillars.md)) ✅. Pendiente: pilar macro, fundamentales (F11) y pesos aprendidos (G4) | Misma ficha para `SAN.MC`, `^GSPC`, `EURUSD=X` y `BTC/USDT` |
 | **G0b** | Trabajos en segundo plano (F13) y observabilidad mínima | Trabajos largos con `202` y seguimiento |
-| **G3** | Backtest con costes por mercado, validación anti-sobreajuste, mundos nulos como test nocturno y metodología | Backtest con veredicto e incertidumbre |
-| **G4** | Laboratorio de estrategias: gramática, algoritmo genético, NSGA-II, registro de experimentos, ML con *baseline* | Menos del 5 % de falsos positivos por *preset* |
-| **G5** | Volatilidad (HAR), Índice de Fragilidad, mesa de carry, régimen, lead-lag, correlaciones, rupturas, estacionalidad y estudio de eventos | Todo con endpoint, pantalla y nota de metodología |
+| **G3** | Backtest con costes por mercado, validación anti-sobreajuste, mundos nulos como test nocturno y metodología. Ampliado ([Referencias externas](referencias-externas.md), §5): *spread* estimado desde velas (Roll, Corwin-Schultz), coste de equilibrio, MAE/MFE y paridad entre pesos × retornos y el motor por eventos | Backtest con veredicto e incertidumbre |
+| **G4** | Laboratorio de estrategias: gramática, algoritmo genético, NSGA-II, registro de experimentos, ML con *baseline*. Ampliado: Kelly fraccional y SHAP; recibe las señales cribadas por H4 | Menos del 5 % de falsos positivos por *preset* |
+| **G5** | Volatilidad (HAR), Índice de Fragilidad, mesa de carry, régimen, lead-lag, correlaciones, rupturas, estacionalidad y estudio de eventos. Ampliado: regímenes macro por agrupamiento, filtro de Kalman, indicador de recesión con la pendiente de la curva, y sonrisa, superficie y exposición gamma de las opciones | Todo con endpoint, pantalla y nota de metodología |
 | **G0c** | Acceso con usuario (F7) y contenedores (F10) | Lista para guardar datos personales |
-| **G6** | Libro de operaciones con lotes y divisas; riesgo del libro, estrés observado y atribución por factor | Cartera real mixta valorada en euros |
-| **G7** | *Paper trading* y ejecución propia: órdenes con máquina de estados, *outbox*, `apps/trader` apagado por defecto | Cinco tests de fallo en verde |
-| **G8** | Alertas con disparo por flanco, notificaciones (app, email, push, Telegram, *webhook*) y tiempo real por SSE | **Mismo nivel funcional que CryptoWorld en lo esencial** |
+| **G6** | Libro de operaciones con lotes y divisas; riesgo del libro, estrés observado y atribución por factor. Ampliado: Fama-French 3 y 5 más momentum con betas móviles; el estrés de H2, sobre el libro | Cartera real mixta valorada en euros |
+| **G7** | *Paper trading* y ejecución propia: órdenes con máquina de estados, *outbox*, `apps/trader` apagado por defecto. Ampliado: *circuit breaker* como máquina de estados única con sus reglas de parada | Cinco tests de fallo en verde |
+| **G8** | Alertas con disparo por flanco, notificaciones (app, email, push, Telegram, *webhook*) y tiempo real por SSE. Ampliado: alertas de deriva de los modelos del Laboratorio, sobre las listas de H6 | **Mismo nivel funcional que CryptoWorld en lo esencial** |
 | **G9** | On-chain y forense | Sección «Cripto · On-chain» |
-| **G10** | Noticias y sentimiento | `NewsProvider` y `SentimentProvider` |
+| **G10** | Noticias y sentimiento. Ampliado: RAG sobre informes con cita de la fuente | `NewsProvider` y `SentimentProvider` |
 | **G11** | Orderflow: `apps/collector`, *footprint*, perfil de volumen, liquidaciones | Orderflow con estudio de evidencias |
-| **G12** | Preparado para SaaS (opcional) | Solo tras revisar licencias de datos y regulación |
+| **G12** | Preparado para SaaS (opcional). El MCP local se adelanta a H3; aquí queda el publicado, con autenticación | Solo tras revisar licencias de datos y regulación |
 | **G13** | Retirada de CryptoWorld | Matriz de paridad completa |
+
+### Ampliación H1-H6 (referencias externas, 23-11-2026)
+
+Salen del análisis de FinceptTerminal, awesome-quant y Machine Learning for Trading. El detalle de
+cada fase (alcance por capa, oráculo, criterio de terminado, ADR previsto y esfuerzo) está en
+[Referencias externas](referencias-externas.md), §4. Ninguna duplica lo que llega de CryptoWorld
+(§3 de ese documento).
+
+| Fase | Rama | Contenido | Hito |
+|------|------|-----------|------|
+| **H1** | `feat/fixed-income` | Renta fija y curvas de tipos, módulo B2 del máster: `Bond` y `YieldCurve`, convenciones de días, precio, TIR, *spreads* (G, I, Z), duraciones y convexidad, Nelson-Siegel y Svensson, PCA de la curva, cobertura con futuros y CDS, cartera por mandato; curvas `YC` del BCE; QuantLib como oráculo | Curva del BCE reconstruida desde sus parámetros y bonos iguales que con QuantLib |
+| **H2** | `feat/benchmark-and-stress` | Cartera frente a un índice de referencia (métricas relativas y móviles) y estrés histórico, hipotético e inverso, sin sustitutos implícitos | 60/40 frente a un índice de retorno total igual que el oráculo |
+| **H3** | `feat/mcp-server` | Servidor MCP local de solo lectura sobre el `Toolkit` (`apps/mcp`) | Claude consulta fichas y carteras sin red, con casetes |
+| **H4** | `feat/signal-evaluation` | Evaluación de señales: IC por horizonte con HAC y *bootstrap*, cuantiles, decaimiento, Benjamini-Hochberg | Catálogo de G2 cribado antes de G3 |
+| **H5** | `feat/positioning-and-events` | COT de la CFTC por fecha de publicación, calendario económico como fotos fechadas, probabilidades implícitas de los mercados de predicción | Pilar de derivados del oro con el COT; backtests que excluyen eventos |
+| **H6** | `feat/screener-watchlists` | Cribado sobre universos *point-in-time* con los cálculos propios; cribados guardados y listas de seguimiento por usuario | Cribado guardado y lista en Inicio |
+
+**Orden de trabajo con la ampliación.** Se intercala con el orden acordado el 11-11-2026, sin
+saltarse ningún requisito:
+
+1. Lo que queda de G1 y G2.
+2. **H1**: coincide con el bloque 2 del máster (renta fija) y no necesita cola ni usuario.
+3. **H2** y **H3**.
+4. G0b.
+5. **H4**; después G3, G4 y G5, con sus ampliaciones.
+6. **H5**: necesita G0b para guardar fotos y alimenta el estudio de eventos de G5.
+7. G0c.
+8. **H6**.
+9. G6-G13.
+
+Esfuerzo de H1-H6: 10-14 semanas a 25-30 h/semana (estimación).
 
 ---
 
 ## 14. ADRs
 
-Los ADRs aceptados están en [`docs/adr/`](../adr/index.md). Previstos para las próximas fases:
-validación estricta de entradas, representación temporal, alineación sin relleno artificial,
-`yfinance` en hilo dedicado frente a httpx, caché Parquet + DuckDB, pandas en la interfaz
-pública (sin polars), divisa base y tipo libre de riesgo, modelos de Monte Carlo, autenticación
-(Better Auth + JWKS), la API sirve datos y no gráficos, cliente generado con orval y migración
-desde CryptoWorld.
+Los ADRs están en [`docs/adr/`](../adr/index.md): 0001-0045 aceptados y 0046 propuesto. La
+numeración de los previstos que figuraba aquí quedó superada (por ejemplo, 0035 acabó siendo
+patrones de precio y no el gráfico de velas): cada número se asigna al escribir el ADR, salvo 0030
+y 0033, que siguen reservados.
 
-Previstos para el programa de integración de CryptoWorld: 0029 persistencia y multiusuario;
-0030 cola de trabajos; 0031 tipos `FlowSeries` y `RateSeries`; 0032 *venues* cripto sobre
-`HttpClient` (escrito); 0033 registro de capacidades de producto; 0034 indicadores en NumPy (escrito);
-0035 gráfico de velas; 0036 motor de backtest y modelo de costes; 0037 mundos nulos como puerta;
-0038 `apps/trader` y *outbox*; 0039 custodia de claves; 0040 tiempo real.
+**Ya escritos de la lista inicial:** validación estricta (0006), representación temporal (0007),
+alineación sin relleno (0008), caché Parquet + DuckDB (0011), divisa base y tipo libre de riesgo
+(0014, 0020), Monte Carlo (0016), Yahoo con httpx en lugar de `yfinance` (0025), API que sirve
+datos y web con cliente tipado desde OpenAPI (0027, 0028), persistencia y propietarios (0029),
+flujo y tipos de mantenimiento (0031), *venues* cripto (0032), indicadores en NumPy (0034) y
+gráfico de precio con ECharts (0039).
+
+**Pendientes:**
+
+- **Integración de CryptoWorld:** cola de trabajos (0030, G0b), registro de capacidades de
+  producto (0033), autenticación con Better Auth + JWKS (G0c), motor de backtest y modelo de
+  costes (G3), mundos nulos como puerta (G3), `apps/trader` y *outbox* (G7), custodia de claves
+  (G7) y tiempo real (G8).
+- **Ampliación H:** licencias de terceros (0046, propuesto; pasa a aceptado cuando la CI lo
+  compruebe), tipos de renta fija, curvas y mandatos (H1), índice de referencia y estrés (H2),
+  servidor MCP (H3), evaluación de señales (H4), COT (amplía 0042), calendario como fotos
+  (amplía 0045) y mercados de predicción (H5), y cribado y listas (H6).
+- **Sin ADR propio:** pandas en la interfaz pública, sin Polars (§0 y `CLAUDE.md`).
 
 ---
 
@@ -736,6 +824,7 @@ Previstos para el programa de integración de CryptoWorld: 0029 persistencia y m
 4. **Macro:** FRED/ALFRED en modo point-in-time por defecto (misma clave de API para ambos).
 5. **Claves pendientes de conseguir:** FRED y Alpha Vantage (F2); Tiingo, Alpaca y CoinGecko (F11–F12).
 6. **CryptoWorld:** migración progresiva (sección 9), con el programa G0-G13 de [Integración de CryptoWorld](integracion-cryptoworld.md) (11-11-2026).
+7. **Referencias externas:** ampliación H1-H6 a partir de FinceptTerminal, awesome-quant y Machine Learning for Trading, con su orden de trabajo (§13) y la política de licencias de [ADR-0046](../adr/0046-third-party-code-and-dependency-licenses.md): de FinceptTerminal (AGPL-3.0), solo ideas ([Referencias externas](referencias-externas.md), 23-11-2026).
 
 ## 16. Dominios a permitir en el entorno de cloud
 
@@ -747,6 +836,9 @@ Previstos para el programa de integración de CryptoWorld: 0029 persistencia y m
 - **G5 (opciones):** `www.deribit.com`
 - **G9 (on-chain):** `api.blockchain.info`, `api.blockchair.com`, `api.llama.fi` y las instancias de Blockscout que se usen (por ejemplo `eth.blockscout.com`)
 - **G10 (noticias):** `min-api.cryptocompare.com`
+- **H1 (curvas):** ninguno nuevo (`data-api.ecb.europa.eu` ya está en F2 y `home.treasury.gov` en F11)
+- **H5 (posicionamiento y eventos):** `publicreporting.cftc.gov`, `www.cftc.gov`, `nfs.faireconomy.media`, `gamma-api.polymarket.com`, `clob.polymarket.com`, `data-api.polymarket.com`, `api.elections.kalshi.com`
+- **H3 y oráculos:** ninguno (el MCP es local por *stdio*; los oráculos se instalan desde PyPI)
 
 ## 17. Aprendizajes de los notebooks del máster (Drive, 31-10-2026)
 
@@ -763,4 +855,13 @@ Revisé el código y el texto (sin salidas) de 6 de los 17 notebooks de Drive. E
 | `02_EDAYPreparacionDatos` | Validación de datos crudos, limpieza, *features* y señales; tono de informes SEC con el léxico Loughran-McDonald y con LLM, con caché de respuestas | F3 (calidad) / módulo NLP |
 | `clase_market_signal` | API SIX Market Signal (BME/SIX por ISIN): spread bid-ask en puntos básicos, clasificación de liquidez y resumen por sector | F11 |
 
-Pendientes de revisar: `02_Analisis_datos_macro`, `ALUMNO_MIAX15_Curva_Tipos_Recesiones`, `03_Backtesting`, la serie `Dia1/Dia2` de IA y el curso de Python.
+Revisión del 23-11-2026: material del bloque 2 y de datos alternativos. Tampoco se versiona;
+de ahí salen los requisitos de H1, redactados por nosotros.
+
+| Material | Idea que incorporamos | Fase |
+|----------|-----------------------|------|
+| `ALUMNO_MIAX15_Curva_Tipos_Recesiones` | Pendiente 10-2 años (y 10 años-3 meses) como indicador adelantado de recesión. Validar la serie propia contra la publicada (`T10Y2Y`); episodios de inversión y su antelación; probit de Estrella-Mishkin evaluado fuera de muestra; paneles apilados en lugar de doble eje; extensión al área euro con la curva del BCE | G5 · H1 |
+| Renta fija: clase 1 y análisis de riesgos | Valoración con curva y *spread* de crédito (precio limpio, cupón corrido, precio sucio) y bases de cálculo; TIR frente a tipos *spot*; *spreads* (de rentabilidad, frente a referencia, G, I frente a €STR, Z, OAS); duraciones (Macaulay, modificada, efectiva, *money duration*, PVBP), convexidad y duración de cartera; ratios de crédito | H1 · F11 |
+| Taller de renta fija (`analisis_cartera`) | Universo de bonos corporativos con la curva €STR: valoración frente a mercado, sensibilidades, cartera equiponderada frente a un índice de crédito de retorno total, cartera por mandato (duración máxima, cuota *high yield*, sin subordinada, tamaño mínimo, concentración por emisión y por emisor, número máximo de bonos), cobertura de tipos con futuros sobre Schatz, Bobl y Bund, y de crédito con índices iTraxx | H1 · H2 |
+
+Pendientes de revisar: `02_Analisis_datos_macro`, `03_Backtesting` (con la estrategia de régimen macro, tono de la SEC y tendencia de la clase de herramientas), la serie `Dia1/Dia2` de IA y el curso de Python.
