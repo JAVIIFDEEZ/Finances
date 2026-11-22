@@ -48,6 +48,12 @@ from investinglab.domain.instruments import (
     Identifiers,
     Instrument,
 )
+from investinglab.domain.market_reference import (
+    MarketCapRanking,
+    MarketShare,
+    MarketSnapshot,
+    RankedAsset,
+)
 from investinglab.domain.metrics import DEFAULT_CONFIDENCE_LEVELS, RiskMetrics, TailRisk
 from investinglab.domain.money import (
     CHF,
@@ -198,7 +204,10 @@ __all__ = [
     "InvalidSeriesError",
     "InvestingLabError",
     "IssueKind",
+    "MarketCapRanking",
     "MarketSchedule",
+    "MarketShare",
+    "MarketSnapshot",
     "Membership",
     "Objective",
     "OptimizationConfig",
@@ -221,6 +230,7 @@ __all__ = [
     "QualityIssue",
     "QualityThresholds",
     "QuoteUnit",
+    "RankedAsset",
     "RateConvention",
     "RateKind",
     "RateSeries",
