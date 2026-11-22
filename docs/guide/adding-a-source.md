@@ -15,6 +15,7 @@ Cada clase de dato tiene su puerto en `ports/market_data.py` y su tipo de domini
 | Funding, préstamo, financiación | `HOLDING_RATES` | `HoldingRatesProvider` (`fetch_rates`) | `RateSeries` |
 | *Open interest* y ratios largo/corto | `POSITIONING` | `PositioningProvider` (`fetch_positioning`) | `PositioningSeries` |
 | Profundidad del libro por bandas | `BOOK_DEPTH` | `BookDepthProvider` (`fetch_book_depth`) | `BookDepthSeries` |
+| Tamaño, dominancia y clasificación de un mercado | `REFERENCE` | `ReferenceDataProvider` (`fetch_market_snapshot`, `fetch_market_caps`) | `MarketSnapshot`, `MarketCapRanking` |
 | Series económicas | `ECONOMIC` | `EconomicDataProvider` (`fetch_economic_series`) | `EconomicSeries` |
 
 Un adaptador implementa los que sirva; el mismo proveedor puede dar varios (Binance da velas,
