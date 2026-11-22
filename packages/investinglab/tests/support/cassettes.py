@@ -22,12 +22,16 @@ from typing import TYPE_CHECKING, Any
 
 import httpx
 
+from investinglab.domain.instruments import AssetClass
+from investinglab.domain.money import Currency
 from investinglab.domain.rate_series import RateKind
 from investinglab.domain.time import Frequency
 from investinglab.ports import (
     BarsRequest,
     BookDepthRequest,
     EconomicRequest,
+    MarketCapRequest,
+    MarketSnapshotRequest,
     PositioningRequest,
     RatesRequest,
     VintageMode,
@@ -76,7 +80,15 @@ class Cassette:
 
     name: str
     recorded_at: datetime
-    request: BarsRequest | EconomicRequest | RatesRequest | PositioningRequest | BookDepthRequest
+    request: (
+        BarsRequest
+        | EconomicRequest
+        | RatesRequest
+        | PositioningRequest
+        | BookDepthRequest
+        | MarketSnapshotRequest
+        | MarketCapRequest
+    )
     exchanges: tuple[Exchange, ...]
     page_size: int | None = None
     """Page size the cassette was recorded with, when smaller than the provider's default."""
@@ -97,6 +109,18 @@ class Cassette:
     def rates_request(self) -> RatesRequest:
         """The recorded request, which must be one for holding rates."""
         assert isinstance(self.request, RatesRequest), f"{self.name} records no holding rates"
+        return self.request
+
+    @property
+    def snapshot_request(self) -> MarketSnapshotRequest:
+        """The recorded request, which must be one for a market snapshot."""
+        assert isinstance(self.request, MarketSnapshotRequest), f"{self.name} records no snapshot"
+        return self.request
+
+    @property
+    def ranking_request(self) -> MarketCapRequest:
+        """The recorded request, which must be one for a market-cap ranking."""
+        assert isinstance(self.request, MarketCapRequest), f"{self.name} records no ranking"
         return self.request
 
     @property
@@ -149,9 +173,30 @@ def _day(text: str | None) -> date | None:
     return None if text is None else date.fromisoformat(text)
 
 
+def _reference_request(raw: dict[str, Any]) -> MarketSnapshotRequest | MarketCapRequest | None:
+    """A recorded request for a whole market, if it is one."""
+    dataset = raw.get("dataset")
+    if dataset not in {"market_snapshot", "market_caps"}:
+        return None
+    asset_class, currency = AssetClass(raw["asset_class"]), Currency(raw["currency"])
+    if dataset == "market_caps":
+        return MarketCapRequest(asset_class, currency, int(raw["top"]))
+    return MarketSnapshotRequest(asset_class, currency)
+
+
 def _request(
     raw: dict[str, Any],
-) -> BarsRequest | EconomicRequest | RatesRequest | PositioningRequest | BookDepthRequest:
+) -> (
+    BarsRequest
+    | EconomicRequest
+    | RatesRequest
+    | PositioningRequest
+    | BookDepthRequest
+    | MarketSnapshotRequest
+    | MarketCapRequest
+):
+    if (reference := _reference_request(raw)) is not None:
+        return reference
     start, end = _day(raw["start"]), _day(raw["end"])
     if raw.get("dataset") == "book_depth":
         return BookDepthRequest(
