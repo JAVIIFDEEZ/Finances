@@ -7,6 +7,7 @@ import {
   Boxes,
   Compass,
   GraduationCap,
+  Hourglass,
   LayoutDashboard,
   LineChart,
   Menu,
@@ -56,7 +57,10 @@ const NAVIGATION: readonly { section: MessageKey | null; items: readonly NavItem
   },
   {
     section: "nav.section.platform",
-    items: [{ href: "/modules", label: "nav.modules", icon: GraduationCap }],
+    items: [
+      { href: "/jobs", label: "nav.jobs", icon: Hourglass },
+      { href: "/modules", label: "nav.modules", icon: GraduationCap },
+    ],
   },
 ];
 

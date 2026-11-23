@@ -6,7 +6,7 @@ import { defineConfig, devices } from "@playwright/test";
  * reused (then the data is whatever they serve: the tests never depend on values).
  */
 const CI = Boolean(process.env.CI);
-/** PostgreSQL for the saved portfolios; without it those tests are skipped (never in CI). */
+/** PostgreSQL for the saved portfolios and the background jobs; without it those tests are skipped (never in CI). */
 const DATABASE = process.env.INVESTINGLAB_E2E_DATABASE_URL;
 if (CI && !DATABASE) throw new Error("CI must set INVESTINGLAB_E2E_DATABASE_URL");
 const migrate = DATABASE ? " && uv run investinglab-api db upgrade" : "";
@@ -39,5 +39,23 @@ export default defineConfig({
       reuseExistingServer: !CI,
       timeout: 120_000,
     },
+    // With a database the background jobs run too: a worker over the same synthetic files,
+    // started after the API has migrated the schema, ready once it says so.
+    ...(DATABASE
+      ? [
+          {
+            command: "uv run investinglab-api worker",
+            wait: { stderr: /worker_started/ },
+            env: {
+              INVESTINGLAB_OFFLINE: "true",
+              INVESTINGLAB_LOCAL_DATA_DIR: ".e2e/data",
+              INVESTINGLAB_DATA_DIR: ".e2e/cache",
+              INVESTINGLAB_LOG_LEVEL: "INFO",
+              INVESTINGLAB_API_DATABASE_URL: DATABASE,
+            },
+            timeout: 120_000,
+          },
+        ]
+      : []),
   ],
 });

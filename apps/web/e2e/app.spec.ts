@@ -315,6 +315,44 @@ test("Monte Carlo, optimisation and savings plans run", async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
+test("a simulation larger than a request goes to the background, or says what it needs", async ({ page }) => {
+  test.skip(Boolean(process.env.INVESTINGLAB_E2E_DATABASE_URL), "with a database the job runs (next test)");
+  const errors = trackErrors(page);
+  await page.goto("/simulation");
+  await page.getByLabel("Trayectorias").fill("30000");
+  await expect(page.getByRole("button", { name: "Calcular" })).toBeDisabled();
+  await expect(page.getByText("no caben en una petición")).toBeVisible();
+
+  await page.getByRole("button", { name: "En segundo plano" }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "necesitan una base de datos" })).toBeVisible();
+  await page.goto("/jobs");
+  await expect(page.getByText("necesitan una base de datos")).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test("a large simulation runs in the background, is followed to its result and deleted", async ({ page }) => {
+  test.skip(!process.env.INVESTINGLAB_E2E_DATABASE_URL, "needs PostgreSQL and its worker (INVESTINGLAB_E2E_DATABASE_URL)");
+  const errors = trackErrors(page);
+  await page.goto("/simulation");
+  await page.getByLabel("Trayectorias").fill("30000");
+  await page.getByLabel("Horizonte (sesiones)").fill("60");
+  await page.getByRole("button", { name: "En segundo plano" }).click();
+
+  // The job's page follows it: queued, running with its progress, then its result.
+  await expect(page).toHaveURL(/\/jobs\?id=/);
+  await expect(page.getByRole("heading", { name: "Simulación de Monte Carlo" })).toBeVisible();
+  await expect(page.getByText("Terminado").first()).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByRole("img", { name: "Abanico de percentiles" })).toBeVisible();
+  await expect(page.getByText("30.000 trayectorias")).toBeVisible();
+
+  // Deleted, with a confirmation: the page says it no longer exists.
+  await page.getByRole("button", { name: "Borrar" }).click();
+  await page.getByRole("button", { name: "¿Borrar? Confirmar" }).click();
+  await expect(page).toHaveURL(/\/jobs$/);
+  await expect(page.getByText("Elige un trabajo de la lista")).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
 test("language and theme are switched and remembered", async ({ page }) => {
   await page.goto("/modules");
   await expect(page.getByRole("heading", { level: 1, name: "Módulos del máster" })).toBeVisible();
