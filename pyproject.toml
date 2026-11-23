@@ -332,6 +332,32 @@ forbidden_modules = [
 ]
 
 [[tool.importlinter.contracts]]
+name = "Only the telemetry module imports OpenTelemetry (ADR-0048)"
+type = "forbidden"
+source_modules = [
+  "investinglab_api.app",
+  "investinglab_api.worker",
+  "investinglab_api.middleware",
+  "investinglab_api.routers",
+  "investinglab_api.jobs",
+  "investinglab_api.use_cases",
+  "investinglab_api.mappers",
+  "investinglab_api.schemas",
+  "investinglab_api.dependencies",
+  "investinglab_api.problems",
+  "investinglab_api.persistence",
+  "investinglab_api.settings",
+]
+forbidden_modules = ["opentelemetry"]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "The core library never knows about tracing"
+type = "forbidden"
+source_modules = ["investinglab"]
+forbidden_modules = ["opentelemetry", "investinglab_api"]
+
+[[tool.importlinter.contracts]]
 name = "API layers: routers (and jobs) call use cases and mappers, which only know schemas and the core"
 type = "layers"
 layers = [

@@ -20,7 +20,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 
 from investinglab.config import configure_logging, get_logger, get_settings
 from investinglab.toolkit import AsyncToolkit
-from investinglab_api import __version__
+from investinglab_api import __version__, telemetry
 from investinglab_api.middleware import REQUEST_ID_HEADER, RequestContextMiddleware
 from investinglab_api.persistence import (
     Database,
@@ -95,7 +95,10 @@ def create_app(
     """
     api = settings or get_api_settings()
     core = core_settings or get_settings()
-    configure_logging(core.log_level, core.effective_log_format)
+    configure_logging(
+        core.log_level, core.effective_log_format, processors=(telemetry.add_trace_context,)
+    )
+    telemetry.configure_tracing(api.tracing, service="investinglab-api")
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -119,6 +122,7 @@ def create_app(
                 await database.dispose()
             if owned:
                 await app.state.toolkit.aclose()
+            telemetry.flush_tracing()
 
     app = FastAPI(
         title="InvestingLab API",
@@ -155,4 +159,5 @@ def create_app(
     )
     for router in routers:
         app.include_router(router)
+    telemetry.instrument_app(app)
     return app

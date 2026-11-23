@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Final
 
 from investinglab.config import get_logger
+from investinglab_api import telemetry
 
 if TYPE_CHECKING:
     from investinglab.domain.heartbeat import SourceStatus
@@ -27,23 +28,41 @@ SOURCES_CRON: Final = "*/15 * * * *"
 async def check_and_record(
     toolkit: AsyncToolkit, store: HeartbeatStore
 ) -> tuple[SourceStatus, ...]:
-    """Ask every source its canary and keep the status of each."""
+    """Ask every source its canary and keep the status of each.
+
+    When the worker traces, the whole check is one span with an event per source; a source
+    that fails is an event that says so, not a failure of the check (ADR-0048).
+    """
     statuses = []
-    for heartbeat in await toolkit.check_sources():
-        status = await store.record(heartbeat)
-        statuses.append(status)
-        if heartbeat.ok:
-            log.info(
-                "source_ok",
+    with telemetry.span("check sources") as span:
+        for heartbeat in await toolkit.check_sources():
+            status = await store.record(heartbeat)
+            statuses.append(status)
+            span.event(
+                "source.checked",
                 provider=heartbeat.provider,
-                latency=round(heartbeat.latency, 3),
-                latest=heartbeat.latest.isoformat() if heartbeat.latest else None,
-            )
-        else:
-            log.warning(
-                "source_failing",
-                provider=heartbeat.provider,
+                ok=heartbeat.ok,
+                latency_seconds=heartbeat.latency,
                 failures=status.failures,
-                error=heartbeat.error,
             )
+            if heartbeat.ok:
+                log.info(
+                    "source_ok",
+                    provider=heartbeat.provider,
+                    latency=round(heartbeat.latency, 3),
+                    latest=heartbeat.latest.isoformat() if heartbeat.latest else None,
+                )
+            else:
+                log.warning(
+                    "source_failing",
+                    provider=heartbeat.provider,
+                    failures=status.failures,
+                    error=heartbeat.error,
+                )
+        span.set(
+            **{
+                "investinglab.sources.checked": len(statuses),
+                "investinglab.sources.failing": sum(not s.heartbeat.ok for s in statuses),
+            }
+        )
     return tuple(statuses)
