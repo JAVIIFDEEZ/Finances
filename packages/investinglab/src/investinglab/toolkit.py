@@ -36,6 +36,7 @@ from investinglab.adapters.providers.alternative_me import AlternativeMeProvider
 from investinglab.adapters.providers.binance import BinanceProvider
 from investinglab.adapters.providers.coinbase import CoinbaseProvider
 from investinglab.adapters.providers.coingecko import CoinGeckoProvider
+from investinglab.adapters.providers.deribit import DeribitProvider
 from investinglab.adapters.providers.ecb import EcbProvider
 from investinglab.adapters.providers.files import LocalFilesProvider
 from investinglab.adapters.providers.kraken import KrakenProvider
@@ -112,6 +113,7 @@ type RemoteProvider = (
     | KrakenProvider
     | CoinbaseProvider
     | OkxProvider
+    | DeribitProvider
     | AlternativeMeProvider
     | CoinGeckoProvider
 )
@@ -189,7 +191,8 @@ def _remote_providers(
     back on Kraken (its last 720 bars) and Coinbase, which also list the pairs in dollars and
     euros. The funding of perpetual swaps written ``BASE/QUOTE:SETTLE`` comes from OKX's
     API, up to date, and from Binance's monthly dumps, which keep the whole history
-    (ADR-0032, ADR-0041); ``venue`` picks one. alternative.me
+    (ADR-0032, ADR-0041); Deribit adds the hourly funding of its perpetuals in dollars and
+    USDC; ``venue`` picks one. alternative.me
     publishes the crypto Fear & Greed Index (``FNG``), and CoinGecko the size, dominance and
     ranking of the crypto market (ADR-0045).
 
@@ -207,6 +210,7 @@ def _remote_providers(
         "kraken": lambda: KrakenProvider(timeout=timeout, retry=retry),
         "coinbase": lambda: CoinbaseProvider(timeout=timeout, retry=retry),
         "okx": lambda: OkxProvider(timeout=timeout, retry=retry),
+        "deribit": lambda: DeribitProvider(timeout=timeout, retry=retry),
         "alternative_me": lambda: AlternativeMeProvider(timeout=timeout, retry=retry),
         "coingecko": lambda: CoinGeckoProvider(
             api_key=config.coingecko_api_key, timeout=timeout, retry=retry
@@ -215,9 +219,11 @@ def _remote_providers(
     return [build() for name, build in factories.items() if name not in registry]
 
 
-FUNDING_ORDER: Final = ("okx", "binance")
+FUNDING_ORDER: Final = ("okx", "binance", "deribit")
 """Venues asked for funding when none is named: OKX's API is up to date, and Binance's
-monthly dumps (published once each month ends) add the history OKX does not keep."""
+monthly dumps (published once each month ends) add the history OKX does not keep. Deribit
+comes last: its funding accrues every hour, a different period from the others' payments, so
+it answers when named (``venue="deribit"``) or when they cannot."""
 
 
 POSITIONING_ORDER: Final = ("okx", "binance")

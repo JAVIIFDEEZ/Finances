@@ -38,7 +38,12 @@ from investinglab.domain import (
 )
 from investinglab.ports import Dataset, MarketCapRequest, ProviderCapabilities, RatesRequest
 from investinglab.services import DataUnavailableError, ProviderRegistry
-from investinglab.toolkit import AsyncToolkit, Toolkit, _EventLoopThread, _prefer_fresh_funding
+from investinglab.toolkit import (
+    AsyncToolkit,
+    Toolkit,
+    _EventLoopThread,
+    _prefer_fresh_funding,
+)
 from support.cassettes import load_cassette
 from support.factories import (
     SYNTHETIC_SOURCE,
@@ -211,7 +216,17 @@ def test_local_files_are_served_as_a_provider(tmp_path: Path) -> None:
     assert again.prices.equals(series.prices)
 
 
-REMOTE = ("ecb", "yahoo", "binance", "kraken", "coinbase", "okx", "alternative_me", "coingecko")
+REMOTE = (
+    "ecb",
+    "yahoo",
+    "binance",
+    "kraken",
+    "coinbase",
+    "okx",
+    "deribit",
+    "alternative_me",
+    "coingecko",
+)
 
 
 def test_the_default_remote_providers(tmp_path: Path) -> None:
@@ -261,6 +276,22 @@ def test_funding_of_a_perpetual_swap_comes_from_okx(tmp_path: Path) -> None:
     assert (funding.venue, funding.kind, len(funding)) == ("okx", RateKind.FUNDING, 30)
 
 
+def test_hourly_funding_comes_from_deribit_when_named(tmp_path: Path) -> None:
+    online = _settings(tmp_path, offline=False)
+    cassette = load_cassette("deribit/btc_usd_funding")
+    request = cassette.rates_request
+
+    with respx.mock() as router, Toolkit.from_settings(online, cache=False) as tk:
+        cassette.play(router)
+        funding = tk.holding_rates(
+            request.symbol, venue="deribit", start=request.start, end=request.end
+        )
+        venues = tk.venues("BTC/USD:BTC", "holding_rates")
+
+    assert (funding.venue, len(funding), funding.interval) == ("deribit", 240, pd.Timedelta("1h"))
+    assert venues[-1] == "deribit"  # asked last when no venue is named
+
+
 def test_binance_keeps_its_verified_dumps_in_the_cache_folder(tmp_path: Path) -> None:
     online = _settings(tmp_path, offline=False)
     cassette = load_cassette("binance/btc_usdt_swap_funding")
@@ -295,13 +326,14 @@ def test_series_are_downloaded_from_yahoo(tmp_path: Path) -> None:
 
 def test_funding_is_asked_of_the_up_to_date_venue_first() -> None:
     registry = ProviderRegistry()
-    for name in ("binance", "okx", "broker"):
+    for name in ("deribit", "binance", "okx", "broker"):
         registry.register(FakeRatesProvider(name))
 
     _prefer_fresh_funding(registry)
 
     funding = RatesRequest("BTC/USDT:USDT", RateKind.FUNDING)
-    assert [p.name for p in registry.rates_candidates(funding)] == ["okx", "binance", "broker"]
+    names = [p.name for p in registry.rates_candidates(funding)]
+    assert names == ["okx", "binance", "deribit", "broker"]
     alone = ProviderRegistry()
     alone.register(FakeBarsProvider("okx"))  # a caller's provider of that name, without rates
     _prefer_fresh_funding(alone)  # nothing to order, and no error
