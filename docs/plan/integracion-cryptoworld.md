@@ -724,7 +724,7 @@ Es decir: **unos 6-8 meses hasta la paridad en lo esencial (G0-G8)** y unos 10-1
 | G0b | Trabajos en segundo plano (F13) y observabilidad mínima | Los backtests y el Laboratorio no caben en una petición |
 | G3, G4, G5 | Backtest y validación; Laboratorio; volatilidad, fragilidad, carry y relaciones entre activos | Usan la cola y el registro de experimentos |
 | G0c | Acceso con usuario (F7) y contenedores (F10) | Antes de guardar el libro de operaciones de nadie |
-| G6-G13 | Libro y riesgo, *paper* y ejecución propia, alertas, on-chain, noticias, orderflow, SaaS y retirada | Igual que en la tabla anterior |
+| G6-G13 | Libro y riesgo, cuentas bancarias y patrimonio neto (G6b), *paper* y ejecución propia, alertas, on-chain, noticias, orderflow, SaaS y retirada | Igual que en la tabla anterior |
 
 ### G0 — Plataforma con estado
 
@@ -1009,6 +1009,112 @@ Es la propuesta de §4.8 bis llevada a fase.
 
 **Terminado cuando:** una cartera real mixta (acciones en EUR, un ETF en USD y BTC) muestra valor, P&L y riesgo coherentes en euros, con la antigüedad de cada precio.
 
+### G6b — Cuentas bancarias y patrimonio neto
+
+**Por qué.** El patrimonio no está solo en el *broker*: también en las cuentas de Revolut,
+Santander, BBVA, CaixaBank… Con sus saldos y movimientos, la plataforma ve tres cosas:
+
+- **la tesorería**;
+- **el gasto y el ahorro reales**, que dan a los planes de ahorro (F5d) aportaciones observadas y
+  no supuestas;
+- **el patrimonio neto completo**, en euros.
+
+No viene de CryptoWorld; se añade al programa el 23-11-2026.
+
+**Cómo se llega a una cuenta (el marco legal).**
+
+- **Solo un proveedor con licencia.** Con PSD2, los bancos de la UE dan saldos y movimientos
+  únicamente a un proveedor autorizado de información de cuentas (AISP), con el consentimiento
+  del titular y autenticación reforzada (SCA). Una persona no puede llamar a esas API por su
+  cuenta: hace falta un agregador con licencia.
+- **El consentimiento caduca a los 180 días** y hay que renovarlo en el banco.
+- **Solo lectura.** Nunca se inician pagos: la iniciación (PIS) queda fuera de alcance.
+- **PSD3 y el PSR vienen detrás.** El acuerdo provisional es de 27-11-2025; la publicación está
+  prevista para diciembre de 2026 y su aplicación, unos 21 meses después. Se revisa cuando
+  aplique.
+- **Las inversiones que custodia un banco no están en PSD2**, que solo cubre las cuentas de pago.
+  FiDA iba a ampliar el acceso a inversiones, pensiones y seguros, pero la Comisión anunció en su
+  programa de trabajo de 2027 (noviembre de 2026) que la retira. Esas posiciones llegan por
+  extracto.
+
+**Cómo se conecta: dos caminos, por este orden.**
+
+1. **Extractos (primero).** Sin terceros y sin consentimientos que caduquen. Formatos:
+   - **Norma 43** (Cuaderno 43 de la AEB, el estándar español: Santander, BBVA, CaixaBank,
+     Sabadell…);
+   - **CAMT.053** (ISO 20022) y **OFX**;
+   - **el CSV o Excel de Revolut**, con validación estricta: usa `;` de separador y deja espacios
+     duros (`0xC2A0`) tras las cifras.
+   - Las mismas reglas que el importador de ficheros de Finances: validación estricta y nada
+     inventado.
+2. **Agregador PSD2 (después).**
+   - La opción para uso personal es **Enable Banking**, AISP con licencia. Su modo de
+     producción restringido es gratuito y solo da acceso a las cuentas que el propio titular
+     vincula a su aplicación.
+   - Cobertura según su panel: Santander por Redsys, Revolut y la mayoría de los bancos
+     españoles. Antes de construir, hay que comprobar en él cada banco y entidad (Revolut opera
+     desde Lituania).
+   - Cada petición va firmada con la clave privada de la aplicación (JWT RS256). La clave va
+     solo por entorno (`SecretStr`), nunca en el repositorio.
+   - **GoCardless Bank Account Data** (antes Nordigen) no admite altas nuevas desde 2025:
+     descartado.
+   - **Tink, TrueLayer, Salt Edge o Yapily** solo si algún día hay terceros (G12): el modo
+     restringido no sirve para cuentas ajenas.
+
+**Contenido.**
+
+- **Dominio:** `BankAccount`, `Balance` y `BankTransaction`.
+  - Una cuenta tiene IBAN enmascarado, entidad, divisa y tipo.
+  - Un saldo es contable o disponible, en una fecha.
+  - Un movimiento tiene fechas contable y valor, importe en `Decimal`, divisa, concepto,
+    contraparte, estado (contabilizado o pendiente) y el id que da el banco, para no duplicarlo.
+- **Puerto:** `AccountInformationProvider` (cuentas, saldos y movimientos entre dos fechas),
+  implementado por los importadores de extractos y por el adaptador de Enable Banking. Todos
+  pasan el mismo contrato en `tests/contract/`.
+- **Persistencia** (regla 5, con propietario y RLS):
+  - `bank_connections`: el consentimiento, su caducidad y su estado, con los tokens cifrados en
+    reposo (la misma decisión que la custodia de claves de G7, §10);
+  - `bank_accounts` y `bank_transactions`, deduplicados por el id del banco o, en un extracto
+    sin él, por una huella de sus campos.
+- **Sincronización:** un trabajo en segundo plano ([ADR-0046](../adr/0046-background-jobs-on-postgresql.md)),
+  incremental y periódico. Avisa antes de que caduque un consentimiento (con las alertas de G8)
+  y marca la antigüedad del último dato de cada cuenta, como el latido de las fuentes.
+- **Categorías:** primero, reglas del usuario (comercio, concepto, importe); el aprendizaje
+  automático, opcional y después. De ahí salen el gasto y el ingreso mensuales y la tasa de
+  ahorro.
+- **Patrimonio neto:**
+  - cuentas, libro (G6) y cripto, en divisa base con FX *as-of*;
+  - el histórico, un valor por día;
+  - las transferencias al *broker* se concilian con el libro: son movimientos entre cuentas
+    propias, no gasto.
+- **Web:**
+  - una pantalla «Cuentas», con saldos, movimientos, categorías, importación de extractos y
+    conexión o renovación del consentimiento por redirección al banco;
+  - el patrimonio neto en la visión general.
+
+**Seguridad y privacidad (condiciones para empezar).**
+
+- **Solo después de G0c:** usuario autenticado con TOTP y datos personales con propietario.
+  Antes de conectar cuentas reales, se consulta al titular (es la regla vigente para dinero y
+  claves).
+- **Datos bancarios reales, nunca:**
+  - ni en el repositorio: las casetes salen del *sandbox* del agregador y los extractos de prueba
+    son sintéticos;
+  - ni en logs ni en trazas: importes, conceptos y contrapartes no van a un *span*, y el IBAN va
+    enmascarado.
+- **RGPD:**
+  - minimización: solo lo que se usa;
+  - desconectar una cuenta borra sus movimientos y revoca el consentimiento;
+  - el registro de tratamientos se actualiza (§11.4).
+
+**Terminado cuando:**
+
+- una cuenta de Santander (Norma 43) y una de Revolut (extracto o Enable Banking) muestran sus
+  saldos y movimientos sin duplicados tras dos sincronizaciones;
+- el patrimonio neto en euros cuadra con la suma de cuentas, libro y cripto;
+- un consentimiento caducado se detecta y se pide renovarlo;
+- ni el repositorio, ni los logs, ni las trazas contienen un dato bancario real.
+
 ### G7 — Paper trading y ejecución propia
 
 **Contenido.** Todo lo de §4.11 «Al llevarlo a Finances»: dominio de órdenes con máquina de estados y `Decimal`, *outbox* con `client_order_id`, posición por *fills*, estado `UNKNOWN` reconciliable, bloqueo de cuenta, `apps/trader` como proceso único, *paper* con el mismo simulador que el backtest, puerta PSR/MinTRL + incubación, *kill-switch*, límites de pérdida diaria y concentración, TCA contra el precio de llegada, rastro *append-only*, coste a tu tamaño y ventana de ejecución, claves solo de *trade* con lista de IP.
@@ -1091,6 +1197,9 @@ Son decisiones que este documento no puede tomar por ti. Cada una debería cerra
 8. **Despliegue (F14).** El plan lo deja abierto (Railway, Fly.io o VPS + Caddy). CryptoWorld ya corre en Railway con roles por `SERVICE_ROLE`; esa experiencia es reutilizable, pero un proceso de ejecución con dinero real merece una máquina que controles.
 9. **Indicadores (G2).** NumPy propio o TA-Lib; el ADR ya estaba previsto en el plan maestro. *Recomiendo* NumPy propio.
 10. **Cuándo archivar CryptoWorld (G13).** Depende del calendario del TFG.
+11. **Acceso a las cuentas bancarias (G6b).** Extractos (Norma 43, CAMT.053, OFX, CSV de Revolut),
+    un agregador PSD2 o ambos. *Recomiendo* los extractos primero y Enable Banking en su modo
+    restringido, para cuentas propias, después; un agregador de pago solo si hay terceros (G12).
 
 ---
 
@@ -1113,6 +1222,14 @@ Es la restricción más fácil de olvidar en el modo SaaS. Yahoo Finance no tien
 ### 11.4 Datos personales
 
 Libro de operaciones, claves de *exchange*, dosieres de direcciones *on-chain* y, en SaaS, cuentas de usuario: RGPD (base legal, minimización, derecho de supresión, registro de tratamientos). El borrado de cuenta de CryptoWorld es un buen punto de partida.
+
+### 11.4 bis Cuentas bancarias
+
+Leer las cuentas propias a través de un AISP con licencia y con tu consentimiento es uso
+personal. Agregar las cuentas de otras personas exige que el proveedor con licencia cubra a esos
+terceros (un contrato de pago, no el modo restringido) y que la plataforma cumpla como
+responsable del tratamiento. Los movimientos bancarios dicen mucho de una persona (salud,
+afiliaciones, hábitos): minimización, cifrado y supresión total al desconectar.
 
 ### 11.5 Fiscalidad
 
