@@ -1,12 +1,14 @@
-"""Command line: serve the API or migrate its database.
+"""Command line: serve the API, run its worker or migrate its database.
 
-``uv run investinglab-api [--reload]`` serves it; ``uv run investinglab-api db upgrade`` brings
-the database of ``INVESTINGLAB_API_DATABASE_URL`` to the schema this version needs.
+``uv run investinglab-api [--reload]`` serves it; ``uv run investinglab-api worker`` runs the
+background jobs; ``uv run investinglab-api db upgrade`` brings the database of
+``INVESTINGLAB_API_DATABASE_URL`` to the schema this version needs.
 """
 
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
 import sys
 from pathlib import Path
@@ -65,9 +67,26 @@ def _database(argv: list[str]) -> int:
     return 0
 
 
+def _worker() -> int:
+    """Run background jobs until Ctrl+C."""
+    from investinglab.config import get_settings  # noqa: PLC0415 - only for this command
+    from investinglab_api.worker import WorkerNotReadyError, serve  # noqa: PLC0415 - idem
+
+    try:
+        asyncio.run(serve(get_api_settings(), get_settings()))
+    except WorkerNotReadyError as error:
+        sys.stderr.write(f"{error}\n")
+        return 2
+    except KeyboardInterrupt:
+        return 130
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
-    """Serve the API, write its OpenAPI document (``--openapi PATH``) or migrate (``db``)."""
+    """Serve the API, write its OpenAPI document (``--openapi PATH``), run the worker or migrate."""
     arguments_in = sys.argv[1:] if argv is None else argv
+    if arguments_in[:1] == ["worker"]:
+        return _worker()
     if arguments_in[:1] == ["db"]:
         try:
             return _database(arguments_in[1:])

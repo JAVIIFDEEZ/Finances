@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Annotated
 from fastapi import Depends, Header, Request
 
 from investinglab.domain.errors import DomainError
-from investinglab.ports import PortfolioRepository
+from investinglab.ports import JobRepository, PortfolioRepository
 from investinglab.toolkit import AsyncToolkit
 from investinglab_api.settings import ApiSettings
 
@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "ExpectedVersion",
+    "JobsDep",
     "OwnerDep",
     "PersistenceNotConfiguredError",
     "PortfoliosDep",
@@ -26,6 +27,7 @@ __all__ = [
     "SettingsDep",
     "ToolkitDep",
     "at_most",
+    "get_jobs",
     "get_portfolios",
     "get_principal",
     "get_settings",
@@ -74,6 +76,18 @@ def get_principal(request: Request) -> Principal:
     return Principal(settings.local_owner)
 
 
+def get_jobs(request: Request) -> JobRepository:
+    """The repository of background jobs, which is also how they reach the workers.
+
+    Raises:
+        PersistenceNotConfiguredError: The API runs without a database.
+    """
+    repository: JobRepository | None = request.app.state.jobs
+    if repository is None:
+        raise PersistenceNotConfiguredError
+    return repository
+
+
 def get_portfolios(request: Request) -> PortfolioRepository:
     """The repository of saved portfolios.
 
@@ -113,6 +127,7 @@ ToolkitDep = Annotated[AsyncToolkit, Depends(get_toolkit)]
 SettingsDep = Annotated[ApiSettings, Depends(get_settings)]
 OwnerDep = Annotated[Principal, Depends(get_principal)]
 PortfoliosDep = Annotated[PortfolioRepository, Depends(get_portfolios)]
+JobsDep = Annotated[JobRepository, Depends(get_jobs)]
 ExpectedVersion = Annotated[int, Depends(expected_version)]
 
 

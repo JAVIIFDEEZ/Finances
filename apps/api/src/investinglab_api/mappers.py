@@ -20,6 +20,7 @@ from investinglab.domain.positioning import AMOUNTS, PositioningField
 from investinglab.domain.series import PriceField
 from investinglab.ports import PortfolioSpec
 from investinglab_api import __version__
+from investinglab_api.problems import DOCS, ProblemType
 from investinglab_api.schemas.analysis import (
     AssetPointOut,
     CalibrationOut,
@@ -31,11 +32,13 @@ from investinglab_api.schemas.analysis import (
     OptimizedOut,
     PlanFanPointOut,
     PlanOut,
+    SimulationIn,
     SimulationOut,
     WeightOut,
 )
 from investinglab_api.schemas.common import Matrix, Point, finite
 from investinglab_api.schemas.economic import EconomicObservationOut, EconomicSeriesOut
+from investinglab_api.schemas.jobs import JobErrorOut, JobOut, JobPage, SimulationJobOut
 from investinglab_api.schemas.market import (
     BarOut,
     BookBandOut,
@@ -131,7 +134,7 @@ if TYPE_CHECKING:
     from investinglab.domain.structure import PriceStructure
     from investinglab.domain.technical import TechnicalIndicators
     from investinglab.modules import ModuleInfo
-    from investinglab.ports import Page, ProviderCapabilities, Stored
+    from investinglab.ports import Job, Page, ProviderCapabilities, Stored
     from investinglab.services import BatchResult
 
 __all__ = [
@@ -1116,3 +1119,49 @@ def module_out(module: ModuleInfo, language: str) -> ModuleOut:
             for requirement in module.requirements
         ],
     )
+
+
+# ── Background jobs ────────────────────────────────────────────────────────
+
+
+def _problem_uri(code: str) -> str:
+    """Documentation URI of an error code: the API's problem type, or its anchor in the guide."""
+    known = {kind.value: kind for kind in ProblemType}
+    return known[code].uri if code in known else f"{DOCS}#{code}"
+
+
+def _job_fields(job: Job) -> dict[str, object]:
+    error = job.error
+    return {
+        "id": job.id,
+        "status": job.status,
+        "progress": job.progress,
+        "stage": job.stage,
+        "cancel_requested": job.cancel_requested,
+        "attempts": job.attempts,
+        "created_at": job.created_at,
+        "started_at": job.started_at,
+        "finished_at": job.finished_at,
+        "error": None
+        if error is None
+        else JobErrorOut(type=_problem_uri(error.code), title=error.title, detail=error.detail),
+    }
+
+
+def job_out(job: Job) -> JobOut:
+    """A job without its parameters or result (listings)."""
+    return JobOut(kind=job.kind, **_job_fields(job))  # type: ignore[arg-type]
+
+
+def simulation_job_out(job: Job) -> SimulationJobOut:
+    """A simulation job with what it was asked and, once succeeded, what it produced."""
+    return SimulationJobOut(
+        parameters=SimulationIn.model_validate(job.parameters),
+        result=None if job.result is None else SimulationOut.model_validate(job.result),
+        **_job_fields(job),  # type: ignore[arg-type]
+    )
+
+
+def job_page(page: Page[Job]) -> JobPage:
+    """A page of jobs."""
+    return JobPage(items=[job_out(job) for job in page.items], next_cursor=page.next_cursor)

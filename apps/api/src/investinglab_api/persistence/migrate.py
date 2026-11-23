@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from functools import cache
 from pathlib import Path
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Any, Final
 
 from alembic import command
 from alembic.config import Config
@@ -15,12 +15,17 @@ from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import ProgrammingError
 
+from investinglab_api.persistence.models import is_queue_object
+
 if TYPE_CHECKING:
+    from collections.abc import MutableMapping
+
     from sqlalchemy.engine import Engine
 
 __all__ = [
     "CONNECT_TIMEOUT",
     "alembic_config",
+    "compared",
     "current_revision",
     "engine",
     "head_revision",
@@ -37,6 +42,11 @@ CONNECT_TIMEOUT: Final = 10
 def engine(url: str) -> Engine:
     """An engine for a one-off migration command, that gives up if nobody answers."""
     return create_engine(url, connect_args={"connect_timeout": CONNECT_TIMEOUT})
+
+
+def compared(name: str | None, _type: str, _parents: MutableMapping[Any, str | None]) -> bool:
+    """Whether a schema comparison looks at an object: not the queue's, Procrastinate owns them."""
+    return not is_queue_object(name)
 
 
 def alembic_config(url: str | None = None) -> Config:

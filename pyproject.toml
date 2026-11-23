@@ -311,10 +311,11 @@ forbidden_modules = ["investinglab.adapters", "httpx", "duckdb", "pyarrow", "mat
 allow_indirect_imports = true
 
 [[tool.importlinter.contracts]]
-name = "Only the persistence package and the app factory know the database (ADR-0029)"
+name = "Only the persistence package, the app factory and the worker know the database (ADR-0029, ADR-0046)"
 type = "forbidden"
 source_modules = [
   "investinglab_api.routers",
+  "investinglab_api.jobs",
   "investinglab_api.use_cases",
   "investinglab_api.mappers",
   "investinglab_api.schemas",
@@ -322,14 +323,21 @@ source_modules = [
   "investinglab_api.problems",
   "investinglab",
 ]
-forbidden_modules = ["investinglab_api.persistence", "sqlalchemy", "alembic", "psycopg"]
+forbidden_modules = [
+  "investinglab_api.persistence",
+  "sqlalchemy",
+  "alembic",
+  "psycopg",
+  "procrastinate",
+]
 
 [[tool.importlinter.contracts]]
-name = "API layers: routers call use cases and mappers, which only know schemas and the core"
+name = "API layers: routers (and jobs) call use cases and mappers, which only know schemas and the core"
 type = "layers"
 layers = [
-  "investinglab_api.app",
+  "investinglab_api.app : investinglab_api.worker",
   "investinglab_api.routers",
+  "investinglab_api.jobs",
   "investinglab_api.use_cases : investinglab_api.mappers",
   "investinglab_api.schemas",
 ]

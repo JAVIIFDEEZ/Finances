@@ -58,7 +58,7 @@ from support.fakes import (
     FakeRatesProvider,
     FakeReferenceProvider,
 )
-from support.repositories import InMemoryPortfolioRepository
+from support.repositories import InMemoryJobRepository, InMemoryPortfolioRepository
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Callable, Iterator
@@ -318,11 +318,26 @@ def saved() -> InMemoryPortfolioRepository:
 
 
 @pytest.fixture
+def jobs() -> InMemoryJobRepository:
+    """The in-memory repository the ``client`` submits jobs to (``queue`` is what was queued)."""
+    return InMemoryJobRepository()
+
+
+@pytest.fixture
 def client(
-    toolkit: AsyncToolkit, core_settings: Settings, saved: InMemoryPortfolioRepository
+    toolkit: AsyncToolkit,
+    core_settings: Settings,
+    saved: InMemoryPortfolioRepository,
+    jobs: InMemoryJobRepository,
 ) -> Iterator[TestClient]:
-    """A client of the API wired to the synthetic providers and an in-memory repository."""
-    app = create_app(ApiSettings(), core_settings=core_settings, toolkit=toolkit, portfolios=saved)
+    """A client of the API wired to the synthetic providers and in-memory repositories."""
+    app = create_app(
+        ApiSettings(),
+        core_settings=core_settings,
+        toolkit=toolkit,
+        portfolios=saved,
+        jobs_repository=jobs,
+    )
     with TestClient(app) as test_client:
         yield test_client
 

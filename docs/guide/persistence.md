@@ -1,8 +1,9 @@
 # Persistencia
 
 Casi toda la plataforma funciona sin base de datos: mercados, análisis de carteras, Monte
-Carlo, optimización y planes. La base de datos hace falta para lo que se **guarda**; hoy, las
-carteras ([ADR-0029](../adr/0029-relational-persistence-and-owners.md)).
+Carlo, optimización y planes. La base de datos hace falta para lo que se **guarda**: las
+carteras ([ADR-0029](../adr/0029-relational-persistence-and-owners.md)) y los trabajos en
+segundo plano, con su cola ([ADR-0046](../adr/0046-background-jobs-on-postgresql.md)).
 
 ## Ponerla en marcha
 
@@ -38,7 +39,9 @@ En la web, la pantalla **Cartera** muestra entonces «Carteras guardadas».
 | Tabla | Contenido | Garantías |
 |-------|-----------|-----------|
 | `portfolios` | Definición de cada cartera guardada (activos, pesos, divisa, rebalanceo, fechas), con su versión | Cada fila tiene propietario; la base de datos solo deja ver y escribir las propias |
-| `audit_log` | Una entrada por cada cartera creada, cambiada o borrada | Solo se puede añadir: ni la aplicación ni el dueño de la tabla pueden cambiarla o borrarla; cada entrada encadena el *hash* de la anterior |
+| `jobs` | Cada trabajo en segundo plano: tipo, estado, parámetros, progreso, resultado o error | Propietario como `portfolios`; las reglas de su ciclo de vida son restricciones (resultado solo si terminó bien, error solo si falló) |
+| `procrastinate_*` | La cola de la que los *workers* toman los trabajos (Procrastinate): solo el id del trabajo y su dueño | Global; se escribe en la misma transacción que la fila de `jobs` |
+| `audit_log` | Una entrada por cada cartera creada, cambiada o borrada, y por cada trabajo enviado, terminado o borrado (con el SHA-256 de su resultado) | Solo se puede añadir: ni la aplicación ni el dueño de la tabla pueden cambiarla o borrarla; cada entrada encadena el *hash* de la anterior |
 
 * **Propietario.** Mientras no haya acceso con usuario (fase F7), todo pertenece a
   `INVESTINGLAB_API_LOCAL_OWNER` (por defecto, `local`). No expongas la API fuera de tu
@@ -48,6 +51,26 @@ En la web, la pantalla **Cartera** muestra entonces «Carteras guardadas».
 * **Auditoría.** `AuditLog.verify("portfolios")` recorre la cadena y dice en qué entrada se
   rompe, si alguien la hubiera alterado por debajo.
 
+## Trabajos en segundo plano
+
+Lo que no cabe en una petición (hoy, un Monte Carlo grande; en G3, los backtests) se envía a
+la API como trabajo y lo ejecuta un *worker*: otro proceso con el mismo código, que espera en
+la cola de PostgreSQL ([guía de la API](api.md#trabajos-en-segundo-plano)).
+
+```bash
+uv run just worker         # ejecuta los trabajos; Ctrl+C para pararlo
+```
+
+* **Varios a la vez.** Ejecuta `INVESTINGLAB_API_WORKER_CONCURRENCY` trabajos a la vez (2 por
+  defecto). Para más, arranca más *workers*.
+* **Progreso y cancelación.** Cada segundo escribe el progreso y mira si pediste cancelar.
+* **Si un *worker* se pierde** (se cierra el portátil, se mata el proceso), deja de enviar su
+  latido. En un minuto su trabajo vuelve a la cola y otro lo retoma desde el principio. Tras tres
+  intentos perdidos, el trabajo termina como `job-interrupted`.
+* **Al pararlo con Ctrl+C**, los trabajos en marcha tienen 30 segundos para acabar. Los que no
+  acaban quedan como `job-interrupted`.
+* **Sin *worker*** los trabajos esperan en la cola (`queued`) hasta que arranque uno.
+
 ## Migraciones
 
 | Comando | Qué hace |
@@ -55,6 +78,12 @@ En la web, la pantalla **Cartera** muestra entonces «Carteras guardadas».
 | `uv run just db-upgrade` | Lleva la base de datos al esquema de esta versión |
 | `uv run investinglab-api db current` | Dice en qué revisión está |
 | `uv run just db-revision "qué cambia"` | Borrador de migración a partir de los modelos |
+
+Las tablas, tipos y funciones de la cola (`procrastinate_*`) los crea la migración 0002 desde
+una copia del SQL de Procrastinate 3.11.0. Las comparaciones de esquema y los borradores de
+Alembic no las tocan. Si una versión nueva de Procrastinate cambia su esquema, un test falla
+hasta que una migración aplique sus ficheros de `sql/migrations` (ver
+`persistence/queue.py`).
 
 Una migración nueva se revisa siempre a mano: Alembic no ve la seguridad a nivel de fila,
 los *triggers* ni los permisos. Toda tabla con datos de usuario lleva

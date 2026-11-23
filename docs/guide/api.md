@@ -50,6 +50,10 @@ curl "http://127.0.0.1:8000/api/v1/market/confluence?symbol=SAN.MC&frame=1d&fram
 | POST | `/api/v1/simulations` | Monte Carlo: abanico, histograma final, VaR/CVaR con intervalos |
 | POST | `/api/v1/optimizations` | Pesos óptimos y frontera eficiente |
 | POST | `/api/v1/plans` | Plan de ahorro: probabilidad de éxito y aportación necesaria |
+| POST | `/api/v1/jobs/simulations` | Monte Carlo en segundo plano, hasta 200 000 trayectorias: `202` con el trabajo en cola y su `Location` ([ADR-0046](../adr/0046-background-jobs-on-postgresql.md)) |
+| GET | `/api/v1/jobs` | Trabajos del propietario, del más reciente al más antiguo (paginado por cursor; sin parámetros ni resultado) |
+| GET, DELETE | `/api/v1/jobs/{id}` | Leer un trabajo (estado, progreso, etapa y, al terminar, resultado o error; `Retry-After` mientras no termina) y borrar uno terminado |
+| POST | `/api/v1/jobs/{id}/cancel` | Cancelar: uno en cola, al momento; uno en marcha, en su siguiente aviso de progreso |
 
 Una cartera se describe en el cuerpo:
 
@@ -99,6 +103,31 @@ curl -i -X PUT http://127.0.0.1:8000/api/v1/portfolios/<id> -H 'If-Match: "1"' \
 El campo `portfolio` de la respuesta es el mismo cuerpo que aceptan los análisis: se puede
 enviar tal cual a `/api/v1/portfolios/analytics`. Solo se guardan carteras válidas (las mismas
 reglas que `/portfolios/validate`) y el nombre es único por propietario.
+
+## Trabajos en segundo plano
+
+Lo que no cabe en una petición se envía como **trabajo** y lo ejecuta un *worker*
+(`uv run just worker`, con la base de datos configurada; ver la
+[guía de persistencia](persistence.md#trabajos-en-segundo-plano)).
+
+```bash
+curl -i -X POST http://127.0.0.1:8000/api/v1/jobs/simulations -H "Content-Type: application/json" \
+  -d '{"portfolio": {"name": "Núcleo", "holdings": [{"symbol": "SAN.MC", "weight": 1}]}, "n_paths": 100000}'
+# 202 Accepted · Location: …/api/v1/jobs/<id> · Retry-After: 1
+
+curl -i http://127.0.0.1:8000/api/v1/jobs/<id>
+# 200 OK · {"status": "running", "progress": 0.42, "stage": "simulating", …} · Retry-After: 1
+# …y al terminar: {"status": "succeeded", "result": {…}}   (lo mismo que /api/v1/simulations)
+```
+
+* **Estados:** `queued` → `running` → `succeeded`, `failed` o `cancelled`.
+* **Etapas** de una simulación: `loading` (descarga la historia), `simulating` (con `progress`
+  de 0 a 1) y `summarising`.
+* **Límites al enviar.** Se comprueban al enviar, no en el *worker*: hasta 200 000 trayectorias
+  (`INVESTINGLAB_API_MAX_JOB_PATHS`), el horizonte máximo y el límite de memoria del dominio
+  (trayectorias × horizonte ≤ 20 millones).
+* **Un trabajo fallido** lleva `error` con `type`, `title` y `detail`, del mismo vocabulario que
+  los errores de abajo (`data-not-found`, `invalid-request`, `job-interrupted`…).
 
 ## Errores
 
@@ -159,6 +188,16 @@ cabecera `ETag` dicen cuál es la actual: léelo de nuevo y repite el cambio.
 ### persistence-unavailable
 
 `503`. La base de datos no responde. La respuesta lleva `Retry-After`.
+
+### job-state
+
+`409`. El trabajo no está en un estado que permita el cambio: cancelar uno terminado o borrar
+uno sin terminar (cancélalo antes). `job_status` dice en qué estado está.
+
+### job-interrupted
+
+No es una respuesta HTTP, sino el `error` de un trabajo: su *worker* se paró mientras lo
+ejecutaba (Ctrl+C, un reinicio) o se perdió varias veces seguidas. Envíalo de nuevo.
 
 ### timeout
 

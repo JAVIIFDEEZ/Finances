@@ -665,6 +665,96 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/jobs/simulations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Run a Monte Carlo simulation in the background
+         * @description Queue a simulation that may be larger than `POST /api/v1/simulations` allows.
+         *
+         *     The answer is the job, queued; read its `Location` until `status` is `succeeded`
+         *     (its `result` is then what the synchronous endpoint answers) or `failed` (its `error`).
+         */
+        post: operations["submit_simulation_api_v1_jobs_simulations_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List jobs
+         * @description The owner's jobs, most recently submitted first, without parameters or results.
+         */
+        get: operations["list_jobs_api_v1_jobs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/jobs/{job_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read a job
+         * @description Where the job is; its result once it succeeded. `Retry-After` while it runs.
+         */
+        get: operations["read_job_api_v1_jobs__job_id__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete a finished job
+         * @description Delete a job that has finished, with its result.
+         */
+        delete: operations["delete_job_api_v1_jobs__job_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/jobs/{job_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel a job
+         * @description Stop a job: a queued one at once, a running one at its next progress report.
+         *
+         *     A running job answers with `cancel_requested: true` and `status: running`; read it
+         *     until `status` is `cancelled`.
+         */
+        post: operations["cancel_job_api_v1_jobs__job_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1511,6 +1601,88 @@ export interface components {
              */
             examples: (string)[];
         };
+        /**
+         * JobErrorOut
+         * @description Why a job failed, shaped like the API's Problem Details.
+         */
+        JobErrorOut: {
+            /**
+             * Type
+             * @description URI of the kind of problem, documented in the API guide.
+             */
+            type: string;
+            /** Title */
+            title: string;
+            /** Detail */
+            detail: string;
+        };
+        /**
+         * JobOut
+         * @description A background job: where it is and, once finished, how it ended.
+         */
+        JobOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @description What it runs (`simulation`); says what its result is.
+             */
+            kind: string;
+            status: components["schemas"]["JobStatus"];
+            /**
+             * Progress
+             * @description Fraction done, from 0 to 1, when known.
+             */
+            progress: number | null;
+            /**
+             * Stage
+             * @description What it is doing now (`loading`, `simulating`, `summarising`).
+             */
+            stage: string | null;
+            /**
+             * Cancel Requested
+             * @description Its owner asked to stop it while it ran.
+             */
+            cancel_requested: boolean;
+            /**
+             * Attempts
+             * @description Times a worker started it (more after a lost worker).
+             */
+            attempts: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Started At */
+            started_at: string | null;
+            /** Finished At */
+            finished_at: string | null;
+            /** @description Why it failed, once failed. */
+            error: components["schemas"]["JobErrorOut"] | null;
+        };
+        /**
+         * JobPage
+         * @description A page of jobs, most recently submitted first (without their parameters or results).
+         */
+        JobPage: {
+            /** Items */
+            items: components["schemas"]["JobOut"][];
+            /**
+             * Next Cursor
+             * @description Send it as `cursor` to get the next page; null on the last one.
+             */
+            next_cursor: string | null;
+        };
+        /**
+         * JobStatus
+         * @description Where a job is in its life.
+         * @enum {string}
+         */
+        JobStatus: "queued" | "running" | "succeeded" | "failed" | "cancelled";
         /**
          * MarketCapsOut
          * @description The largest assets of a market by capitalisation, at one instant (ADR-0045).
@@ -2680,6 +2852,59 @@ export interface components {
              *     ]
              */
             confidence_levels?: number[];
+        };
+        /**
+         * SimulationJobOut
+         * @description A Monte Carlo simulation run in the background.
+         */
+        SimulationJobOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @default simulation
+             * @constant
+             */
+            kind?: "simulation";
+            status: components["schemas"]["JobStatus"];
+            /**
+             * Progress
+             * @description Fraction done, from 0 to 1, when known.
+             */
+            progress: number | null;
+            /**
+             * Stage
+             * @description What it is doing now (`loading`, `simulating`, `summarising`).
+             */
+            stage: string | null;
+            /**
+             * Cancel Requested
+             * @description Its owner asked to stop it while it ran.
+             */
+            cancel_requested: boolean;
+            /**
+             * Attempts
+             * @description Times a worker started it (more after a lost worker).
+             */
+            attempts: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Started At */
+            started_at: string | null;
+            /** Finished At */
+            finished_at: string | null;
+            /** @description Why it failed, once failed. */
+            error: components["schemas"]["JobErrorOut"] | null;
+            /** @description The simulation as it was submitted. */
+            parameters: components["schemas"]["SimulationIn"];
+            /** @description What `POST /api/v1/simulations` would answer, once succeeded. */
+            result: components["schemas"]["SimulationOut"] | null;
         };
         /**
          * SimulationModel
@@ -4758,6 +4983,269 @@ export interface operations {
                 };
             };
             /** @description Every provider able to serve the data failed; retry later. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    submit_simulation_api_v1_jobs_simulations_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SimulationIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SimulationJobOut"];
+                };
+            };
+            /** @description The request breaks the schema, a limit or a domain rule. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The API runs without a database, or the database is not answering. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_jobs_api_v1_jobs_get: {
+        parameters: {
+            query?: {
+                /** @description Most jobs in a page. */
+                limit?: number;
+                /** @description `next_cursor` of the page before. */
+                cursor?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobPage"];
+                };
+            };
+            /** @description The request breaks the schema, a limit or a domain rule. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The API runs without a database, or the database is not answering. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    read_job_api_v1_jobs__job_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SimulationJobOut"];
+                };
+            };
+            /** @description The owner has no such job. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The request breaks the schema, a limit or a domain rule. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The API runs without a database, or the database is not answering. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    delete_job_api_v1_jobs__job_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The owner has no such job. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The job has not finished: cancel it first. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The request breaks the schema, a limit or a domain rule. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The API runs without a database, or the database is not answering. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    cancel_job_api_v1_jobs__job_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SimulationJobOut"];
+                };
+            };
+            /** @description The owner has no such job. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The job has already finished. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The request breaks the schema, a limit or a domain rule. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The API runs without a database, or the database is not answering. */
             503: {
                 headers: {
                     [name: string]: unknown;

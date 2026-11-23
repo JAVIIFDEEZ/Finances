@@ -32,8 +32,9 @@ packages/investinglab/   núcleo: librería Python pura (usable desde un noteboo
   tests/         unit/, property/, contract/, integration/, fixtures/, support/
 notebooks/       demos ejecutables, versionadas SIN resultados
 scripts/         utilidades de desarrollo: casetes, arranque de API y web (`dev.py`), limpieza
-apps/api/        API REST FastAPI (ADR-0027): app → routers → use_cases/mappers → schemas;
-                 persistence/ (PostgreSQL, SQLAlchemy, migraciones Alembic; ADR-0029)
+apps/api/        API REST FastAPI (ADR-0027): app → routers → jobs → use_cases/mappers → schemas;
+                 persistence/ (PostgreSQL, SQLAlchemy, migraciones Alembic; ADR-0029);
+                 worker.py (trabajos en segundo plano con Procrastinate; ADR-0046)
 compose.yaml     servicios locales con Docker (por ahora, PostgreSQL)
 apps/web/        web Next.js 16 + TypeScript estricto (ADR-0028): src/app (pantallas), src/components,
                  src/lib/api (cliente generado de apps/api/openapi.json), e2e/ (Playwright)
@@ -59,6 +60,11 @@ docs/            Zensical: guide/, adr/, architecture/, plan/, reference/, modul
    `ddl.owner_isolation()` en su migración (o se declara en `GLOBAL_TABLES`), todo método de
    repositorio recibe el propietario y lo ajeno responde 404. Lo que no debe reescribirse
    (experimentos, ejecución, auditoría) va al `AuditLog`, en la misma transacción que el cambio.
+   Lo que no cabe en una petición es un trabajo en segundo plano
+   ([ADR-0046](docs/adr/0046-background-jobs-on-postgresql.md)): un *handler* en
+   `jobs/kinds.py` y un *endpoint* `202 + Location` en `routers/jobs.py`; `JobRepository.submit`
+   lo encola en la misma transacción y lo ejecuta `investinglab-api worker`. Solo
+   `persistence/`, `app.py` y `worker.py` importan Procrastinate.
 6. Nuevo proveedor = nuevo adaptador en `adapters/providers/<nombre>/` que implementa los
    puertos que sirva (`MarketDataProvider`, `TradeFlowProvider`, `HoldingRatesProvider`,
    `PositioningProvider`, `BookDepthProvider`, `EconomicDataProvider`,
@@ -119,6 +125,7 @@ uv run just dev               # API (:8000, o INVESTINGLAB_API_PORT) y web (:300
 uv run just preview           # igual, con la build de producción de la web (sin recarga)
 uv run just mobile            # como preview, y accesible desde el móvil en la misma Wi-Fi (sin login: solo en casa)
 uv run just api               # solo la API, en http://127.0.0.1:8000/docs, con recarga
+uv run just worker            # el worker de los trabajos en segundo plano (necesita la base de datos)
 uv run just db-up             # PostgreSQL local con Docker (compose.yaml)
 uv run just db-upgrade        # llevar la base de datos al esquema de esta versión
 uv run just db-revision "…"   # borrador de migración desde los modelos (revisarlo a mano)

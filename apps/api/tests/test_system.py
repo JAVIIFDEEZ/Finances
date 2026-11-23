@@ -141,6 +141,10 @@ def test_the_openapi_document_describes_every_endpoint(client: TestClient) -> No
         "/api/v1/portfolios/analytics",
         "/api/v1/portfolios/report",
         "/api/v1/simulations",
+        "/api/v1/jobs",
+        "/api/v1/jobs/simulations",
+        "/api/v1/jobs/{job_id}",
+        "/api/v1/jobs/{job_id}/cancel",
         "/api/v1/optimizations",
         "/api/v1/plans",
     } == set(document["paths"])

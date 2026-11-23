@@ -22,9 +22,14 @@ from investinglab.config import configure_logging, get_logger, get_settings
 from investinglab.toolkit import AsyncToolkit
 from investinglab_api import __version__
 from investinglab_api.middleware import REQUEST_ID_HEADER, RequestContextMiddleware
-from investinglab_api.persistence import Database, SqlPortfolioRepository
+from investinglab_api.persistence import (
+    Database,
+    SqlJobRepository,
+    SqlPortfolioRepository,
+    queue_app,
+)
 from investinglab_api.problems import install_problem_handlers
-from investinglab_api.routers import economic, market, saved_portfolios, system
+from investinglab_api.routers import economic, jobs, market, saved_portfolios, system
 from investinglab_api.routers import portfolios as portfolio_analysis
 from investinglab_api.settings import ApiSettings, get_api_settings
 
@@ -32,7 +37,7 @@ if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
     from investinglab.config import Settings
-    from investinglab.ports import PortfolioRepository
+    from investinglab.ports import JobRepository, PortfolioRepository
 
 __all__ = ["create_app"]
 
@@ -49,12 +54,15 @@ Monte Carlo simulation, portfolio optimisation and savings plans.
 * Dates are ISO 8601: session dates for daily and coarser data, UTC instants intraday.
 * Undefined figures are `null`: no value is ever invented.
 * Saved records carry a version in their `ETag`; a change quotes it in `If-Match`.
+* Work too long for a request runs as a background job: `202 Accepted` with a `Location`
+  to read until it finishes (`Retry-After` says when to read again).
 """
 
 TAGS: Final = [
     {"name": "market", "description": "Bars, comparisons, data quality and risk-free rates."},
     {"name": "portfolios", "description": "Saved portfolios, validation, analytics and reports."},
     {"name": "analysis", "description": "Monte Carlo, optimisation and savings plans."},
+    {"name": "jobs", "description": "Background jobs: long work run by a worker."},
     {"name": "system", "description": "Providers and modules of the master."},
     {"name": "health", "description": "Liveness and readiness probes."},
 ]
@@ -66,6 +74,7 @@ def create_app(
     core_settings: Settings | None = None,
     toolkit: AsyncToolkit | None = None,
     portfolios: PortfolioRepository | None = None,
+    jobs_repository: JobRepository | None = None,
 ) -> FastAPI:
     """Build the FastAPI application.
 
@@ -77,6 +86,8 @@ def create_app(
         portfolios: Repository of saved portfolios; by default the PostgreSQL one when
             ``settings.database_url`` is set, and none otherwise (those endpoints then answer
             ``persistence-not-configured`` and the rest of the API works as usual).
+        jobs_repository: Repository of background jobs, with the same default as
+            ``portfolios`` (on PostgreSQL it also queues them for the workers).
     """
     api = settings or get_api_settings()
     core = core_settings or get_settings()
@@ -87,11 +98,12 @@ def create_app(
         owned = toolkit is None
         app.state.toolkit = toolkit or AsyncToolkit.from_settings(core)
         database: Database | None = None
-        if portfolios is None and api.database_url is not None:
-            database = Database(
-                api.database_url.get_secret_value(), pool_size=api.database_pool_size
-            )
+        own_stores = portfolios is None and jobs_repository is None
+        if own_stores and api.database_url is not None:
+            url = api.database_url.get_secret_value()
+            database = Database(url, pool_size=api.database_pool_size)
             app.state.portfolios = SqlPortfolioRepository(database)
+            app.state.jobs = SqlJobRepository(database, queue_app(url))
             if api.host not in LOOPBACK:
                 log.warning("unauthenticated_api_exposed", host=api.host)
         app.state.database = database
@@ -114,6 +126,7 @@ def create_app(
     app.state.settings = api
     app.state.core_settings = core
     app.state.portfolios = portfolios
+    app.state.jobs = jobs_repository
     app.state.database = None
     install_problem_handlers(app)
     app.add_middleware(GZipMiddleware, minimum_size=1_024)
@@ -122,7 +135,7 @@ def create_app(
         allow_origins=list(api.cors_origins),
         allow_methods=["GET", "POST", "PUT", "DELETE"],
         allow_headers=["Content-Type", "If-Match", REQUEST_ID_HEADER],
-        expose_headers=["ETag", "Location", REQUEST_ID_HEADER],
+        expose_headers=["ETag", "Location", "Retry-After", REQUEST_ID_HEADER],
         max_age=600,
     )
     app.add_middleware(RequestContextMiddleware)
@@ -132,6 +145,7 @@ def create_app(
         economic.router,
         saved_portfolios.router,
         portfolio_analysis.router,
+        jobs.router,
     )
     for router in routers:
         app.include_router(router)

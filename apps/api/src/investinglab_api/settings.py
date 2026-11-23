@@ -30,6 +30,9 @@ class ApiSettings(BaseSettings):
         database_pool_size: Connections kept open to the database.
         local_owner: Owner of everything saved while there is no authentication (F7): the
             API is then for one person, on their own machine.
+        max_job_paths: Most Monte Carlo paths of a simulation run in the background, where
+            it no longer has to fit in a request (the domain's memory bound still applies).
+        worker_concurrency: Jobs one worker runs at the same time.
     """
 
     model_config = SettingsConfigDict(
@@ -51,6 +54,8 @@ class ApiSettings(BaseSettings):
     database_url: SecretStr | None = None
     database_pool_size: int = Field(default=5, ge=1, le=50)
     local_owner: str = Field(default="local", min_length=1, max_length=64)
+    max_job_paths: int = Field(default=200_000, ge=100, le=1_000_000)
+    worker_concurrency: int = Field(default=2, ge=1, le=16)
 
 
 @cache

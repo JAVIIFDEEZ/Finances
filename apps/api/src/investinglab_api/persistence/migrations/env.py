@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from alembic import context
 
+from investinglab_api.persistence.migrate import compared
 from investinglab_api.persistence.migrate import engine as migration_engine
 from investinglab_api.persistence.models import Base
 
@@ -20,7 +21,10 @@ def run() -> None:
     try:
         with engine.connect() as connection:
             context.configure(
-                connection=connection, target_metadata=target_metadata, compare_type=True
+                connection=connection,
+                target_metadata=target_metadata,
+                compare_type=True,
+                include_name=compared,  # the queue's objects are Procrastinate's
             )
             with context.begin_transaction():
                 context.run_migrations()

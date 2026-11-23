@@ -740,6 +740,21 @@ Es decir: **unos 6-8 meses hasta la paridad en lo esencial (G0-G8)** y unos 10-1
 
 **Terminado cuando:** una cartera se guarda, se lista y se borra con usuario autenticado; un trabajo largo se lanza, se consulta y termina; Playwright cubre *login* con TOTP; la CI levanta Postgres y pasa.
 
+**Avance (23-11-2026, G0b, trabajos en segundo plano):** Procrastinate sobre el mismo PostgreSQL
+([ADR-0046](../adr/0046-background-jobs-on-postgresql.md)).
+
+- **Qué hay.**
+  - La tabla `jobs`, con propietario y RLS, y la cola, escritas en la misma transacción.
+  - El proceso `investinglab-api worker` (`just worker`).
+  - El patrón `202 + Location`, con progreso por etapa y cancelación.
+  - Recuperación de los trabajos de un *worker* perdido y auditoría de cada resultado (su
+    SHA-256).
+  - El primer tipo, el Monte Carlo en segundo plano, hasta 200 000 trayectorias.
+- **Criterio cumplido:** «un trabajo largo se lanza, se consulta y termina», con un *worker*
+  real en la CI sobre Postgres.
+- **Pendiente de G0b:** los trabajos en la web y el *worker* dentro de `just dev`, y la
+  observabilidad mínima.
+
 ### G1 — Datos cripto y derivados
 
 **Contenido.**

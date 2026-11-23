@@ -46,7 +46,7 @@ from investinglab.domain.simulation import (
 from investinglab.domain.time import Frequency
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Callable, Sequence
     from datetime import date, datetime
 
     from investinglab.domain.instruments import AssetClass, Instrument
@@ -496,8 +496,17 @@ class PriceSeries:
         """
         return assess_quality(self, expected_sessions=expected_sessions, thresholds=thresholds)
 
-    def monte_carlo(self, config: SimulationConfig | None = None) -> SimulationResult:
-        """Simulate the future value of a position in this asset (B1-T1 §4.4)."""
+    def monte_carlo(
+        self,
+        config: SimulationConfig | None = None,
+        *,
+        progress: Callable[[float], None] | None = None,
+    ) -> SimulationResult:
+        """Simulate the future value of a position in this asset (B1-T1 §4.4).
+
+        ``progress`` is called after every chunk of paths (see
+        :func:`~investinglab.domain.simulation.simulate`).
+        """
         settings = config or SimulationConfig()
         inputs = SimulationInputs(
             prices=self.prices.to_frame(),
@@ -507,7 +516,7 @@ class PriceSeries:
             band=None,
             start=self.end,
         )
-        return simulate(inputs, settings)
+        return simulate(inputs, settings, progress=progress)
 
     def savings_plan(self, plan: SavingsPlan, config: SimulationConfig | None = None) -> PlanResult:
         """Simulate a savings plan invested in this asset (monthly Monte Carlo, ADR-0024).

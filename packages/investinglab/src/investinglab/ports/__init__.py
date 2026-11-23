@@ -24,6 +24,17 @@ from investinglab.ports.errors import (
     SymbolNotFoundError,
     UnsupportedRequestError,
 )
+from investinglab.ports.jobs import (
+    JOB_STREAM,
+    MAX_KIND_LENGTH,
+    Job,
+    JobError,
+    JobRepository,
+    JobStateError,
+    JobStatus,
+    check_submission,
+    job_outcome,
+)
 from investinglab.ports.market_data import (
     BarsRequest,
     BookDepthProvider,
@@ -63,6 +74,8 @@ from investinglab.ports.storage import CachedBars, CachedEconomicSeries, SeriesS
 
 __all__ = [
     "GENESIS_HASH",
+    "JOB_STREAM",
+    "MAX_KIND_LENGTH",
     "AuditLog",
     "AuthenticationError",
     "BannedError",
@@ -78,6 +91,11 @@ __all__ = [
     "EconomicDataProvider",
     "EconomicRequest",
     "HoldingRatesProvider",
+    "Job",
+    "JobError",
+    "JobRepository",
+    "JobStateError",
+    "JobStatus",
     "JsonValue",
     "LogEntry",
     "MarketCapRequest",
@@ -108,8 +126,10 @@ __all__ = [
     "VersionConflictError",
     "VintageMode",
     "canonical_json",
+    "check_submission",
     "decode_cursor",
     "encode_cursor",
     "entry_hash",
+    "job_outcome",
     "verify_chain",
 ]

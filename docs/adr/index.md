@@ -50,6 +50,7 @@ actualiza el estado del antiguo.
 | [0043](0043-verified-published-files-cache.md) | Caché en disco de los ficheros publicados con su *checksum*, por versión y verificada al leer | Aceptado |
 | [0044](0044-order-book-depth-by-bands.md) | Profundidad del libro de órdenes por bandas alrededor del precio, con historia | Aceptado |
 | [0045](0045-market-reference-snapshots.md) | Datos de referencia de un mercado como fotos fechadas, no como series | Aceptado |
+| [0046](0046-background-jobs-on-postgresql.md) | Trabajos en segundo plano con Procrastinate sobre el mismo PostgreSQL | Aceptado |
 
 ## Cómo añadir un ADR
 
