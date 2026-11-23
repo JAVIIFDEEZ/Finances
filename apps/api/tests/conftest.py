@@ -24,9 +24,13 @@ from investinglab.domain import (
     BookDepthSeries,
     FlowSeries,
     Frequency,
+    MarketCapRanking,
+    MarketShare,
+    MarketSnapshot,
     PositioningField,
     PositioningSeries,
     PriceSeries,
+    RankedAsset,
     RateKind,
     RateSeries,
 )
@@ -52,6 +56,7 @@ from support.fakes import (
     FakeFlowProvider,
     FakePositioningProvider,
     FakeRatesProvider,
+    FakeReferenceProvider,
 )
 from support.repositories import InMemoryPortfolioRepository
 
@@ -224,6 +229,31 @@ def synthetic_book() -> BookDepthSeries:
     )
 
 
+SNAPSHOT_TIME = pd.Timestamp("2024-03-01 12:00", tz="UTC").to_pydatetime()
+
+
+def synthetic_market() -> tuple[MarketSnapshot, MarketCapRanking]:
+    """A SYNTHETIC crypto market: its snapshot and its three largest assets."""
+    snapshot = MarketSnapshot(
+        AssetClass.CRYPTO,
+        USD,
+        SNAPSHOT_TIME,
+        SYNTHETIC_SOURCE,
+        total_market_cap=1.0e12,
+        total_volume_24h=5.0e10,
+        market_cap_change_24h=0.02,
+        assets=100,
+        dominance=(MarketShare("SYNA", 0.5), MarketShare("SYNB", 0.2)),
+    )
+    assets = (
+        RankedAsset(1, "synthetic-a", "SYNA", "Synthetic A", price=100.0, market_cap=5.0e11),
+        RankedAsset(2, "synthetic-b", "SYNB", "Synthetic B", price=10.0, market_cap=2.0e11),
+        RankedAsset(3, "synthetic-c", "SYNC", "Synthetic C"),  # nothing known but its name
+    )
+    ranking = MarketCapRanking(AssetClass.CRYPTO, USD, SNAPSHOT_TIME, SYNTHETIC_SOURCE, assets)
+    return snapshot, ranking
+
+
 def synthetic_estr() -> object:
     """A synthetic €STR at 3 %, each month published at the start of the next."""
     months = pd.date_range("2022-12-01", "2025-06-01", freq="MS")
@@ -272,8 +302,12 @@ def toolkit(bars: FakeBarsProvider, core_settings: Settings) -> AsyncToolkit:
         "synthetic-oi", {"SYN/USDT:USDT": synthetic_positioning()}
     )
     book = FakeBookDepthProvider("synthetic-book", {"SYN/USDT:USDT": synthetic_book()})
+    snapshot, ranking = synthetic_market()
+    market = FakeReferenceProvider("synthetic-market", snapshot=snapshot, ranking=ranking)
     return AsyncToolkit.from_settings(
-        core_settings, providers=[bars, rates, flow, funding, positioning, book], cache=False
+        core_settings,
+        providers=[bars, rates, flow, funding, positioning, book, market],
+        cache=False,
     )
 
 

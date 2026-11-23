@@ -23,6 +23,9 @@ test("the overview shows the markets, the portfolio and the platform", async ({ 
   // Offline there is no source of the crypto Fear & Greed Index: the card says so.
   await expect(page.getByRole("heading", { name: "Miedo y codicia cripto" })).toBeVisible();
   await expect(page.getByText("No disponible: el índice viene de alternative.me", { exact: false })).toBeVisible();
+  // Nor of the crypto market's snapshot: the card says so instead of failing.
+  await expect(page.getByRole("heading", { name: "Mercado cripto" })).toBeVisible();
+  await expect(page.getByText("No disponible: el mercado cripto viene de CoinGecko", { exact: false })).toBeVisible();
   expect(errors).toEqual([]);
 });
 

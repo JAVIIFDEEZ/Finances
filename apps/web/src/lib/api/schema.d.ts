@@ -337,6 +337,52 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/market/snapshot": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The whole market of an asset class: size, change and dominance
+         * @description The market as its source last computed it (ADR-0045).
+         *
+         *     A dated snapshot, not a series: no free source keeps its history. A figure the source
+         *     does not give in that currency (the 24-hour change, in dollars only) is null.
+         */
+        get: operations["market_snapshot_api_v1_market_snapshot_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/market/caps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The largest assets of a market by capitalisation
+         * @description The ranking as its source last made it, each asset with its last update (ADR-0045).
+         *
+         *     Today's ranking is not a point-in-time universe: used on the past, it would leave out
+         *     the assets that fell out of it.
+         */
+        get: operations["market_caps_api_v1_market_caps_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/market/venues": {
         parameters: {
             query?: never;
@@ -1466,6 +1512,85 @@ export interface components {
             examples: (string)[];
         };
         /**
+         * MarketCapsOut
+         * @description The largest assets of a market by capitalisation, at one instant (ADR-0045).
+         */
+        MarketCapsOut: {
+            asset_class: components["schemas"]["AssetClass"];
+            /** Currency */
+            currency: string;
+            /**
+             * As Of
+             * Format: date-time
+             * @description The latest update among the assets (UTC).
+             */
+            as_of: string;
+            source: components["schemas"]["SourceOut"];
+            /** Assets */
+            assets: components["schemas"]["RankedAssetOut"][];
+        };
+        /**
+         * MarketShareOut
+         * @description The share of a market's capitalisation one asset holds.
+         */
+        MarketShareOut: {
+            /**
+             * Symbol
+             * @description Ticker, in capitals (BTC).
+             */
+            symbol: string;
+            /**
+             * Share
+             * @description Share of the total, from 0 to 1.
+             */
+            share: number;
+        };
+        /**
+         * MarketSnapshotOut
+         * @description The whole market of an asset class at one instant (ADR-0045).
+         *
+         *     A snapshot, not a series: no free source keeps its history.
+         */
+        MarketSnapshotOut: {
+            asset_class: components["schemas"]["AssetClass"];
+            /** Currency */
+            currency: string;
+            /**
+             * As Of
+             * Format: date-time
+             * @description The instant the source computed it (UTC).
+             */
+            as_of: string;
+            source: components["schemas"]["SourceOut"];
+            /** Total Market Cap */
+            total_market_cap: number;
+            /**
+             * Total Volume 24H
+             * @description Volume of the last 24 hours, if given.
+             */
+            total_volume_24h: number | null;
+            /**
+             * Market Cap Change 24H
+             * @description Relative change in 24 hours (null when the source gives it in another currency only).
+             */
+            market_cap_change_24h: number | null;
+            /**
+             * Assets
+             * @description How many assets the source tracks, if given.
+             */
+            assets: number | null;
+            /**
+             * Dominance
+             * @description The largest assets, largest first.
+             */
+            dominance: components["schemas"]["MarketShareOut"][];
+            /**
+             * Others
+             * @description The share of every asset outside ``dominance``.
+             */
+            others: number;
+        };
+        /**
          * Matrix
          * @description A square matrix with labelled rows and columns (``null`` where undefined).
          */
@@ -2158,6 +2283,38 @@ export interface components {
             worst_severity: components["schemas"]["Severity"] | null;
             /** Issues */
             issues: components["schemas"]["IssueOut"][];
+        };
+        /**
+         * RankedAssetOut
+         * @description One asset of a ranking by capitalisation; a figure not given is null.
+         */
+        RankedAssetOut: {
+            /** Rank */
+            rank: number;
+            /**
+             * Id
+             * @description The source's identifier (bitcoin).
+             */
+            id: string;
+            /** Symbol */
+            symbol: string;
+            /** Name */
+            name: string;
+            /** Price */
+            price: number | null;
+            /** Market Cap */
+            market_cap: number | null;
+            /** Volume 24H */
+            volume_24h: number | null;
+            /** Circulating Supply */
+            circulating_supply: number | null;
+            /** Max Supply */
+            max_supply: number | null;
+            /**
+             * Updated
+             * @description When the source last updated these figures.
+             */
+            updated: string | null;
         };
         /**
          * RateKind
@@ -3581,6 +3738,118 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BookDepthOut"];
+                };
+            };
+            /** @description No provider has the requested data. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The request breaks the schema, a limit or a domain rule. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Every provider able to serve the data failed; retry later. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    market_snapshot_api_v1_market_snapshot_get: {
+        parameters: {
+            query?: {
+                /** @description The market described (crypto is the one served today). */
+                asset_class?: components["schemas"]["AssetClass"];
+                /** @description ISO 4217 code. */
+                currency?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MarketSnapshotOut"];
+                };
+            };
+            /** @description No provider has the requested data. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The request breaks the schema, a limit or a domain rule. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Every provider able to serve the data failed; retry later. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    market_caps_api_v1_market_caps_get: {
+        parameters: {
+            query?: {
+                /** @description The market described (crypto is the one served today). */
+                asset_class?: components["schemas"]["AssetClass"];
+                /** @description ISO 4217 code. */
+                currency?: string;
+                /** @description How many, from the largest. */
+                top?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MarketCapsOut"];
                 };
             };
             /** @description No provider has the requested data. */

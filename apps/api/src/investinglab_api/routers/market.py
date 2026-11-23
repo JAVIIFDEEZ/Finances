@@ -8,6 +8,7 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, Query
 
+from investinglab.domain.instruments import AssetClass
 from investinglab.domain.rate_series import RateKind
 from investinglab.domain.time import Frequency
 from investinglab_api import use_cases
@@ -18,6 +19,8 @@ from investinglab_api.mappers import (
     comparison_out,
     confluence_out,
     flow_out,
+    market_caps_out,
+    market_snapshot_out,
     patterns_out,
     positioning_out,
     quality_out,
@@ -36,6 +39,8 @@ from investinglab_api.schemas.market import (
     ComparisonOut,
     ConfluenceOut,
     FlowOut,
+    MarketCapsOut,
+    MarketSnapshotOut,
     PatternsOut,
     PositioningOut,
     QualityOut,
@@ -329,6 +334,53 @@ async def book_depth(
         symbol, venue=venue, start=start, end=end, frequency=Frequency(interval)
     )
     return await asyncio.to_thread(book_depth_out, depth)
+
+
+Currency = Annotated[str, Query(pattern=r"^[A-Z]{3}$", description="ISO 4217 code.")]
+ReferenceMarket = Annotated[
+    AssetClass, Query(description="The market described (crypto is the one served today).")
+]
+
+
+@router.get(
+    "/market/snapshot",
+    summary="The whole market of an asset class: size, change and dominance",
+    response_model=MarketSnapshotOut,
+    responses=problems(404, 422, 503),
+)
+async def market_snapshot(
+    toolkit: ToolkitDep,
+    asset_class: ReferenceMarket = AssetClass.CRYPTO,
+    currency: Currency = "USD",
+) -> MarketSnapshotOut:
+    """The market as its source last computed it (ADR-0045).
+
+    A dated snapshot, not a series: no free source keeps its history. A figure the source
+    does not give in that currency (the 24-hour change, in dollars only) is null.
+    """
+    snapshot = await toolkit.market_snapshot(asset_class, currency=currency)
+    return market_snapshot_out(snapshot)
+
+
+@router.get(
+    "/market/caps",
+    summary="The largest assets of a market by capitalisation",
+    response_model=MarketCapsOut,
+    responses=problems(404, 422, 503),
+)
+async def market_caps(
+    toolkit: ToolkitDep,
+    asset_class: ReferenceMarket = AssetClass.CRYPTO,
+    currency: Currency = "USD",
+    top: Annotated[int, Query(ge=1, le=250, description="How many, from the largest.")] = 20,
+) -> MarketCapsOut:
+    """The ranking as its source last made it, each asset with its last update (ADR-0045).
+
+    Today's ranking is not a point-in-time universe: used on the past, it would leave out
+    the assets that fell out of it.
+    """
+    ranking = await toolkit.market_caps(top, asset_class=asset_class, currency=currency)
+    return market_caps_out(ranking)
 
 
 @router.get(

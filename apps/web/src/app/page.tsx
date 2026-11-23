@@ -2,15 +2,17 @@
 
 import { ArrowRight, Database, KeyRound } from "lucide-react";
 import Link from "next/link";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
-import { Sparkline, TimeSeriesChart } from "@/components/charts/charts";
+import { GroupedBars, Sparkline, TimeSeriesChart } from "@/components/charts/charts";
 import { useI18n, useTheme } from "@/components/providers";
-import { Badge, Button, Card, PageHeader, ProblemAlert, Skeleton, Stat } from "@/components/ui";
+import { Badge, Button, Card, PageHeader, ProblemAlert, Segmented, Skeleton, Stat } from "@/components/ui";
 import { failureOf } from "@/lib/api/client";
-import { isNotFound, useAnalytics, useBars, useEconomic, useHealth, useModules, useProviders, useRiskFree } from "@/lib/api/queries";
+import { isNotFound, useAnalytics, useBars, useEconomic, useHealth, useMarketCaps, useMarketSnapshot, useModules, useProviders, useRiskFree } from "@/lib/api/queries";
+import { fill } from "@/lib/i18n/messages";
 import { toPortfolioIn, usePortfolio } from "@/lib/portfolio/store";
 import { rangeStart, thin } from "@/lib/util/dates";
+import { ageInMinutes, dominanceRows, shareOfTotal, sourceLabel } from "@/lib/util/marketReference";
 import { fearGreedBand, isExtreme } from "@/lib/util/sentiment";
 
 const WATCHLIST: readonly { symbol: string; name: string; digits: number }[] = [
@@ -135,6 +137,95 @@ function FearGreedCard() {
             <Stat label={t("metric.average30")} value={fmt.number(average, 0)} />
             <Stat label={t("metric.yearRange")} value={values.length > 0 ? `${fmt.number(Math.min(...values), 0)} – ${fmt.number(Math.max(...values), 0)}` : "—"} />
           </dl>
+        </div>
+      ) : null}
+    </Card>
+  );
+}
+
+const MARKET_CURRENCIES = ["USD", "EUR"] as const;
+type MarketCurrency = (typeof MARKET_CURRENCIES)[number];
+const MARKET_TOP = 10;
+
+function CryptoMarketCard() {
+  const { t, fmt } = useI18n();
+  const { tokens } = useTheme();
+  const [currency, setCurrency] = useState<MarketCurrency>("USD");
+  const snapshot = useMarketSnapshot(currency);
+  const caps = useMarketCaps(currency, MARKET_TOP);
+  const data = snapshot.data;
+  const percent = useMemo(() => (v: number) => fmt.percent(v, 1), [fmt]);
+  const ticks = useMemo(() => (v: number) => fmt.percent(v, 0), [fmt]);
+  const rows = data ? dominanceRows(data, t("market.others")) : [];
+  return (
+    <Card
+      className="xl:col-span-2"
+      title={t("market.title")}
+      subtitle={data ? fill(t("market.asOf"), { source: sourceLabel(data.source.provider), minutes: ageInMinutes(data.as_of) }) : t("market.note")}
+      actions={<Segmented label={t("market.currency")} value={currency} onChange={setCurrency} options={MARKET_CURRENCIES.map((value) => ({ value, label: value }))} />}
+    >
+      {snapshot.isLoading ? (
+        <Skeleton className="h-[260px]" />
+      ) : snapshot.isError && isNotFound(snapshot.error) ? (
+        <p className="text-[13px] text-text-2">{t("market.none")}</p>
+      ) : snapshot.isError ? (
+        <ProblemAlert error={snapshot.error} onRetry={() => void snapshot.refetch()} />
+      ) : data ? (
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <div className="flex min-w-0 flex-col gap-4">
+            <dl className="grid grid-cols-2 gap-x-6 gap-y-5">
+              <Stat label={t("market.total")} value={`${fmt.compact(data.total_market_cap)} ${data.currency}`} />
+              <Stat
+                label={t("market.change24h")}
+                value={fmt.signedPercent(data.market_cap_change_24h, 1)}
+                detail={data.market_cap_change_24h === null ? t("market.changeUsdOnly") : undefined}
+              />
+              <Stat label={t("market.volume24h")} value={data.total_volume_24h === null ? "—" : `${fmt.compact(data.total_volume_24h)} ${data.currency}`} />
+              <Stat label={t("market.assets")} value={fmt.number(data.assets, 0)} />
+            </dl>
+            <p className="text-xs font-medium text-text-2">{t("market.dominance")}</p>
+            <GroupedBars
+              label={t("market.dominance")}
+              categories={rows.map((row) => row.label)}
+              series={[{ name: t("market.share"), color: tokens.series[0] ?? tokens.text, values: rows.map((row) => row.share) }]}
+              format={percent}
+              axisFormat={ticks}
+            />
+          </div>
+          <div className="flex min-w-0 flex-col gap-3">
+            {caps.isError && !isNotFound(caps.error) ? <ProblemAlert error={caps.error} onRetry={() => void caps.refetch()} /> : null}
+            {caps.data ? (
+              <table className="w-full text-[13px]">
+                <caption className="sr-only">{t("market.ranking")}</caption>
+                <thead>
+                  <tr className="text-left text-xs text-muted">
+                    <th scope="col" className="w-7 py-1 pr-2 font-medium">#</th>
+                    <th scope="col" className="w-full py-1 font-medium">{t("market.asset")}</th>
+                    <th scope="col" className="whitespace-nowrap py-1 pl-3 text-right font-medium">{fill(t("market.price"), { currency: caps.data.currency })}</th>
+                    <th scope="col" className="whitespace-nowrap py-1 pl-3 text-right font-medium">{t("market.cap")}</th>
+                    <th scope="col" className="whitespace-nowrap py-1 pl-3 text-right font-medium">{t("market.share")}</th>
+                  </tr>
+                </thead>
+                <tbody className="tabular">
+                  {caps.data.assets.map((asset) => (
+                    <tr key={asset.id} className="border-t hairline">
+                      <td className="py-1.5 pr-2 text-muted">{asset.rank}</td>
+                      <th scope="row" className="max-w-0 py-1.5 text-left font-medium">
+                        <span className="block truncate">{asset.symbol}</span>
+                        <span className="block truncate text-xs font-normal text-muted">{asset.name}</span>
+                      </th>
+                      <td className="whitespace-nowrap py-1.5 pl-3 text-right">{fmt.number(asset.price, asset.price !== null && asset.price < 10 ? 4 : 2)}</td>
+                      <td className="whitespace-nowrap py-1.5 pl-3 text-right">{fmt.compact(asset.market_cap)}</td>
+                      <td className="whitespace-nowrap py-1.5 pl-3 text-right">{fmt.percent(shareOfTotal(asset.market_cap, data.total_market_cap), 1)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : caps.isLoading ? (
+              <Skeleton className="h-[260px]" />
+            ) : null}
+            <p className="text-xs text-muted">{t("market.note")}</p>
+          </div>
         </div>
       ) : null}
     </Card>
@@ -273,7 +364,7 @@ export default function OverviewPage() {
         subtitle={t("overview.subtitle")}
         actions={
           <Badge tone="accent">
-            <Database aria-hidden className="size-3" /> Yahoo Finance · BCE · Binance · OKX
+            <Database aria-hidden className="size-3" /> Yahoo Finance · BCE · Binance · OKX · CoinGecko
           </Badge>
         }
       />
@@ -296,6 +387,7 @@ export default function OverviewPage() {
           <RiskFreeCard />
         </div>
         <FearGreedCard />
+        <CryptoMarketCard />
         <ProvidersCard />
         <ModulesCard />
       </div>
