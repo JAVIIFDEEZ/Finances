@@ -6,13 +6,14 @@ together with every process they started (uvicorn's reloader, Next.js workers), 
 of them stops on its own the other one is stopped too.
 
 When a database is configured (``INVESTINGLAB_API_DATABASE_URL``), its schema is brought up to
-date first. Before starting, it checks that no other program holds the ports (the API's, 8000 unless
-``INVESTINGLAB_API_PORT`` says otherwise in the environment or in ``.env``, and the web app's
-3000) and points the web app at the API's port, so running both elsewhere takes a single
-variable. When a port is taken it says who holds it (an InvestingLab API still running, a
-Docker container such as another project's backend, or a program by name and PID) and how to
-free it. An InvestingLab server left behind by an earlier run, whose launcher is gone (nobody
-can stop it with Ctrl+C any more), is stopped instead, and the launch goes on.
+date first and the worker of the background jobs (ADR-0046) runs too. Before starting, it
+checks that no other program holds the ports (the API's, 8000 unless ``INVESTINGLAB_API_PORT``
+says otherwise in the environment or in ``.env``, and the web app's 3000) and points the web
+app at the API's port, so running both elsewhere takes a single variable. When a port is taken
+it says who holds it (an InvestingLab API still running, a Docker container such as another
+project's backend, or a program by name and PID) and how to free it. An InvestingLab server
+left behind by an earlier run, whose launcher is gone (nobody can stop it with Ctrl+C any
+more), is stopped instead, and the launch goes on.
 
 On Windows a program's children outlive it: the launcher puts itself in a job that ends every
 process it started when it ends, however it ends (Ctrl+C, a closed window, a crash), so no
@@ -642,8 +643,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     steps = [] if (WEB / "node_modules").is_dir() else [[*node, "install"]]
     if arguments.preview:
         steps.append([*node, "build"])
+    with_database = database_configured()
     try:
-        if database_configured():
+        if with_database:
             print(MIGRATING, flush=True)  # noqa: T201
             migrate = [sys.executable, "-m", "investinglab_api", "db", "upgrade"]
             if (code := subprocess.run(migrate, cwd=ROOT, check=False).returncode) != 0:  # noqa: S603
@@ -659,9 +661,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     api = [sys.executable, "-m", "investinglab_api", *([] if arguments.preview else ["--reload"])]
     host = "0.0.0.0" if arguments.lan else LOCALHOST  # noqa: S104 - asked for with --lan
     web = [*node, "start" if arguments.preview else "dev", "--hostname", host]
+    servers = [Server("API", api, ROOT), Server("web", web, WEB, web_env)]
+    if with_database:  # the background jobs need the database for their queue
+        servers.append(Server("worker", [sys.executable, "-m", "investinglab_api", "worker"], ROOT))
+    jobs = " | background jobs: worker running" if with_database else ""
     print(  # noqa: T201
-        f"API: http://{LOCALHOST}:{port}/docs | web: http://localhost:{WEB_PORT} | "
-        "Ctrl+C stops both",
+        f"API: http://{LOCALHOST}:{port}/docs | web: http://localhost:{WEB_PORT}{jobs} | "
+        "Ctrl+C stops everything",
         flush=True,
     )
     if arguments.lan:
@@ -672,7 +678,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "There is no login yet: anyone on this network can open it. Use it at home only.",
             flush=True,
         )
-    return run([Server("API", api, ROOT), Server("web", web, WEB, web_env)])
+    return run(servers)
 
 
 if __name__ == "__main__":
