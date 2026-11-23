@@ -33,12 +33,35 @@ export interface paths {
         };
         /**
          * Readiness
-         * @description The service can answer: the toolkit is wired, and the database (if any) is reported.
+         * @description The service can answer: the toolkit is wired; the database and its workers are reported.
          *
          *     The endpoints that need no stored state keep working without a database, so its state is
-         *     information here, not a failure.
+         *     information here, not a failure; so is a missing worker (the jobs wait in the queue).
          */
         get: operations["ready_health_ready_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Status of the data sources
+         * @description Whether each source answered its last check, and how fresh its data was (ADR-0047).
+         *
+         *     The worker checks every source each quarter of an hour; a source never checked yet is
+         *     not listed.
+         */
+        get: operations["sources_api_v1_sources_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -899,6 +922,18 @@ export interface components {
             shrinkage: number | null;
         };
         /**
+         * CanaryOut
+         * @description The small request that checks a source answers (ADR-0047).
+         */
+        CanaryOut: {
+            dataset: components["schemas"]["Dataset"];
+            /**
+             * Symbol
+             * @description What it asks for: a symbol, a series or an asset class.
+             */
+            symbol: string;
+        };
+        /**
          * CardOut
          * @description The card of an instrument: its pillars on the last bar (ADR-0040).
          */
@@ -1444,6 +1479,11 @@ export interface components {
              * @enum {string}
              */
             database?: "not_configured" | "ok" | "migrations_pending" | "unavailable";
+            /**
+             * Workers
+             * @description Workers taking background jobs now (a recent heartbeat); null without a database or on the liveness probe.
+             */
+            workers?: number | null;
         };
         /**
          * HistogramBinOut
@@ -2434,6 +2474,8 @@ export interface components {
              * @description Holding rates it serves, if any.
              */
             rate_kinds: components["schemas"]["RateKind"][];
+            /** @description How the worker checks it; null for a source never checked. */
+            canary?: components["schemas"]["CanaryOut"] | null;
         };
         /**
          * QualityOut
@@ -2986,6 +3028,50 @@ export interface components {
             retrieved_at: string;
         };
         /**
+         * SourceStatusOut
+         * @description Whether a data source answers its canary, and how fresh its data is (ADR-0047).
+         */
+        SourceStatusOut: {
+            /** Provider */
+            provider: string;
+            /**
+             * Checked At
+             * Format: date-time
+             * @description When it was last checked.
+             */
+            checked_at: string;
+            /**
+             * Ok
+             * @description Whether it answered that check with data.
+             */
+            ok: boolean;
+            /**
+             * Latency Seconds
+             * @description Seconds it took to answer (or to fail).
+             */
+            latency_seconds: number;
+            /**
+             * Latest At
+             * @description Instant of the latest observation it answered (a daily bar: its date).
+             */
+            latest_at: string | null;
+            /**
+             * Error
+             * @description What went wrong, when it failed.
+             */
+            error: string | null;
+            /**
+             * Last Ok At
+             * @description When it last answered; null if never.
+             */
+            last_ok_at: string | null;
+            /**
+             * Failures
+             * @description Checks failed in a row (0 when it answered).
+             */
+            failures: number;
+        };
+        /**
          * StatsOut
          * @description Statistics computed when the series was built (per period unless annualised).
          */
@@ -3305,6 +3391,36 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthOut"];
+                };
+            };
+        };
+    };
+    sources_api_v1_sources_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceStatusOut"][];
+                };
+            };
+            /** @description The API runs without a database, or the database is not answering. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
                 };
             };
         };

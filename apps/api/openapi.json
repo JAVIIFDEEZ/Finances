@@ -35,7 +35,7 @@
           "health"
         ],
         "summary": "Readiness",
-        "description": "The service can answer: the toolkit is wired, and the database (if any) is reported.\n\nThe endpoints that need no stored state keep working without a database, so its state is\ninformation here, not a failure.",
+        "description": "The service can answer: the toolkit is wired; the database and its workers are reported.\n\nThe endpoints that need no stored state keep working without a database, so its state is\ninformation here, not a failure; so is a missing worker (the jobs wait in the queue).",
         "operationId": "ready_health_ready_get",
         "responses": {
           "200": {
@@ -44,6 +44,47 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HealthOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sources": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Status of the data sources",
+        "description": "Whether each source answered its last check, and how fresh its data was (ADR-0047).\n\nThe worker checks every source each quarter of an hour; a source never checked yet is\nnot listed.",
+        "operationId": "sources_api_v1_sources_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SourceStatusOut"
+                  },
+                  "type": "array",
+                  "title": "Response Sources Api V1 Sources Get"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The API runs without a database, or the database is not answering.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -4222,6 +4263,25 @@
         "title": "CalibrationOut",
         "description": "Parameters the simulation actually used (annualised)."
       },
+      "CanaryOut": {
+        "properties": {
+          "dataset": {
+            "$ref": "#/components/schemas/Dataset"
+          },
+          "symbol": {
+            "type": "string",
+            "title": "Symbol",
+            "description": "What it asks for: a symbol, a series or an asset class."
+          }
+        },
+        "type": "object",
+        "required": [
+          "dataset",
+          "symbol"
+        ],
+        "title": "CanaryOut",
+        "description": "The small request that checks a source answers (ADR-0047)."
+      },
       "CardOut": {
         "properties": {
           "instrument": {
@@ -5477,6 +5537,18 @@
             "title": "Database",
             "description": "State of the database behind the endpoints that store data.",
             "default": "not_configured"
+          },
+          "workers": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workers",
+            "description": "Workers taking background jobs now (a recent heartbeat); null without a database or on the liveness probe."
           }
         },
         "type": "object",
@@ -7788,6 +7860,17 @@
             "type": "array",
             "title": "Rate Kinds",
             "description": "Holding rates it serves, if any."
+          },
+          "canary": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CanaryOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "How the worker checks it; null for a source never checked."
           }
         },
         "type": "object",
@@ -9006,6 +9089,86 @@
         ],
         "title": "SourceOut",
         "description": "Provenance of the data."
+      },
+      "SourceStatusOut": {
+        "properties": {
+          "provider": {
+            "type": "string",
+            "title": "Provider"
+          },
+          "checked_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Checked At",
+            "description": "When it was last checked."
+          },
+          "ok": {
+            "type": "boolean",
+            "title": "Ok",
+            "description": "Whether it answered that check with data."
+          },
+          "latency_seconds": {
+            "type": "number",
+            "title": "Latency Seconds",
+            "description": "Seconds it took to answer (or to fail)."
+          },
+          "latest_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest At",
+            "description": "Instant of the latest observation it answered (a daily bar: its date)."
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error",
+            "description": "What went wrong, when it failed."
+          },
+          "last_ok_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Ok At",
+            "description": "When it last answered; null if never."
+          },
+          "failures": {
+            "type": "integer",
+            "title": "Failures",
+            "description": "Checks failed in a row (0 when it answered)."
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider",
+          "checked_at",
+          "ok",
+          "latency_seconds",
+          "latest_at",
+          "error",
+          "last_ok_at",
+          "failures"
+        ],
+        "title": "SourceStatusOut",
+        "description": "Whether a data source answers its canary, and how fresh its data is (ADR-0047)."
       },
       "StatsOut": {
         "properties": {

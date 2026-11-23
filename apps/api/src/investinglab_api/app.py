@@ -24,6 +24,7 @@ from investinglab_api import __version__
 from investinglab_api.middleware import REQUEST_ID_HEADER, RequestContextMiddleware
 from investinglab_api.persistence import (
     Database,
+    SqlHeartbeatStore,
     SqlJobRepository,
     SqlPortfolioRepository,
     queue_app,
@@ -37,7 +38,7 @@ if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
     from investinglab.config import Settings
-    from investinglab.ports import JobRepository, PortfolioRepository
+    from investinglab.ports import HeartbeatStore, JobRepository, PortfolioRepository
 
 __all__ = ["create_app"]
 
@@ -75,6 +76,7 @@ def create_app(
     toolkit: AsyncToolkit | None = None,
     portfolios: PortfolioRepository | None = None,
     jobs_repository: JobRepository | None = None,
+    heartbeats: HeartbeatStore | None = None,
 ) -> FastAPI:
     """Build the FastAPI application.
 
@@ -88,6 +90,8 @@ def create_app(
             ``persistence-not-configured`` and the rest of the API works as usual).
         jobs_repository: Repository of background jobs, with the same default as
             ``portfolios`` (on PostgreSQL it also queues them for the workers).
+        heartbeats: Where the worker keeps the status of each data source, with the same
+            default as ``portfolios``.
     """
     api = settings or get_api_settings()
     core = core_settings or get_settings()
@@ -98,12 +102,13 @@ def create_app(
         owned = toolkit is None
         app.state.toolkit = toolkit or AsyncToolkit.from_settings(core)
         database: Database | None = None
-        own_stores = portfolios is None and jobs_repository is None
+        own_stores = portfolios is None and jobs_repository is None and heartbeats is None
         if own_stores and api.database_url is not None:
             url = api.database_url.get_secret_value()
             database = Database(url, pool_size=api.database_pool_size)
             app.state.portfolios = SqlPortfolioRepository(database)
             app.state.jobs = SqlJobRepository(database, queue_app(url))
+            app.state.heartbeats = SqlHeartbeatStore(database)
             if api.host not in LOOPBACK:
                 log.warning("unauthenticated_api_exposed", host=api.host)
         app.state.database = database
@@ -127,6 +132,7 @@ def create_app(
     app.state.core_settings = core
     app.state.portfolios = portfolios
     app.state.jobs = jobs_repository
+    app.state.heartbeats = heartbeats
     app.state.database = None
     install_problem_handlers(app)
     app.add_middleware(GZipMiddleware, minimum_size=1_024)

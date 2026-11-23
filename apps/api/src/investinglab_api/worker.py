@@ -11,17 +11,30 @@ on the same PostgreSQL) and runs each job with :func:`~investinglab_api.jobs.run
   attempt, and a job that keeps losing its worker ends as ``job-interrupted``.
 * **Stopping.** Ctrl+C (or ``SIGTERM``) stops taking jobs and gives the running ones
   :data:`SHUTDOWN_SECONDS` to finish; those that do not are recorded as interrupted.
+* **The data sources.** Every quarter of an hour, and once when it starts, it asks every
+  source its canary and keeps the status of each (ADR-0047).
 """
 
 from __future__ import annotations
 
+import contextlib
+import time
 from typing import TYPE_CHECKING, Final
 from uuid import UUID
+
+from procrastinate.exceptions import AlreadyEnqueued
 
 from investinglab.config import configure_logging, get_logger
 from investinglab.toolkit import AsyncToolkit
 from investinglab_api.jobs import HANDLERS, run_job
-from investinglab_api.persistence import Database, DatabaseStatus, SqlJobRepository, queue_app
+from investinglab_api.jobs.sources import SOURCES_CRON, check_and_record
+from investinglab_api.persistence import (
+    Database,
+    DatabaseStatus,
+    SqlHeartbeatStore,
+    SqlJobRepository,
+    queue_app,
+)
 from investinglab_api.persistence.queue import QUEUE, RUN_JOB
 
 if TYPE_CHECKING:
@@ -30,11 +43,12 @@ if TYPE_CHECKING:
     from procrastinate import App
 
     from investinglab.config import Settings
-    from investinglab.ports import JobRepository
+    from investinglab.ports import HeartbeatStore, JobRepository
     from investinglab_api.jobs import Handler
     from investinglab_api.settings import ApiSettings
 
 __all__ = [
+    "CHECK_SOURCES",
     "MAINTENANCE",
     "RETRY_STALLED",
     "SHUTDOWN_SECONDS",
@@ -49,6 +63,8 @@ MAINTENANCE: Final = "maintenance"
 """Queue of the worker's own housekeeping."""
 
 RETRY_STALLED: Final = "investinglab.retry_stalled"
+
+CHECK_SOURCES: Final = "investinglab.check_sources"
 
 SHUTDOWN_SECONDS: Final = 30.0
 """Time the running jobs get to finish when the worker is asked to stop."""
@@ -65,8 +81,12 @@ def register(
     toolkit: AsyncToolkit,
     settings: ApiSettings,
     handlers: Mapping[str, Handler] = HANDLERS,
+    heartbeats: HeartbeatStore | None = None,
 ) -> App:
-    """Teach Procrastinate's ``app`` the worker's tasks: run a job, retry stalled ones."""
+    """Teach Procrastinate's ``app`` the worker's tasks.
+
+    Run a job, retry the stalled ones and, given where to keep them, check the sources.
+    """
 
     @app.task(name=RUN_JOB, queue=QUEUE)
     async def run(job_id: str, owner_id: str) -> None:
@@ -85,6 +105,14 @@ def register(
         for stalled in await app.job_manager.get_stalled_jobs(task_name=RUN_JOB):
             log.warning("job_worker_lost", queue_job_id=stalled.id)
             await app.job_manager.retry_job(stalled)
+
+    if heartbeats is not None:
+        store = heartbeats
+
+        @app.periodic(cron=SOURCES_CRON)
+        @app.task(name=CHECK_SOURCES, queue=MAINTENANCE, queueing_lock=CHECK_SOURCES)
+        async def check_sources(timestamp: int) -> None:  # every periodic task gets its instant
+            await check_and_record(toolkit, store)
 
     return app
 
@@ -108,9 +136,18 @@ async def serve(settings: ApiSettings, core: Settings) -> None:
             msg = f"The database is not ready ({status}): run `uv run just db-upgrade`."
             raise WorkerNotReadyError(msg)
         app = queue_app(url)
-        register(app, SqlJobRepository(database, app), toolkit=toolkit, settings=settings)
-        log.info("worker_started", concurrency=settings.worker_concurrency)
+        register(
+            app,
+            SqlJobRepository(database, app),
+            toolkit=toolkit,
+            settings=settings,
+            heartbeats=SqlHeartbeatStore(database),
+        )
         async with app.open_async():
+            # The sources' status from the start, not a quarter of an hour later.
+            with contextlib.suppress(AlreadyEnqueued):
+                await app.configure_task(CHECK_SOURCES).defer_async(timestamp=int(time.time()))
+            log.info("worker_started", concurrency=settings.worker_concurrency)
             await app.run_worker_async(
                 name="investinglab-worker",
                 queues=[QUEUE, MAINTENANCE],

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import replace
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import psycopg
@@ -15,7 +16,7 @@ import pytest
 from alembic import command
 from alembic.autogenerate import compare_metadata
 from alembic.migration import MigrationContext
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, insert, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import DBAPIError, IntegrityError
 
@@ -34,7 +35,12 @@ from investinglab_api.persistence.migrate import (
     head_revision,
     upgrade,
 )
-from investinglab_api.persistence.models import GLOBAL_TABLES, Base, Owned
+from investinglab_api.persistence.models import (
+    GLOBAL_TABLES,
+    Base,
+    Owned,
+    SourceHeartbeatRow,
+)
 from investinglab_api.persistence.portfolios import name_taken
 from investinglab_api.persistence.queue import pending_schema_migrations
 
@@ -311,6 +317,93 @@ async def test_the_status_tells_ready_from_unmigrated_from_unreachable(
     finally:
         await unmigrated.dispose()
         await unreachable.dispose()
+
+
+async def test_live_workers_are_those_with_a_recent_heartbeat(
+    postgres: dict[str, str], database: Database
+) -> None:
+    server = make_url(postgres["owner"])
+    unmigrated = Database(server.set(database="postgres").render_as_string(hide_password=False))
+    before = await database.live_workers()
+    async with database.transaction() as session:
+        added = await session.scalars(
+            text(
+                "INSERT INTO procrastinate_workers (last_heartbeat) "
+                "VALUES (now()), (now() - interval '1 minute') RETURNING id"
+            )
+        )
+        workers = list(added)
+    try:
+        assert before is not None
+        assert await database.live_workers() == before + 1  # the silent one is not counted
+        assert await unmigrated.live_workers() is None
+    finally:
+        async with database.transaction() as session:
+            await session.execute(
+                text("DELETE FROM procrastinate_workers WHERE id = ANY(:ids)"), {"ids": workers}
+            )
+        await unmigrated.dispose()
+
+
+# ── Source heartbeats ──────────────────────────────────────────────────────
+
+
+CHECKED = datetime(2026, 11, 23, 9, 15, tzinfo=UTC)
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"provider": ""},
+        {"latency_seconds": -0.1},
+        {"ok": False, "last_ok_at": None, "failures": 1},
+        {"error": "boom"},
+        {"ok": False, "error": "boom", "last_ok_at": None, "failures": 1},
+        {"last_ok_at": None},
+        {"failures": 2},
+        {"ok": False, "error": "boom", "latest_at": None, "last_ok_at": None, "failures": -1},
+    ],
+    ids=[
+        "no-name",
+        "negative-latency",
+        "failed-without-error",
+        "answered-with-error",
+        "failed-with-latest",
+        "answered-not-then",
+        "answered-with-failures",
+        "negative-failures",
+    ],
+)
+async def test_the_database_refuses_a_heartbeat_that_contradicts_itself(
+    database: Database, changes: dict[str, object]
+) -> None:
+    answered: dict[str, object] = {
+        "provider": f"source-{uuid4().hex[:8]}",
+        "checked_at": CHECKED,
+        "ok": True,
+        "latency_seconds": 0.1,
+        "latest_at": CHECKED - timedelta(days=1),
+        "error": None,
+        "last_ok_at": CHECKED,
+        "failures": 0,
+    }
+    async with database.transaction() as session:  # the reference row is accepted
+        await session.execute(insert(SourceHeartbeatRow).values(answered))
+
+    contradiction = insert(SourceHeartbeatRow).values(
+        answered | {"provider": f"source-{uuid4().hex[:8]}"} | changes
+    )
+    with pytest.raises(IntegrityError):
+        async with database.transaction() as session:
+            await session.execute(contradiction)
+
+
+async def test_the_application_never_forgets_a_source(database: Database) -> None:
+    with pytest.raises(DBAPIError) as refused:
+        async with database.transaction() as session:
+            await session.execute(text("DELETE FROM source_heartbeats"))
+
+    assert sqlstate(refused) == INSUFFICIENT_PRIVILEGE
 
 
 def test_only_the_name_constraint_means_a_duplicate_name() -> None:

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 from enum import StrEnum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Final
 
 from sqlalchemy import func, select, text
 from sqlalchemy.exc import DBAPIError, InterfaceError, OperationalError
@@ -18,9 +18,12 @@ from investinglab_api.persistence.migrate import head_revision
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
-__all__ = ["Database", "DatabaseStatus"]
+__all__ = ["WORKER_TIMEOUT", "Database", "DatabaseStatus"]
 
 log = get_logger(__name__)
+
+WORKER_TIMEOUT: Final = 30.0
+"""Seconds without a heartbeat after which a worker counts as gone (Procrastinate's default)."""
 
 
 class DatabaseStatus(StrEnum):
@@ -76,6 +79,22 @@ class Database:
         return (
             DatabaseStatus.OK if current == head_revision() else DatabaseStatus.MIGRATIONS_PENDING
         )
+
+    async def live_workers(self) -> int | None:
+        """Workers taking background jobs now: those whose heartbeat is recent (ADR-0046).
+
+        ``None`` when the database does not answer or has no queue yet (not migrated).
+        """
+        query = text(
+            "SELECT count(*) FROM procrastinate_workers "
+            "WHERE last_heartbeat > now() - make_interval(secs => :seconds)"
+        )
+        try:
+            async with self._engine.connect() as connection:
+                count = await connection.scalar(query, {"seconds": WORKER_TIMEOUT})
+        except DBAPIError:
+            return None
+        return int(count or 0)
 
     async def dispose(self) -> None:
         """Close every connection."""
