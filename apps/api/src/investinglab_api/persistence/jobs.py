@@ -22,6 +22,7 @@ from investinglab.ports import (
     encode_cursor,
     job_outcome,
 )
+from investinglab_api import telemetry
 from investinglab_api.persistence.audit import append_entry
 from investinglab_api.persistence.models import JobRow
 from investinglab_api.persistence.queue import QUEUE, RUN_JOB
@@ -30,6 +31,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
 
     from procrastinate import App
+    from procrastinate.types import JSONValue
     from sqlalchemy.ext.asyncio import AsyncSession
 
     from investinglab.ports import JsonValue
@@ -98,14 +100,27 @@ class SqlJobRepository:
             session, JOB_STREAM, kind, payload, owner_id=job.owner_id, clock=self._clock
         )
 
-    async def _enqueue(self, session: AsyncSession, owner: str, job_id: UUID) -> int:
-        """Put the job in Procrastinate's queue on this transaction's own connection."""
+    async def _enqueue(self, session: AsyncSession, owner: str, job_id: UUID, kind: str) -> int:
+        """Put the job in Procrastinate's queue on this transaction's own connection.
+
+        The entry carries the trace context of the submission, so that the worker continues
+        the same trace (ADR-0048); without tracing it is empty.
+        """
         connection = await session.connection()
         raw = await connection.get_raw_connection()
         deferrer = self._queue.configure_task(
             RUN_JOB, queue=QUEUE, connection=raw.driver_connection
         )
-        return await deferrer.defer_async(job_id=str(job_id), owner_id=owner)
+        attributes = {
+            **telemetry.messaging(QUEUE, "send"),
+            "investinglab.job.id": str(job_id),
+            "investinglab.job.kind": kind,
+        }
+        with telemetry.span(f"send {QUEUE}", kind="producer", attributes=attributes) as span:
+            trace: dict[str, JSONValue] = dict(telemetry.current_carrier().items())
+            queued = await deferrer.defer_async(job_id=str(job_id), owner_id=owner, trace=trace)
+            span.set(**{"messaging.message.id": str(queued)})
+        return queued
 
     async def _row(self, session: AsyncSession, owner: str, job_id: UUID) -> JobRow:
         row = await session.scalar(
@@ -133,7 +148,7 @@ class SqlJobRepository:
         async with self._database.transaction(owner) as session:
             session.add(row)
             await session.flush()
-            row.queue_job_id = await self._enqueue(session, owner, row.id)
+            row.queue_job_id = await self._enqueue(session, owner, row.id, kind)
             job = job_of(row)
             await self._audit(session, "job.submitted", job)
         return job

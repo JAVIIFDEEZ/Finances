@@ -7,10 +7,12 @@ from typing import TYPE_CHECKING
 import pytest
 import structlog
 
-from investinglab.config import LogFormat, LogLevel, configure_logging, get_logger
+from investinglab.config import LogFormat, LogLevel, configure_logging, get_logger, redact_text
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
+
+    from structlog.typing import EventDict, WrappedLogger
 
 
 @pytest.fixture(autouse=True)
@@ -112,3 +114,23 @@ def test_credentials_in_tracebacks_are_masked(capsys: pytest.CaptureFixture[str]
     output = capsys.readouterr().err
     assert FAKE_KEY not in output
     assert "api_key=***" in json.loads(output.strip())["exception"]
+
+
+def test_text_is_masked_by_the_same_rule() -> None:
+    url = f"https://api.example.test/series?series_id=A&api_key={FAKE_KEY}&token={FAKE_KEY}"
+
+    assert redact_text(url) == "https://api.example.test/series?series_id=A&api_key=***&token=***"
+    assert redact_text("nothing to hide") == "nothing to hide"
+
+
+def test_extra_processors_run_and_what_they_add_is_masked(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    def add_context(_: WrappedLogger, __: str, event_dict: EventDict) -> EventDict:
+        return {**event_dict, "trace_id": "abc", "leak": f"api_key={FAKE_KEY}"}
+
+    configure_logging(LogLevel.INFO, LogFormat.JSON, processors=(add_context,))
+    get_logger("investinglab.test").info("traced")
+
+    line = json.loads(capsys.readouterr().err.strip())
+    assert (line["trace_id"], line["leak"]) == ("abc", "api_key=***")

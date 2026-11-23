@@ -6,9 +6,10 @@ from contextlib import asynccontextmanager
 from enum import StrEnum
 from typing import TYPE_CHECKING, Final
 
+import sqlalchemy.ext.asyncio
 from sqlalchemy import func, select, text
 from sqlalchemy.exc import DBAPIError, InterfaceError, OperationalError
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from investinglab.config import get_logger
 from investinglab.ports import RepositoryUnavailableError
@@ -44,7 +45,11 @@ class Database:
     """
 
     def __init__(self, url: str, *, pool_size: int = 5) -> None:
-        self._engine = create_async_engine(url, pool_size=pool_size, pool_pre_ping=True)
+        # Looked up when called, not when imported: once tracing has started, the engine is
+        # made by its instrumented factory and every statement is a span (ADR-0048).
+        self._engine = sqlalchemy.ext.asyncio.create_async_engine(
+            url, pool_size=pool_size, pool_pre_ping=True
+        )
         self._sessions = async_sessionmaker(self._engine, expire_on_commit=False)
 
     @asynccontextmanager

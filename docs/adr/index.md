@@ -52,6 +52,7 @@ actualiza el estado del antiguo.
 | [0045](0045-market-reference-snapshots.md) | Datos de referencia de un mercado como fotos fechadas, no como series | Aceptado |
 | [0046](0046-background-jobs-on-postgresql.md) | Trabajos en segundo plano con Procrastinate sobre el mismo PostgreSQL | Aceptado |
 | [0047](0047-source-heartbeat.md) | Latido de las fuentes de datos | Aceptado |
+| [0048](0048-tracing-with-opentelemetry.md) | Trazas con OpenTelemetry, opcionales y apagadas por defecto | Aceptado |
 
 ## Cómo añadir un ADR
 

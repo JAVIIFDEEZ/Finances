@@ -79,6 +79,10 @@ worker:
 db-up:
     uv run python scripts/db.py
 
+# Start Jaeger to see the traces (INVESTINGLAB_API_TRACING=otlp) at http://localhost:16686.
+traces:
+    docker compose --profile tracing up --detach jaeger
+
 # Bring the database to the schema this version needs.
 db-upgrade:
     uv run investinglab-api db upgrade

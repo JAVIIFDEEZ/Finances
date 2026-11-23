@@ -6,12 +6,25 @@ timeouts); these only describe the HTTP service and the limits that protect it.
 
 from __future__ import annotations
 
+from enum import StrEnum
 from functools import cache
 
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-__all__ = ["ApiSettings", "get_api_settings"]
+__all__ = ["ApiSettings", "TracingMode", "get_api_settings"]
+
+
+class TracingMode(StrEnum):
+    """Where the traces of the API and the worker go (ADR-0048)."""
+
+    OFF = "off"
+    """No traces (the default): nothing is recorded or sent."""
+    OTLP = "otlp"
+    """To an OpenTelemetry collector over OTLP/HTTP, set with the standard ``OTEL_*``
+    variables (``OTEL_EXPORTER_OTLP_ENDPOINT``, by default ``http://localhost:4318``)."""
+    CONSOLE = "console"
+    """Each span printed as JSON on the standard output, to look at them while developing."""
 
 
 class ApiSettings(BaseSettings):
@@ -33,6 +46,8 @@ class ApiSettings(BaseSettings):
         max_job_paths: Most Monte Carlo paths of a simulation run in the background, where
             it no longer has to fit in a request (the domain's memory bound still applies).
         worker_concurrency: Jobs one worker runs at the same time.
+        tracing: Where the traces of requests, jobs and their calls go; off by default
+            (ADR-0048).
     """
 
     model_config = SettingsConfigDict(
@@ -56,6 +71,7 @@ class ApiSettings(BaseSettings):
     local_owner: str = Field(default="local", min_length=1, max_length=64)
     max_job_paths: int = Field(default=200_000, ge=100, le=1_000_000)
     worker_concurrency: int = Field(default=2, ge=1, le=16)
+    tracing: TracingMode = TracingMode.OFF
 
 
 @cache

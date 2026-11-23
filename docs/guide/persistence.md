@@ -81,6 +81,8 @@ uno; en **Simulación**, «En segundo plano» envía una de hasta 200 000 trayec
   fuente su pregunta de prueba (su canario) y guarda cómo respondió en `source_heartbeats`
   ([ADR-0047](../adr/0047-source-heartbeat.md)). La **Visión general** lo muestra junto a
   cada fuente, y los logs del *worker* dicen `source_failing` cuando una falla.
+* **Trazas.** Con `INVESTINGLAB_API_TRACING=otlp`, cada intento de un trabajo es un *span*
+  dentro de la traza de la petición que lo envió ([Observabilidad](observability.md)).
 
 ## Migraciones
 

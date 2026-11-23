@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import re
 import time
 import uuid
@@ -10,6 +11,7 @@ from typing import TYPE_CHECKING, Final
 import structlog
 
 from investinglab.config import get_logger
+from investinglab_api import telemetry
 
 if TYPE_CHECKING:
     from starlette.types import ASGIApp, Message, Receive, Scope, Send
@@ -27,7 +29,9 @@ class RequestContextMiddleware:
 
     The id is returned in ``X-Request-ID``, bound to every log line of the request and
     quoted in Problem Details (``instance``), so a failure seen in the browser can be found
-    in the logs. Pure ASGI, so streaming responses are not buffered.
+    in the logs. When the API traces, it is also an attribute of the request's span, and
+    nothing a health probe does is traced (ADR-0048). Pure ASGI, so streaming responses are
+    not buffered.
     """
 
     def __init__(self, app: ASGIApp) -> None:
@@ -54,7 +58,12 @@ class RequestContextMiddleware:
                 )
             await send(message)
 
-        with structlog.contextvars.bound_contextvars(request_id=request_id):
+        telemetry.annotate(**{"investinglab.request_id": request_id})
+        probe = scope["path"] in telemetry.PROBE_PATHS
+        with (
+            structlog.contextvars.bound_contextvars(request_id=request_id),
+            telemetry.untraced() if probe else contextlib.nullcontext(),
+        ):
             try:
                 await self._app(scope, receive, send_with_id)
             finally:

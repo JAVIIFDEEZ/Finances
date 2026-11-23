@@ -13,6 +13,8 @@ on the same PostgreSQL) and runs each job with :func:`~investinglab_api.jobs.run
   :data:`SHUTDOWN_SECONDS` to finish; those that do not are recorded as interrupted.
 * **The data sources.** Every quarter of an hour, and once when it starts, it asks every
   source its canary and keeps the status of each (ADR-0047).
+* **Traces.** With ``INVESTINGLAB_API_TRACING`` on, each attempt of a job is a ``process``
+  span that continues the trace of the request that submitted it (ADR-0048).
 """
 
 from __future__ import annotations
@@ -25,7 +27,9 @@ from uuid import UUID
 from procrastinate.exceptions import AlreadyEnqueued
 
 from investinglab.config import configure_logging, get_logger
+from investinglab.ports import JobStatus
 from investinglab.toolkit import AsyncToolkit
+from investinglab_api import telemetry
 from investinglab_api.jobs import HANDLERS, run_job
 from investinglab_api.jobs.sources import SOURCES_CRON, check_and_record
 from investinglab_api.persistence import (
@@ -89,15 +93,32 @@ def register(
     """
 
     @app.task(name=RUN_JOB, queue=QUEUE)
-    async def run(job_id: str, owner_id: str) -> None:
-        await run_job(
-            repository,
-            handlers,
-            toolkit=toolkit,
-            settings=settings,
-            owner=owner_id,
-            job_id=UUID(job_id),
-        )
+    async def run(job_id: str, owner_id: str, trace: dict[str, str] | None = None) -> None:
+        # Each attempt continues the trace of the request that submitted the job (ADR-0048).
+        attributes = {**telemetry.messaging(QUEUE, "process"), "investinglab.job.id": job_id}
+        with telemetry.span(
+            f"process {QUEUE}", kind="consumer", attributes=attributes, parent=trace
+        ) as span:
+            job = await run_job(
+                repository,
+                handlers,
+                toolkit=toolkit,
+                settings=settings,
+                owner=owner_id,
+                job_id=UUID(job_id),
+            )
+            if job is None:
+                span.set(**{"investinglab.job.status": "skipped"})
+                return
+            span.set(
+                **{
+                    "investinglab.job.kind": job.kind,
+                    "investinglab.job.status": job.status.value,
+                    "investinglab.job.attempt": job.attempts,
+                }
+            )
+            if job.status is JobStatus.FAILED and job.error is not None:
+                span.fail(f"{job.error.code}: {job.error.title}")
 
     @app.periodic(cron="* * * * *")
     @app.task(name=RETRY_STALLED, queue=MAINTENANCE, queueing_lock=RETRY_STALLED)
@@ -123,10 +144,14 @@ async def serve(settings: ApiSettings, core: Settings) -> None:
     Raises:
         WorkerNotReadyError: There is no database, or it is not at this version's schema.
     """
-    configure_logging(core.log_level, core.effective_log_format)
+    configure_logging(
+        core.log_level, core.effective_log_format, processors=(telemetry.add_trace_context,)
+    )
     if settings.database_url is None:
         msg = "Set INVESTINGLAB_API_DATABASE_URL: the jobs and their queue live in the database."
         raise WorkerNotReadyError(msg)
+    traces = not telemetry.tracing_enabled()  # a process of its own: it stops what it starts
+    telemetry.configure_tracing(settings.tracing, service="investinglab-worker")
     url = settings.database_url.get_secret_value()
     database = Database(url, pool_size=settings.worker_concurrency + 1)
     toolkit = AsyncToolkit.from_settings(core)
@@ -160,3 +185,5 @@ async def serve(settings: ApiSettings, core: Settings) -> None:
         await toolkit.aclose()
         await database.dispose()
         log.info("worker_stopped")
+        if traces:
+            telemetry.shutdown_tracing()

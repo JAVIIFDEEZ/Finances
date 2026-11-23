@@ -18,9 +18,11 @@ import structlog
 from investinglab.config.settings import LogFormat, LogLevel
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from structlog.typing import EventDict, Processor, WrappedLogger
 
-__all__ = ["configure_logging", "get_logger", "redact_secrets"]
+__all__ = ["configure_logging", "get_logger", "redact_secrets", "redact_text"]
 
 # Credentials sent as query parameters (FRED ``api_key``, Alpha Vantage ``apikey``, SIX
 # ``token``...) must never be written to any log, whoever emits the line.
@@ -31,10 +33,17 @@ _SECRET_IN_TEXT: Final = re.compile(
 _QUIET_LOGGERS: Final = ("httpx", "httpcore")
 
 
+def redact_text(text: str) -> str:
+    """``text`` with every ``key=value`` credential masked (``api_key=***``).
+
+    The same rule the logs follow, for whatever else records a URL or a message (the traces
+    of the API, ADR-0048).
+    """
+    return _SECRET_IN_TEXT.sub(r"\1=***", text)
+
+
 def _scrub(value: Any) -> Any:  # noqa: ANN401 - log values are arbitrary
-    if isinstance(value, str):
-        return _SECRET_IN_TEXT.sub(r"\1=***", value)
-    return value
+    return redact_text(value) if isinstance(value, str) else value
 
 
 def redact_secrets(_: WrappedLogger, __: str, event_dict: EventDict) -> EventDict:
@@ -42,26 +51,31 @@ def redact_secrets(_: WrappedLogger, __: str, event_dict: EventDict) -> EventDic
     return {key: _scrub(value) for key, value in event_dict.items()}
 
 
-def _shared_processors() -> list[Processor]:
+def _shared_processors(extra: Sequence[Processor] = ()) -> list[Processor]:
     return [
         structlog.contextvars.merge_contextvars,
         structlog.stdlib.add_logger_name,
         structlog.stdlib.add_log_level,
         structlog.processors.TimeStamper(fmt="iso", utc=True),
         structlog.processors.StackInfoRenderer(),
-        redact_secrets,
+        *extra,
+        redact_secrets,  # last: whatever the others added is masked too
     ]
 
 
 def configure_logging(
     level: LogLevel = LogLevel.INFO,
     log_format: LogFormat = LogFormat.CONSOLE,
+    *,
+    processors: Sequence[Processor] = (),
 ) -> None:
     """Configure structlog and the standard library logging for the whole process.
 
     Args:
         level: Minimum severity to emit.
         log_format: ``console`` for local development, ``json`` for deployed environments.
+        processors: More structlog processors for every line, run before the credentials
+            are masked (the API adds the trace and span ids of the line, ADR-0048).
     """
     renderer: Processor
     if log_format is LogFormat.JSON:
@@ -69,7 +83,7 @@ def configure_logging(
     else:
         renderer = structlog.dev.ConsoleRenderer(colors=sys.stderr.isatty())
 
-    shared = _shared_processors()
+    shared = _shared_processors(processors)
     structlog.configure(
         processors=[*shared, structlog.stdlib.ProcessorFormatter.wrap_for_formatter],
         logger_factory=structlog.stdlib.LoggerFactory(),

@@ -783,6 +783,23 @@ Es decir: **unos 6-8 meses hasta la paridad en lo esencial (G0-G8)** y unos 10-1
 - **Comprobación real:** las nueve fuentes respondieron, en entre 0,4 y 1,1 s.
 - **Pendiente de G0b:** las trazas con OpenTelemetry en la API y el *worker*.
 
+**Avance (23-11-2026, G0b, trazas):** OpenTelemetry, opcional y apagado por defecto
+([ADR-0048](../adr/0048-tracing-with-opentelemetry.md)).
+
+- **Qué se traza:**
+  - cada petición, con su ruta y su `X-Request-ID`;
+  - sus llamadas a los proveedores y a la base de datos;
+  - cada trabajo, de la petición que lo envía (`send jobs`) a cada intento del *worker*
+    (`process jobs`), en la misma traza;
+  - cada comprobación de las fuentes.
+- **Los logs** llevan el `trace_id` y el `span_id` de su *span*.
+- **Nada sensible:** las credenciales de las URL y los valores de las consultas nunca llegan a
+  una traza.
+- **Dónde se ven:** en cualquier *backend* OTLP; en local, Jaeger con `just traces`.
+- **G0b, terminado.** Sus dos criterios se cumplen:
+  - un trabajo largo se lanza, se consulta y termina;
+  - hay observabilidad mínima (el latido de cada fuente y trazas en la API y el *worker*).
+
 ### G1 — Datos cripto y derivados
 
 **Contenido.**
