@@ -121,7 +121,7 @@ uv run just traceability      # regenerar docs/modules/ desde el registro de mó
 uv run just record-fixtures   # regrabar las casetes de los proveedores (necesita red)
 uv run just record-parity ../CryptoWorld  # regrabar la paridad con CryptoWorld (indicadores, patrones…)
 uv run just web-install       # instalar las dependencias de la web (pnpm; `just dev` lo hace si faltan)
-uv run just dev               # API (:8000, o INVESTINGLAB_API_PORT) y web (:3000) a la vez
+uv run just dev               # API (:8000, o INVESTINGLAB_API_PORT) y web (:3000) a la vez; con BD, también el worker
 uv run just preview           # igual, con la build de producción de la web (sin recarga)
 uv run just mobile            # como preview, y accesible desde el móvil en la misma Wi-Fi (sin login: solo en casa)
 uv run just api               # solo la API, en http://127.0.0.1:8000/docs, con recarga

@@ -18,6 +18,7 @@ describe("formatter", () => {
     expect(en.number(null)).toBe("—");
     expect(en.money(undefined, "EUR")).toBe("—");
     expect(es.date(null)).toBe("—");
+    expect(es.dateTime(null)).toBe("—");
   });
 
   it("formats money and session dates as calendar dates", () => {
@@ -25,6 +26,12 @@ describe("formatter", () => {
     // A session date is a calendar day, never shifted by the viewer's timezone.
     expect(en.date("2024-03-01")).toContain("Mar");
     expect(en.date("2024-03-01")).toContain("01");
+  });
+
+  it("writes an instant with its local time to the second", () => {
+    const text = en.dateTime("2026-11-23T12:48:05Z");
+    expect(text).toContain("2026");
+    expect(text).toContain(":05"); // the seconds do not depend on the viewer's timezone
   });
 
   it("names the marks of a time axis: the year, the month and the day", () => {

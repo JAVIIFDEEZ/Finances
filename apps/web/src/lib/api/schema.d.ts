@@ -2865,10 +2865,9 @@ export interface components {
             id: string;
             /**
              * Kind
-             * @default simulation
              * @constant
              */
-            kind?: "simulation";
+            kind: "simulation";
             status: components["schemas"]["JobStatus"];
             /**
              * Progress

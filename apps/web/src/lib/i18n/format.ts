@@ -17,6 +17,8 @@ export interface Formatter {
   money(value: number | null | undefined, currency: string, digits?: number): string;
   /** A date (ISO `YYYY-MM-DD` or an instant). */
   date(value: string | Date | null | undefined): string;
+  /** An instant with its local time to the second (`23 nov 2026, 12:48:05`). */
+  dateTime(value: string | Date | null | undefined): string;
   /** A short date for axes (`mar 24`). */
   monthYear(value: string | Date): string;
   /** The marks of a time axis: the year (`2026`), the short month (`nov`) and the day (`13`). */
@@ -49,6 +51,14 @@ export function formatter(locale: Locale): Formatter {
     return format;
   };
   const dateFormat = new Intl.DateTimeFormat(tag, { year: "numeric", month: "short", day: "2-digit" });
+  const dateTimeFormat = new Intl.DateTimeFormat(tag, {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
   const monthFormat = new Intl.DateTimeFormat(tag, { month: "short", year: "2-digit" });
   const yearOnly = new Intl.DateTimeFormat(tag, { year: "numeric" });
   const monthOnly = new Intl.DateTimeFormat(tag, { month: "short" });
@@ -95,6 +105,10 @@ export function formatter(locale: Locale): Formatter {
     date(value) {
       if (value === null || value === undefined) return DASH;
       return dateFormat.format(asDate(value));
+    },
+    dateTime(value) {
+      if (value === null || value === undefined) return DASH;
+      return dateTimeFormat.format(asDate(value));
     },
     monthYear(value) {
       return monthFormat.format(asDate(value));

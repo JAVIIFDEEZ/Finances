@@ -10,6 +10,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 
 import { api, ApiError, unwrap, type Schemas } from "@/lib/api/client";
 import type { Locale } from "@/lib/i18n/messages";
+import { refetchEvery } from "@/lib/util/jobs";
 
 const MINUTE = 60_000;
 
@@ -389,5 +390,64 @@ export function useDeleteSavedPortfolio() {
       if (!result.response.ok) unwrap(result);
     },
     onSettled: () => client.invalidateQueries({ queryKey: SAVED }),
+  });
+}
+
+// ── Background jobs (ADR-0046) ───────────────────────────────────────
+
+const JOBS = ["jobs"] as const;
+
+/** Without a database there is nothing to retry: the screens explain it instead. */
+const retryUnlessUnconfigured = (failures: number, error: unknown) =>
+  problemKind(error) !== "persistence-not-configured" && failures < 1;
+
+/** The owner's jobs, read again every second while any of them has not finished. */
+export function useJobs() {
+  return useQuery({
+    queryKey: JOBS,
+    queryFn: async () => unwrap(await api.GET("/api/v1/jobs", { params: { query: { limit: 50 } } })),
+    retry: retryUnlessUnconfigured,
+    refetchInterval: (query) => refetchEvery(query.state.data?.items),
+  });
+}
+
+/** One job with its parameters and result, read again every second until it finishes. */
+export function useJob(id: string | null) {
+  return useQuery({
+    queryKey: [...JOBS, id],
+    queryFn: async () => unwrap(await api.GET("/api/v1/jobs/{job_id}", { params: { path: { job_id: id as string } } })),
+    enabled: id !== null,
+    retry: retryUnlessUnconfigured,
+    refetchInterval: (query) => (query.state.data ? refetchEvery([query.state.data]) : false),
+  });
+}
+
+/** Queue a simulation larger than a request allows; the answer is the job, queued. */
+export function useSubmitSimulationJob() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (request: Schemas["SimulationIn"]) =>
+      unwrap(await api.POST("/api/v1/jobs/simulations", { body: request })),
+    onSettled: () => client.invalidateQueries({ queryKey: JOBS }),
+  });
+}
+
+export function useCancelJob() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) =>
+      unwrap(await api.POST("/api/v1/jobs/{job_id}/cancel", { params: { path: { job_id: id } } })),
+    onSettled: () => client.invalidateQueries({ queryKey: JOBS }),
+  });
+}
+
+export function useDeleteJob() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const result = await api.DELETE("/api/v1/jobs/{job_id}", { params: { path: { job_id: id } } });
+      if (!result.response.ok) unwrap(result);
+    },
+    onSettled: () => client.invalidateQueries({ queryKey: JOBS }),
   });
 }

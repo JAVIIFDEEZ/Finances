@@ -594,8 +594,15 @@ def test_the_schema_is_migrated_first_when_a_database_is_configured(
 
     assert dev.main([]) == 0
     assert launcher["steps"][0] == (migrate, dev.ROOT, False)
-    assert len(launcher["servers"]) == 2
-    assert dev.MIGRATING in capsys.readouterr().out  # never a silent wait
+    assert [server.name for server in launcher["servers"]] == ["API", "web", "worker"]
+    worker = launcher["servers"][2]
+    assert (worker.command, worker.cwd) == (
+        [sys.executable, "-m", "investinglab_api", "worker"],
+        dev.ROOT,
+    )
+    output = capsys.readouterr().out
+    assert dev.MIGRATING in output  # never a silent wait
+    assert "worker running" in output
 
     launcher["steps"].clear()
     launcher["servers"].clear()
