@@ -69,6 +69,7 @@ from investinglab.ports.market_data import (
 from investinglab.ports.reference import MarketCapRequest, MarketSnapshotRequest
 from investinglab.reporting.options import ReportOptions
 from investinglab.services.fx import CurrencyService
+from investinglab.services.heartbeat import CHECK_TIMEOUT, check_sources
 from investinglab.services.market_data import DataUnavailableError, MarketDataService
 from investinglab.services.quality import DataQualityService
 from investinglab.services.registry import ProviderRegistry
@@ -85,6 +86,7 @@ if TYPE_CHECKING:
     from investinglab.domain.confluence import TimeframeConfluence
     from investinglab.domain.economic import EconomicSeries
     from investinglab.domain.flow import FlowSeries
+    from investinglab.domain.heartbeat import SourceHeartbeat
     from investinglab.domain.market_reference import MarketCapRanking, MarketSnapshot
     from investinglab.domain.metrics import RiskMetrics
     from investinglab.domain.patterns import PricePatterns
@@ -332,6 +334,15 @@ class AsyncToolkit:
     def provider_capabilities(self) -> dict[str, ProviderCapabilities]:
         """What each registered provider can serve, in order of preference."""
         return self._registry.capabilities()
+
+    async def check_sources(self, *, within: float = CHECK_TIMEOUT) -> tuple[SourceHeartbeat, ...]:
+        """Ask every registered source its canary, past every cache, and say how it went.
+
+        Example: ``tk.check_sources()`` gives one heartbeat per remote source: whether it
+        answered, in how long, and the instant of its latest observation (ADR-0047). A local
+        source, without a canary, is not checked.
+        """
+        return await check_sources(self._registry.providers, within=within)
 
     # ── Data ─────────────────────────────────────────────────────────
 
@@ -1262,6 +1273,10 @@ class Toolkit:
     def venues(self, symbol: str, dataset: Dataset | str) -> tuple[str, ...]:
         """The venues that serve ``dataset`` of ``symbol`` (see :meth:`AsyncToolkit.venues`)."""
         return self._inner.venues(symbol, dataset)
+
+    def check_sources(self, *, within: float = CHECK_TIMEOUT) -> tuple[SourceHeartbeat, ...]:
+        """Check every source within ``within`` s (see :meth:`AsyncToolkit.check_sources`)."""
+        return self._run(self._inner.check_sources(within=within))
 
     def load(self, path: str | Path, **spec: Any) -> PriceSeries:  # noqa: ANN401
         """Import a CSV or Parquet file (see :meth:`AsyncToolkit.load`)."""

@@ -28,7 +28,7 @@ from investinglab.domain.errors import DomainError
 from investinglab.domain.series import DataSource
 from investinglab.domain.time import Frequency
 from investinglab.ports.errors import ProviderDataError, SymbolNotFoundError
-from investinglab.ports.market_data import Dataset, ProviderCapabilities, RateLimit
+from investinglab.ports.market_data import Canary, Dataset, ProviderCapabilities, RateLimit
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -126,6 +126,7 @@ class AlternativeMeProvider:
     def capabilities(self) -> ProviderCapabilities:
         """The ``FNG`` series only."""
         return ProviderCapabilities(
+            canary=Canary(Dataset.ECONOMIC, FEAR_GREED),
             datasets=frozenset({Dataset.ECONOMIC}),
             rate_limits=RATE_LIMITS,
             identifiers=FEAR_GREED,

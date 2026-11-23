@@ -44,7 +44,7 @@ from investinglab.ports.errors import (
     SymbolNotFoundError,
     UnsupportedRequestError,
 )
-from investinglab.ports.market_data import Dataset, ProviderCapabilities, RateLimit
+from investinglab.ports.market_data import Canary, Dataset, ProviderCapabilities, RateLimit
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -232,6 +232,7 @@ class DeribitProvider:
     def capabilities(self) -> ProviderCapabilities:
         """Funding of perpetual swaps quoted in dollars or USDC (``BASE/QUOTE:SETTLE``)."""
         return ProviderCapabilities(
+            canary=Canary(Dataset.HOLDING_RATES, "BTC/USD:BTC"),
             datasets=frozenset({Dataset.HOLDING_RATES}),
             asset_classes=frozenset({AssetClass.CRYPTO}),
             rate_limits=RATE_LIMITS,

@@ -4,7 +4,7 @@ import asyncio
 import threading
 import time
 from concurrent.futures import Future
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date, timedelta
 from typing import TYPE_CHECKING
 
@@ -36,7 +36,13 @@ from investinglab.domain import (
     RateSeries,
     price_patterns,
 )
-from investinglab.ports import Dataset, MarketCapRequest, ProviderCapabilities, RatesRequest
+from investinglab.ports import (
+    Canary,
+    Dataset,
+    MarketCapRequest,
+    ProviderCapabilities,
+    RatesRequest,
+)
 from investinglab.services import DataUnavailableError, ProviderRegistry
 from investinglab.toolkit import (
     AsyncToolkit,
@@ -56,6 +62,7 @@ from support.factories import (
     make_series,
 )
 from support.fakes import (
+    BARS_CAPABILITIES,
     FakeBarsProvider,
     FakeBookDepthProvider,
     FakeEconomicProvider,
@@ -245,6 +252,31 @@ def test_the_default_remote_providers(tmp_path: Path) -> None:
     own = FakeBarsProvider("yahoo")
     with Toolkit.from_settings(online, providers=[own], cache=False) as replaced:
         assert replaced.providers == ("yahoo", *(name for name in REMOTE if name != "yahoo"))
+
+
+def test_every_default_remote_source_has_a_canary(tmp_path: Path) -> None:
+    with Toolkit.from_settings(_settings(tmp_path, offline=False), cache=False) as tk:
+        canaries = {p.name: p.capabilities.canary for p in tk._inner._registry.providers}
+
+    # Each one is a request its provider serves: ProviderCapabilities checks it (ADR-0047).
+    assert tuple(canaries) == REMOTE
+    assert all(canary is not None for canary in canaries.values())
+    assert canaries["yahoo"] == Canary(Dataset.BARS, "^GSPC")
+    assert canaries["deribit"] == Canary(Dataset.HOLDING_RATES, "BTC/USD:BTC")
+
+
+def test_sources_are_checked_past_the_cache(tmp_path: Path) -> None:
+    capabilities = replace(BARS_CAPABILITIES, canary=Canary(Dataset.BARS, "SPY"))
+    venue = FakeBarsProvider("venue", {"SPY": make_series(symbol="SPY")}, capabilities=capabilities)
+    files = FakeBarsProvider("files", {"SPY": make_series(symbol="SPY")})
+
+    with Toolkit.from_settings(_settings(tmp_path), providers=[files, venue]) as tk:
+        (heartbeat,) = tk.check_sources()
+        tk.check_sources(within=5.0)
+
+    assert (heartbeat.provider, heartbeat.ok) == ("venue", True)
+    assert len(venue.calls) == 2  # asked every time, never answered from the cache
+    assert files.calls == []  # without a canary, not checked
 
 
 def test_venue_pairs_bring_their_flow_and_listed_symbols_their_volume(tmp_path: Path) -> None:

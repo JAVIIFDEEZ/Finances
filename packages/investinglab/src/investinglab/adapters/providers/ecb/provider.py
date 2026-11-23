@@ -37,7 +37,7 @@ from investinglab.ports.errors import (
     SymbolNotFoundError,
     UnsupportedRequestError,
 )
-from investinglab.ports.market_data import Dataset, ProviderCapabilities, RateLimit
+from investinglab.ports.market_data import Canary, Dataset, ProviderCapabilities, RateLimit
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -111,6 +111,7 @@ class EcbProvider:
         """Daily and coarser FX bars of the reference currencies, and the catalogue."""
         series = "|".join(re.escape(series_id) for series_id in CATALOGUE)
         return ProviderCapabilities(
+            canary=Canary(Dataset.BARS, "EURUSD=X"),
             datasets=frozenset({Dataset.BARS, Dataset.ECONOMIC}),
             asset_classes=frozenset({AssetClass.FX}),
             frequencies=FREQUENCIES,

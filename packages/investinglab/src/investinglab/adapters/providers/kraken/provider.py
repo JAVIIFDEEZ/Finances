@@ -28,7 +28,7 @@ from investinglab.domain.instruments import AssetClass
 from investinglab.domain.series import DataSource, PriceField
 from investinglab.domain.time import Frequency
 from investinglab.ports.errors import ProviderDataError, RateLimitedError, SymbolNotFoundError
-from investinglab.ports.market_data import Dataset, ProviderCapabilities, RateLimit
+from investinglab.ports.market_data import Canary, Dataset, ProviderCapabilities, RateLimit
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -133,6 +133,7 @@ class KrakenProvider:
         daily = lookback[Frequency.DAY_1]
         coarser = {f: daily for f in Frequency if not f.is_intraday and f not in INTERVALS}
         return ProviderCapabilities(
+            canary=Canary(Dataset.BARS, "BTC/USD"),
             datasets=frozenset({Dataset.BARS, Dataset.FLOW}),
             asset_classes=frozenset({AssetClass.CRYPTO}),
             frequencies=frozenset(Frequency),

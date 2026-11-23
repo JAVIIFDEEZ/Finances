@@ -53,7 +53,7 @@ from investinglab.ports.errors import (
     SymbolNotFoundError,
     UnsupportedRequestError,
 )
-from investinglab.ports.market_data import Dataset, ProviderCapabilities, RateLimit
+from investinglab.ports.market_data import Canary, Dataset, ProviderCapabilities, RateLimit
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -251,6 +251,7 @@ class BinanceProvider:
         }
         snapshots = frozenset(POSITIONING_FREQUENCIES)
         return ProviderCapabilities(
+            canary=Canary(Dataset.BARS, "BTC/USDT"),
             datasets=frozenset(
                 {
                     Dataset.BARS,
