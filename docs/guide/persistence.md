@@ -25,7 +25,7 @@ INVESTINGLAB_API_DATABASE_URL=postgresql+psycopg://…
 
 ```bash
 uv run just db-upgrade     # crea o actualiza las tablas
-uv run just dev            # también aplica las migraciones pendientes antes de arrancar
+uv run just dev            # también aplica las migraciones pendientes y arranca el worker
 ```
 
 Si la base de datos no responde, `db upgrade` (y con él `just dev`) se rinde a los
@@ -58,8 +58,12 @@ la API como trabajo y lo ejecuta un *worker*: otro proceso con el mismo código,
 la cola de PostgreSQL ([guía de la API](api.md#trabajos-en-segundo-plano)).
 
 ```bash
-uv run just worker         # ejecuta los trabajos; Ctrl+C para pararlo
+uv run just dev            # con base de datos, arranca el worker junto a la API y la web
+uv run just worker         # o solo el worker; Ctrl+C para pararlo
 ```
+
+En la web, la pantalla **Trabajos** los lista con su progreso y muestra el resultado de cada
+uno; en **Simulación**, «En segundo plano» envía una de hasta 200 000 trayectorias.
 
 * **Varios a la vez.** Ejecuta `INVESTINGLAB_API_WORKER_CONCURRENCY` trabajos a la vez (2 por
   defecto). Para más, arranca más *workers*.

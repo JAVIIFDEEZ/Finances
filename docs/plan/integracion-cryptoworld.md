@@ -755,6 +755,17 @@ Es decir: **unos 6-8 meses hasta la paridad en lo esencial (G0-G8)** y unos 10-1
 - **Pendiente de G0b:** los trabajos en la web y el *worker* dentro de `just dev`, y la
   observabilidad mínima.
 
+**Avance (23-11-2026, G0b, trabajos en la web):**
+
+- **«Trabajos».** Una pantalla con cada trabajo, su etapa y su progreso, que se actualizan solos.
+  Muestra el resultado al terminar, con la misma vista que la simulación síncrona; permite
+  cancelar y borrar, y avisa si un trabajo lleva rato en cola sin *worker*.
+- **Simulación en segundo plano.** «En segundo plano» envía hasta 200 000 trayectorias.
+- **`just dev`.** Con base de datos, arranca también el *worker*.
+- **Pruebas e2e.** El de la CI levanta un *worker* real y sigue una simulación de principio a
+  fin.
+- **Pendiente de G0b:** la observabilidad mínima.
+
 ### G1 — Datos cripto y derivados
 
 **Contenido.**
