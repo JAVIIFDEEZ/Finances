@@ -1,7 +1,8 @@
-# Local services for development. For now, only the database:
+# Local services for development: the database and, if asked for, a trace viewer.
 #
 #   uv run just db-up        # start PostgreSQL and wait until it accepts connections
 #   uv run just db-upgrade   # create or update the schema
+#   uv run just traces       # start Jaeger (profile "tracing") to look at the traces
 #
 # The API and the web app run on the host with `uv run just dev` (containers for them
 # arrive with phase F10). Data lives in the `postgres-data` volume:
@@ -25,6 +26,17 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    restart: unless-stopped
+
+  # Receives the traces of the API and the worker over OTLP and shows them
+  # (INVESTINGLAB_API_TRACING=otlp, ADR-0048). Only with the profile: `just traces`.
+  # It keeps them in memory: stopping it forgets them.
+  jaeger:
+    image: jaegertracing/jaeger:2.23.0
+    profiles: ["tracing"]
+    ports:
+      - "127.0.0.1:16686:16686" # its screen
+      - "127.0.0.1:4318:4318" # OTLP over HTTP, where the API and the worker send
     restart: unless-stopped
 
 volumes:
