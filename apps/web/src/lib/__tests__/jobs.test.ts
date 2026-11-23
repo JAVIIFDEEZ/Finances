@@ -63,9 +63,18 @@ describe("timing", () => {
   });
 
   it("suspects a missing worker only for a job queued a while", () => {
-    expect(waitingForWorker({ status: "queued", created_at: "2026-11-23T12:00:00Z" }, NOW)).toBe(true);
-    expect(waitingForWorker({ status: "queued", created_at: "2026-11-23T12:00:25Z" }, NOW)).toBe(false);
-    expect(waitingForWorker({ status: "running", created_at: "2026-11-23T11:00:00Z" }, NOW)).toBe(false);
+    expect(waitingForWorker({ status: "queued", created_at: "2026-11-23T12:00:00Z" }, null, NOW)).toBe(true);
+    expect(waitingForWorker({ status: "queued", created_at: "2026-11-23T12:00:25Z" }, undefined, NOW)).toBe(false);
+    expect(waitingForWorker({ status: "running", created_at: "2026-11-23T11:00:00Z" }, null, NOW)).toBe(false);
+  });
+
+  it("believes the API when it can count the workers", () => {
+    const fresh = { status: "queued", created_at: "2026-11-23T12:00:29Z" } as const;
+    const old = { status: "queued", created_at: "2026-11-23T11:00:00Z" } as const;
+
+    expect(waitingForWorker(fresh, 0, NOW)).toBe(true); // nobody to take it: say so at once
+    expect(waitingForWorker(old, 2, NOW)).toBe(false); // it waits its turn
+    expect(waitingForWorker({ ...old, status: "running" }, 0, NOW)).toBe(false);
   });
 
   it("measures the run once finished", () => {

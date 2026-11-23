@@ -21,6 +21,17 @@ describe("formatter", () => {
     expect(es.dateTime(null)).toBe("—");
   });
 
+  it("says how long ago in the largest whole unit", () => {
+    expect(en.ago(42)).toBe("42 sec ago");
+    expect(en.ago(5 * 60 + 59)).toBe("5 min ago");
+    expect(en.ago(3 * 3_600)).toBe("3 hr ago");
+    expect(en.ago(2 * 86_400 + 5)).toBe("2 days ago");
+    expect(es.ago(5 * 60)).toBe("hace 5 min");
+    expect(es.ago(3 * 3_600)).toBe("hace 3 h");
+    expect(es.ago(-3)).toBe(es.ago(0)); // clocks drift: never in the future
+    expect(es.ago(null)).toBe("—");
+  });
+
   it("formats money and session dates as calendar dates", () => {
     expect(en.money(12_692.4, "EUR")).toBe("€12,692");
     // A session date is a calendar day, never shifted by the viewer's timezone.

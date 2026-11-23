@@ -19,6 +19,8 @@ export interface Formatter {
   date(value: string | Date | null | undefined): string;
   /** An instant with its local time to the second (`23 nov 2026, 12:48:05`). */
   dateTime(value: string | Date | null | undefined): string;
+  /** How long ago, from a number of seconds, in the largest whole unit (`hace 5 min`). */
+  ago(seconds: number | null | undefined): string;
   /** A short date for axes (`mar 24`). */
   monthYear(value: string | Date): string;
   /** The marks of a time axis: the year (`2026`), the short month (`nov`) and the day (`13`). */
@@ -28,6 +30,13 @@ export interface Formatter {
 }
 
 const DASH = "—";
+
+/** The units of a relative time, from the largest, with their length in seconds. */
+const AGO_UNITS: readonly (readonly [Intl.RelativeTimeFormatUnit, number])[] = [
+  ["day", 86_400],
+  ["hour", 3_600],
+  ["minute", 60],
+];
 
 function isMissing(value: number | null | undefined): value is null | undefined {
   return value === null || value === undefined || !Number.isFinite(value);
@@ -59,6 +68,7 @@ export function formatter(locale: Locale): Formatter {
     minute: "2-digit",
     second: "2-digit",
   });
+  const relative = new Intl.RelativeTimeFormat(tag, { numeric: "always", style: "short" });
   const monthFormat = new Intl.DateTimeFormat(tag, { month: "short", year: "2-digit" });
   const yearOnly = new Intl.DateTimeFormat(tag, { year: "numeric" });
   const monthOnly = new Intl.DateTimeFormat(tag, { month: "short" });
@@ -109,6 +119,14 @@ export function formatter(locale: Locale): Formatter {
     dateTime(value) {
       if (value === null || value === undefined) return DASH;
       return dateTimeFormat.format(asDate(value));
+    },
+    ago(seconds) {
+      if (isMissing(seconds)) return DASH;
+      const elapsed = Math.max(0, seconds);
+      for (const [unit, size] of AGO_UNITS) {
+        if (elapsed >= size) return relative.format(-Math.floor(elapsed / size), unit);
+      }
+      return relative.format(-Math.floor(elapsed), "second");
     },
     monthYear(value) {
       return monthFormat.format(asDate(value));

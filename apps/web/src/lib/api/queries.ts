@@ -401,6 +401,16 @@ const JOBS = ["jobs"] as const;
 const retryUnlessUnconfigured = (failures: number, error: unknown) =>
   problemKind(error) !== "persistence-not-configured" && failures < 1;
 
+/** What the worker last saw of each data source (ADR-0047), read again every minute. */
+export function useSources() {
+  return useQuery({
+    queryKey: ["sources"],
+    queryFn: async () => unwrap(await api.GET("/api/v1/sources")),
+    retry: retryUnlessUnconfigured,
+    refetchInterval: MINUTE,
+  });
+}
+
 /** The owner's jobs, read again every second while any of them has not finished. */
 export function useJobs() {
   return useQuery({

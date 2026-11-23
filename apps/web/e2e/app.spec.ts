@@ -26,6 +26,12 @@ test("the overview shows the markets, the portfolio and the platform", async ({ 
   // Nor of the crypto market's snapshot: the card says so instead of failing.
   await expect(page.getByRole("heading", { name: "Mercado cripto" })).toBeVisible();
   await expect(page.getByText("No disponible: el mercado cripto viene de CoinGecko", { exact: false })).toBeVisible();
+  // The sources' heartbeat: without a database nobody checks them; with one, the worker
+  // checks every source with a canary, and the owner's own files are never among them.
+  const sources = process.env.INVESTINGLAB_E2E_DATABASE_URL
+    ? "Ficheros propios: no se comprueban."
+    : "Sin base de datos nadie comprueba las fuentes";
+  await expect(page.getByText(sources, { exact: false })).toBeVisible();
   expect(errors).toEqual([]);
 });
 
