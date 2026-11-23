@@ -42,7 +42,7 @@ def _alive(pid: int) -> bool:
     """Whether the process runs (a zombie has finished: only its parent has not reaped it)."""
     try:
         stat = Path(f"/proc/{pid}/stat").read_text(encoding="ascii")
-    except FileNotFoundError:
+    except (FileNotFoundError, ProcessLookupError):  # gone before the open, or before the read
         return False
     return stat.rsplit(")", 1)[1].split()[0] != "Z"
 
