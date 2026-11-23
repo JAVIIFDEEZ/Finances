@@ -33,6 +33,7 @@ from investinglab.analytics import (
     simple_returns,
     total_return,
 )
+from investinglab.domain.backtest import BacktestConfig, BacktestResult, run_backtest
 from investinglab.domain.errors import DomainError, InvalidSeriesError
 from investinglab.domain.metrics import DEFAULT_CONFIDENCE_LEVELS, RiskMetrics
 from investinglab.domain.planning import PlanResult, SavingsPlan, simulate_plan
@@ -526,6 +527,34 @@ class PriceSeries:
             >>> result.probability_of_success, result.required_contribution(0.9)
         """
         return simulate_plan(self.prices, plan, config, currency=str(self.currency))
+
+    def backtest(
+        self,
+        signals: pd.Series,
+        *,
+        short_signals: pd.Series | None = None,
+        config: BacktestConfig | None = None,
+        funding: pd.Series | None = None,
+        borrow: pd.Series | None = None,
+        conviction: pd.Series | None = None,
+    ) -> BacktestResult:
+        """Trade this series with ``signals`` (see :func:`~investinglab.domain.run_backtest`).
+
+        Examples:
+            >>> fast, slow = series.prices.rolling(10).mean(), series.prices.rolling(30).mean()
+            >>> above = (fast > slow).astype(int)
+            >>> result = series.backtest(above.diff().fillna(0))
+            >>> result.metrics().sharpe_ratio, result.statistics.win_rate
+        """
+        return run_backtest(
+            self,
+            signals,
+            short_signals=short_signals,
+            config=config,
+            funding=funding,
+            borrow=borrow,
+            conviction=conviction,
+        )
 
     def beta(self, benchmark: PriceSeries) -> float:
         """Sensitivity to ``benchmark`` on the dates where both have a return."""
