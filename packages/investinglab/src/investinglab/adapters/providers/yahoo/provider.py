@@ -58,7 +58,7 @@ from investinglab.ports.errors import (
     SymbolNotFoundError,
     UnsupportedRequestError,
 )
-from investinglab.ports.market_data import Dataset, ProviderCapabilities, RateLimit
+from investinglab.ports.market_data import Canary, Dataset, ProviderCapabilities, RateLimit
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -165,6 +165,7 @@ class YahooFinanceProvider:
         The flow (volume only) of the same bars, except for currency pairs and crypto-assets.
         """
         return ProviderCapabilities(
+            canary=Canary(Dataset.BARS, "^GSPC"),
             datasets=frozenset({Dataset.BARS, Dataset.FLOW}),
             asset_classes=frozenset(ASSET_CLASSES.values()),
             frequencies=frozenset(Frequency),

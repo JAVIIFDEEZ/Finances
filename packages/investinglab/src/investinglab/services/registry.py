@@ -178,6 +178,11 @@ class ProviderRegistry:
         """Names of every registered provider, in registration order."""
         return tuple(self._providers)
 
+    @property
+    def providers(self) -> tuple[AnyProvider, ...]:
+        """Every registered provider, in registration order."""
+        return tuple(self._providers.values())
+
     def capabilities(self) -> dict[str, ProviderCapabilities]:
         """What each registered provider declares it can serve, in registration order."""
         return {name: provider.capabilities for name, provider in self._providers.items()}

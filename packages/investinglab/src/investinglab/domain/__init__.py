@@ -41,6 +41,7 @@ from investinglab.domain.errors import (
 )
 from investinglab.domain.flow import FlowField, FlowSeries
 from investinglab.domain.fx import DEFAULT_MAX_STALENESS, FxRates, currency_attribution
+from investinglab.domain.heartbeat import SourceHeartbeat, SourceStatus
 from investinglab.domain.instruments import (
     EXCHANGES,
     AssetClass,
@@ -247,6 +248,8 @@ __all__ = [
     "SimulationConfig",
     "SimulationModel",
     "SimulationResult",
+    "SourceHeartbeat",
+    "SourceStatus",
     "StructureLevel",
     "Survivorship",
     "TailRisk",

@@ -1,14 +1,25 @@
-"""Health, providers, modules, request ids, CORS and the OpenAPI document."""
+"""Health, providers, sources, modules, request ids, CORS and the OpenAPI document."""
 
 from __future__ import annotations
 
+from dataclasses import replace
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
+from fastapi.testclient import TestClient
+
 from investinglab import __version__ as core_version
+from investinglab.domain import SourceHeartbeat
+from investinglab.ports import Canary, Dataset
 from investinglab_api import __version__
+from investinglab_api.app import create_app
+from investinglab_api.settings import ApiSettings
 
 if TYPE_CHECKING:
-    from fastapi.testclient import TestClient
+    from investinglab.config import Settings
+    from investinglab.toolkit import AsyncToolkit
+    from support.fakes import FakeBarsProvider
+    from support.repositories import InMemoryHeartbeatStore
 
 
 def test_health_reports_the_providers_and_the_offline_mode(client: TestClient) -> None:
@@ -32,6 +43,7 @@ def test_health_reports_the_providers_and_the_offline_mode(client: TestClient) -
         ],
         "offline": True,
         "database": "not_configured",
+        "workers": None,  # nobody to ask without a database
     }
 
 
@@ -53,10 +65,70 @@ def test_providers_describe_their_capabilities(client: TestClient) -> None:
     assert bars["frequencies"][0] == "1m"  # ordered from the finest
     assert bars["requires_api_key"] is False
     assert bars["rate_kinds"] == []
+    assert bars["canary"] is None  # a synthetic source is never checked
     assert providers[1]["datasets"] == ["economic"]
     assert providers[2]["datasets"] == ["flow"]
     assert providers[3]["datasets"] == ["holding_rates"]
     assert providers[3]["rate_kinds"] == ["borrow", "financing", "funding"]
+
+
+def test_a_provider_says_how_the_worker_checks_it(
+    toolkit: AsyncToolkit, core_settings: Settings, bars: FakeBarsProvider
+) -> None:
+    bars.capabilities = replace(bars.capabilities, canary=Canary(Dataset.BARS, "AAA.MC"))
+
+    with TestClient(create_app(ApiSettings(), core_settings=core_settings, toolkit=toolkit)) as c:
+        (checked, *_) = c.get("/api/v1/providers").json()
+
+    assert checked["canary"] == {"dataset": "bars", "symbol": "AAA.MC"}
+
+
+async def test_sources_tell_what_the_worker_last_saw(
+    client: TestClient, heartbeats: InMemoryHeartbeatStore
+) -> None:
+    assert client.get("/api/v1/sources").json() == []
+    now = datetime(2026, 11, 23, 9, 15, tzinfo=UTC)
+    latest = datetime(2026, 11, 20, tzinfo=UTC)
+    await heartbeats.record(SourceHeartbeat("yahoo", now, ok=True, latency=0.25, latest=latest))
+    await heartbeats.record(SourceHeartbeat("ecb", now, ok=True, latency=0.5, latest=latest))
+    later = now + timedelta(minutes=15)
+    await heartbeats.record(SourceHeartbeat("ecb", later, ok=False, latency=30.0, error="Timeout"))
+
+    sources = client.get("/api/v1/sources")
+
+    assert sources.status_code == 200
+    assert sources.json() == [
+        {
+            "provider": "ecb",
+            "checked_at": "2026-11-23T09:30:00Z",
+            "ok": False,
+            "latency_seconds": 30.0,
+            "latest_at": None,
+            "error": "Timeout",
+            "last_ok_at": "2026-11-23T09:15:00Z",
+            "failures": 1,
+        },
+        {
+            "provider": "yahoo",
+            "checked_at": "2026-11-23T09:15:00Z",
+            "ok": True,
+            "latency_seconds": 0.25,
+            "latest_at": "2026-11-20T00:00:00Z",
+            "error": None,
+            "last_ok_at": "2026-11-23T09:15:00Z",
+            "failures": 0,
+        },
+    ]
+
+
+def test_without_a_database_nobody_checks_the_sources(
+    toolkit: AsyncToolkit, core_settings: Settings
+) -> None:
+    with TestClient(create_app(ApiSettings(), core_settings=core_settings, toolkit=toolkit)) as c:
+        response = c.get("/api/v1/sources")
+
+    assert response.status_code == 503
+    assert response.json()["type"].endswith("#persistence-not-configured")
 
 
 def test_modules_carry_their_traceability_in_both_languages(client: TestClient) -> None:
@@ -116,6 +188,7 @@ def test_the_openapi_document_describes_every_endpoint(client: TestClient) -> No
         "/health/live",
         "/health/ready",
         "/api/v1/providers",
+        "/api/v1/sources",
         "/api/v1/modules",
         "/api/v1/modules/{slug}",
         "/api/v1/market/bars",

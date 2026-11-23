@@ -316,7 +316,10 @@ def test_the_api_stores_portfolios_in_postgresql(
     settings = ApiSettings(database_url=postgres["app"], local_owner=owner)  # type: ignore[arg-type]
 
     with TestClient(create_app(settings, core_settings=core_settings, toolkit=toolkit)) as client:
-        assert client.get("/health/ready").json()["database"] == "ok"
+        ready = client.get("/health/ready").json()
+        assert ready["database"] == "ok"
+        assert isinstance(ready["workers"], int)  # counted: none of the tests leaves one running
+        assert client.get("/api/v1/sources").status_code == 200  # read from its own table
         saved = save(client, portfolio())
         url = f"{URL}/{saved['id']}"
         changed = client.put(url, json=portfolio(name="Renamed"), headers={"If-Match": '"1"'})
@@ -347,3 +350,4 @@ def test_readiness_reports_a_database_that_needs_migrating(
 
     assert ready.status_code == 200  # the endpoints without state still work
     assert ready.json()["database"] == "migrations_pending"
+    assert ready.json()["workers"] is None  # not asked: there is no queue yet

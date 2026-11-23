@@ -12,12 +12,14 @@ from uuid import uuid4
 import pytest
 
 from investinglab.domain.errors import DomainError
+from investinglab.domain.heartbeat import SourceHeartbeat, SourceStatus
 from investinglab.domain.portfolio import RebalancePolicy
 from investinglab.domain.time import Frequency
 from investinglab.ports import (
     JOB_STREAM,
     AuditLog,
     DuplicateNameError,
+    HeartbeatStore,
     JobError,
     JobRepository,
     JobStateError,
@@ -31,6 +33,7 @@ from investinglab.ports import (
 )
 from investinglab_api.persistence import (
     SqlAuditLog,
+    SqlHeartbeatStore,
     SqlJobRepository,
     SqlPortfolioRepository,
     queue_app,
@@ -38,6 +41,7 @@ from investinglab_api.persistence import (
 from support.repositories import (
     PORTFOLIO_STREAM,
     InMemoryAuditLog,
+    InMemoryHeartbeatStore,
     InMemoryJobRepository,
     InMemoryPortfolioRepository,
 )
@@ -78,6 +82,13 @@ def job_stores(request: pytest.FixtureRequest) -> JobStores:
     return SqlJobRepository(database, queue_app(postgres["app"]), clock), SqlAuditLog(
         database, clock
     )
+
+
+@pytest.fixture(params=["memory", pytest.param("postgres", marks=pytest.mark.integration)])
+def heartbeats(request: pytest.FixtureRequest) -> HeartbeatStore:
+    if request.param == "memory":
+        return InMemoryHeartbeatStore()
+    return SqlHeartbeatStore(request.getfixturevalue("database"))
 
 
 @pytest.fixture
@@ -479,3 +490,70 @@ async def test_every_outcome_leaves_an_entry_in_the_audit_log(
     assert entries[1].details == job_outcome(succeeded)  # the result's digest, not the result
     assert "result_sha256" in entries[1].details
     assert (await audit.verify(JOB_STREAM)).intact
+
+
+# ── Source heartbeats (ADR-0047) ─────────────────────────────────────
+
+
+@pytest.fixture
+def source() -> str:
+    """A source nobody else checks: the table is global and the tests share one database."""
+    return f"source-{uuid4().hex[:12]}"
+
+
+def _check(
+    source: str, at: datetime, *, ok: bool = True, latency: float = 0.4321
+) -> SourceHeartbeat:
+    if ok:
+        latest = datetime(2026, 11, 20, tzinfo=UTC)
+        return SourceHeartbeat(source, at, ok=True, latency=latency, latest=latest)
+    error = "TimeoutError: " + "x" * 290  # about as long as one is kept
+    return SourceHeartbeat(source, at, ok=False, latency=latency, error=error)
+
+
+async def _status_of(store: HeartbeatStore, source: str) -> list[SourceStatus]:
+    return [status for status in await store.statuses() if status.provider == source]
+
+
+async def test_a_heartbeat_reads_back_exactly(heartbeats: HeartbeatStore, source: str) -> None:
+    checked = datetime(2026, 11, 23, 9, 15, 30, 123456, tzinfo=UTC)
+
+    recorded = await heartbeats.record(_check(source, checked))
+
+    assert recorded == SourceStatus(_check(source, checked), checked, 0)
+    assert await _status_of(heartbeats, source) == [recorded]
+
+
+async def test_failures_add_up_until_the_source_answers(
+    heartbeats: HeartbeatStore, source: str
+) -> None:
+    start = datetime(2026, 11, 23, 9, 0, tzinfo=UTC)
+    at = [start + timedelta(minutes=15 * step) for step in range(4)]
+
+    await heartbeats.record(_check(source, at[0]))
+    await heartbeats.record(_check(source, at[1], ok=False))
+    failing = await heartbeats.record(_check(source, at[2], ok=False, latency=30.0))
+
+    assert (failing.last_ok_at, failing.failures) == (at[0], 2)
+    assert failing.heartbeat == _check(source, at[2], ok=False, latency=30.0)
+    assert await _status_of(heartbeats, source) == [failing]
+    back = await heartbeats.record(_check(source, at[3]))
+    assert (back.last_ok_at, back.failures, back.heartbeat.error) == (at[3], 0, None)
+
+
+async def test_a_source_that_never_answered(heartbeats: HeartbeatStore, source: str) -> None:
+    status = await heartbeats.record(_check(source, datetime.now(UTC), ok=False))
+
+    assert (status.last_ok_at, status.failures, status.heartbeat.latest) == (None, 1, None)
+
+
+async def test_sources_are_listed_by_name(heartbeats: HeartbeatStore, source: str) -> None:
+    now = datetime.now(UTC)
+    for name in (f"{source}-b", f"{source}-a", f"{source}-c"):
+        await heartbeats.record(_check(name, now))
+
+    names = [status.provider for status in await heartbeats.statuses()]
+
+    mine = [name for name in names if name.startswith(source)]
+    assert mine == [f"{source}-a", f"{source}-b", f"{source}-c"]
+    assert names == sorted(names)

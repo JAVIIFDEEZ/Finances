@@ -91,12 +91,14 @@ from investinglab_api.schemas.market import (
     VenuesOut,
 )
 from investinglab_api.schemas.meta import (
+    CanaryOut,
     HealthOut,
     ModuleOut,
     ProviderOut,
     RateLimitOut,
     RequirementOut,
     RiskFreeOut,
+    SourceStatusOut,
 )
 from investinglab_api.schemas.portfolio import (
     DrawdownEpisodeOut,
@@ -119,6 +121,7 @@ if TYPE_CHECKING:
     from investinglab.domain.confluence import FrameReading, TimeframeConfluence
     from investinglab.domain.economic import EconomicSeries
     from investinglab.domain.flow import FlowSeries
+    from investinglab.domain.heartbeat import SourceStatus
     from investinglab.domain.instruments import Instrument
     from investinglab.domain.market_reference import MarketCapRanking, MarketSnapshot
     from investinglab.domain.metrics import RiskMetrics
@@ -1018,7 +1021,11 @@ def plan_out(result: PlanResult, probability: float) -> PlanOut:
 
 
 def health_out(
-    providers: Sequence[str], *, offline: bool, database: str = "not_configured"
+    providers: Sequence[str],
+    *,
+    offline: bool,
+    database: str = "not_configured",
+    workers: int | None = None,
 ) -> HealthOut:
     """Health of the service."""
     return HealthOut.model_validate(
@@ -1029,7 +1036,23 @@ def health_out(
             "providers": list(providers),
             "offline": offline,
             "database": database,
+            "workers": workers,
         }
+    )
+
+
+def source_status_out(status: SourceStatus) -> SourceStatusOut:
+    """The status of a data source."""
+    heartbeat = status.heartbeat
+    return SourceStatusOut(
+        provider=heartbeat.provider,
+        checked_at=heartbeat.checked_at,
+        ok=heartbeat.ok,
+        latency_seconds=heartbeat.latency,
+        latest_at=heartbeat.latest,
+        error=heartbeat.error,
+        last_ok_at=status.last_ok_at,
+        failures=status.failures,
     )
 
 
@@ -1096,6 +1119,9 @@ def provider_out(name: str, capabilities: ProviderCapabilities) -> ProviderOut:
         ],
         identifiers=capabilities.identifiers,
         rate_kinds=sorted(capabilities.rate_kinds),
+        canary=None
+        if capabilities.canary is None
+        else CanaryOut(dataset=capabilities.canary.dataset, symbol=capabilities.canary.symbol),
     )
 
 

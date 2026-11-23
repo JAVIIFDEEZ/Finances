@@ -11,6 +11,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
+from investinglab.domain.heartbeat import SourceHeartbeat, SourceStatus
 from investinglab.ports import (
     JOB_STREAM,
     ChainReport,
@@ -42,6 +43,7 @@ __all__ = [
     "JOB_STREAM",
     "PORTFOLIO_STREAM",
     "InMemoryAuditLog",
+    "InMemoryHeartbeatStore",
     "InMemoryJobRepository",
     "InMemoryPortfolioRepository",
 ]
@@ -290,3 +292,19 @@ class InMemoryJobRepository:
         return await self._finish(
             replace(job, status=JobStatus.CANCELLED, finished_at=self._clock())
         )
+
+
+class InMemoryHeartbeatStore:
+    """The status of each data source, kept in memory."""
+
+    def __init__(self) -> None:
+        self._statuses: dict[str, SourceStatus] = {}
+
+    async def record(self, heartbeat: SourceHeartbeat) -> SourceStatus:
+        known = self._statuses.get(heartbeat.provider)
+        status = SourceStatus.first(heartbeat) if known is None else known.after(heartbeat)
+        self._statuses[heartbeat.provider] = status
+        return status
+
+    async def statuses(self) -> tuple[SourceStatus, ...]:
+        return tuple(self._statuses[name] for name in sorted(self._statuses))

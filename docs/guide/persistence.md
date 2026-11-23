@@ -41,6 +41,7 @@ En la web, la pantalla **Cartera** muestra entonces «Carteras guardadas».
 | `portfolios` | Definición de cada cartera guardada (activos, pesos, divisa, rebalanceo, fechas), con su versión | Cada fila tiene propietario; la base de datos solo deja ver y escribir las propias |
 | `jobs` | Cada trabajo en segundo plano: tipo, estado, parámetros, progreso, resultado o error | Propietario como `portfolios`; las reglas de su ciclo de vida son restricciones (resultado solo si terminó bien, error solo si falló) |
 | `procrastinate_*` | La cola de la que los *workers* toman los trabajos (Procrastinate): solo el id del trabajo y su dueño | Global; se escribe en la misma transacción que la fila de `jobs` |
+| `source_heartbeats` | La última comprobación de cada fuente de datos: si respondió, en cuánto, su último dato, el error, cuándo respondió por última vez y cuántas veces seguidas ha fallado | Global (es igual para todos); sus reglas son restricciones y la aplicación no puede borrar filas |
 | `audit_log` | Una entrada por cada cartera creada, cambiada o borrada, y por cada trabajo enviado, terminado o borrado (con el SHA-256 de su resultado) | Solo se puede añadir: ni la aplicación ni el dueño de la tabla pueden cambiarla o borrarla; cada entrada encadena el *hash* de la anterior |
 
 * **Propietario.** Mientras no haya acceso con usuario (fase F7), todo pertenece a
@@ -73,7 +74,13 @@ uno; en **Simulación**, «En segundo plano» envía una de hasta 200 000 trayec
   intentos perdidos, el trabajo termina como `job-interrupted`.
 * **Al pararlo con Ctrl+C**, los trabajos en marcha tienen 30 segundos para acabar. Los que no
   acaban quedan como `job-interrupted`.
-* **Sin *worker*** los trabajos esperan en la cola (`queued`) hasta que arranque uno.
+* **Sin *worker*** los trabajos esperan en la cola (`queued`) hasta que arranque uno. La
+  disponibilidad de la API (`/health/ready`) dice cuántos hay en marcha (`workers`), y la
+  pantalla de un trabajo en cola avisa en cuanto no queda ninguno.
+* **Las fuentes de datos.** Al arrancar, y después cada cuarto de hora, el *worker* hace a cada
+  fuente su pregunta de prueba (su canario) y guarda cómo respondió en `source_heartbeats`
+  ([ADR-0047](../adr/0047-source-heartbeat.md)). La **Visión general** lo muestra junto a
+  cada fuente, y los logs del *worker* dicen `source_failing` cuando una falla.
 
 ## Migraciones
 

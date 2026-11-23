@@ -36,7 +36,7 @@ from investinglab.domain.market_reference import (
 from investinglab.domain.money import USD
 from investinglab.domain.series import DataSource
 from investinglab.ports.errors import ProviderDataError, UnsupportedRequestError
-from investinglab.ports.market_data import Dataset, ProviderCapabilities, RateLimit
+from investinglab.ports.market_data import Canary, Dataset, ProviderCapabilities, RateLimit
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -166,6 +166,7 @@ class CoinGeckoProvider:
     def capabilities(self) -> ProviderCapabilities:
         """Reference data of the crypto market."""
         return ProviderCapabilities(
+            canary=Canary(Dataset.REFERENCE, AssetClass.CRYPTO.value),
             datasets=frozenset({Dataset.REFERENCE}),
             asset_classes=frozenset({AssetClass.CRYPTO}),
             rate_limits=DEMO_LIMITS if self._keyed else PUBLIC_LIMITS,

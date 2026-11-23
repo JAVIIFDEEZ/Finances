@@ -8,9 +8,10 @@ from fastapi import APIRouter, HTTPException, Query, Request
 
 from investinglab.config import get_logger
 from investinglab.modules import REGISTRY
-from investinglab_api.dependencies import ToolkitDep
-from investinglab_api.mappers import health_out, module_out, provider_out
-from investinglab_api.schemas.meta import HealthOut, ModuleOut, ProviderOut
+from investinglab_api.dependencies import HeartbeatsDep, ToolkitDep
+from investinglab_api.mappers import health_out, module_out, provider_out, source_status_out
+from investinglab_api.routers import problems
+from investinglab_api.schemas.meta import HealthOut, ModuleOut, ProviderOut, SourceStatusOut
 
 __all__ = ["router"]
 
@@ -32,16 +33,33 @@ async def live(request: Request, toolkit: ToolkitDep) -> HealthOut:
 
 @router.get("/health/ready", tags=["health"], summary="Readiness", response_model=HealthOut)
 async def ready(request: Request, toolkit: ToolkitDep) -> HealthOut:
-    """The service can answer: the toolkit is wired, and the database (if any) is reported.
+    """The service can answer: the toolkit is wired; the database and its workers are reported.
 
     The endpoints that need no stored state keep working without a database, so its state is
-    information here, not a failure.
+    information here, not a failure; so is a missing worker (the jobs wait in the queue).
     """
     database = getattr(request.app.state, "database", None)
     state = "not_configured" if database is None else str(await database.status())
     if state not in {"not_configured", "ok"}:
         log.warning("database_not_ready", state=state)
-    return health_out(toolkit.providers, offline=_offline(request), database=state)
+    workers = await database.live_workers() if database is not None and state == "ok" else None
+    return health_out(toolkit.providers, offline=_offline(request), database=state, workers=workers)
+
+
+@router.get(
+    "/api/v1/sources",
+    tags=["system"],
+    summary="Status of the data sources",
+    response_model=list[SourceStatusOut],
+    responses=problems(s503="The API runs without a database, or the database is not answering."),
+)
+async def sources(heartbeats: HeartbeatsDep) -> list[SourceStatusOut]:
+    """Whether each source answered its last check, and how fresh its data was (ADR-0047).
+
+    The worker checks every source each quarter of an hour; a source never checked yet is
+    not listed.
+    """
+    return [source_status_out(status) for status in await heartbeats.statuses()]
 
 
 @router.get(

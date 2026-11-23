@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Annotated
 from fastapi import Depends, Header, Request
 
 from investinglab.domain.errors import DomainError
-from investinglab.ports import JobRepository, PortfolioRepository
+from investinglab.ports import HeartbeatStore, JobRepository, PortfolioRepository
 from investinglab.toolkit import AsyncToolkit
 from investinglab_api.settings import ApiSettings
 
@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "ExpectedVersion",
+    "HeartbeatsDep",
     "JobsDep",
     "OwnerDep",
     "PersistenceNotConfiguredError",
@@ -27,6 +28,7 @@ __all__ = [
     "SettingsDep",
     "ToolkitDep",
     "at_most",
+    "get_heartbeats",
     "get_jobs",
     "get_portfolios",
     "get_principal",
@@ -74,6 +76,18 @@ def get_principal(request: Request) -> Principal:
     """
     settings: ApiSettings = request.app.state.settings
     return Principal(settings.local_owner)
+
+
+def get_heartbeats(request: Request) -> HeartbeatStore:
+    """Where the worker keeps the status of each data source.
+
+    Raises:
+        PersistenceNotConfiguredError: The API runs without a database.
+    """
+    store: HeartbeatStore | None = request.app.state.heartbeats
+    if store is None:
+        raise PersistenceNotConfiguredError
+    return store
 
 
 def get_jobs(request: Request) -> JobRepository:
@@ -128,6 +142,7 @@ SettingsDep = Annotated[ApiSettings, Depends(get_settings)]
 OwnerDep = Annotated[Principal, Depends(get_principal)]
 PortfoliosDep = Annotated[PortfolioRepository, Depends(get_portfolios)]
 JobsDep = Annotated[JobRepository, Depends(get_jobs)]
+HeartbeatsDep = Annotated[HeartbeatStore, Depends(get_heartbeats)]
 ExpectedVersion = Annotated[int, Depends(expected_version)]
 
 

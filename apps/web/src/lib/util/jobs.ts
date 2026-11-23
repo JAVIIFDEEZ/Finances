@@ -1,7 +1,7 @@
 /**
  * Background jobs (ADR-0046): what the screens decide from a job, as pure functions. The
  * API says where a job is; these say how often to read it again, what can be done with it
- * and when a queued job has waited long enough to suspect that no worker is running.
+ * and when a queued job waits for a worker that is not running.
  */
 
 import type { Schemas } from "@/lib/api/client";
@@ -62,9 +62,20 @@ export function secondsSince(instant: string, now: Date = new Date()): number {
   return Math.max(0, (now.getTime() - new Date(instant).getTime()) / 1_000);
 }
 
-/** Whether a queued job has waited long enough to suspect that no worker takes it. */
-export function waitingForWorker(job: Pick<Job, "status" | "created_at">, now: Date = new Date()): boolean {
-  return job.status === "queued" && secondsSince(job.created_at, now) >= QUEUE_PATIENCE_S;
+/**
+ * Whether a queued job waits for a worker that is not there.
+ *
+ * `workers` is how many the API saw alive (its readiness): with none, at once; with some, never
+ * (the job waits its turn). When the API cannot tell, after waiting `QUEUE_PATIENCE_S`.
+ */
+export function waitingForWorker(
+  job: Pick<Job, "status" | "created_at">,
+  workers: number | null | undefined,
+  now: Date = new Date(),
+): boolean {
+  if (job.status !== "queued") return false;
+  if (workers !== null && workers !== undefined) return workers === 0;
+  return secondsSince(job.created_at, now) >= QUEUE_PATIENCE_S;
 }
 
 /** Seconds a job ran, once it finished; `null` before (or if it never started). */

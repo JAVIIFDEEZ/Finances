@@ -43,7 +43,7 @@ from investinglab.ports.errors import (
     ProviderDataError,
     UnsupportedRequestError,
 )
-from investinglab.ports.market_data import Dataset, ProviderCapabilities, RateLimit
+from investinglab.ports.market_data import Canary, Dataset, ProviderCapabilities, RateLimit
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -182,6 +182,7 @@ class OkxProvider:
     def capabilities(self) -> ProviderCapabilities:
         """Funding and positioning of perpetual swaps (``BASE/QUOTE:SETTLE``)."""
         return ProviderCapabilities(
+            canary=Canary(Dataset.HOLDING_RATES, "BTC/USDT:USDT"),
             datasets=frozenset({Dataset.HOLDING_RATES, Dataset.POSITIONING}),
             asset_classes=frozenset({AssetClass.CRYPTO}),
             rate_limits=RATE_LIMITS,

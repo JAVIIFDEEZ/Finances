@@ -34,10 +34,11 @@ __all__ = [
     "JobRow",
     "Owned",
     "PortfolioRow",
+    "SourceHeartbeatRow",
     "is_queue_object",
 ]
 
-GLOBAL_TABLES: Final = frozenset({"audit_log"})
+GLOBAL_TABLES: Final = frozenset({"audit_log", "source_heartbeats"})
 """Tables without an owner column: they hold no data a user edits."""
 
 QUEUE_PREFIX: Final = "procrastinate_"
@@ -159,3 +160,30 @@ class JobRow(Owned, Base):
     started_at: Mapped[datetime | None] = mapped_column(TIMESTAMPTZ)
     finished_at: Mapped[datetime | None] = mapped_column(TIMESTAMPTZ)
     updated_at: Mapped[datetime] = mapped_column(TIMESTAMPTZ, nullable=False)
+
+
+class SourceHeartbeatRow(Base):
+    """The latest check of a data source and its history (ADR-0047): one row per source."""
+
+    __tablename__ = "source_heartbeats"
+    __table_args__ = (
+        CheckConstraint("provider <> ''", name="provider_not_empty"),
+        CheckConstraint("latency_seconds >= 0", name="latency_not_negative"),
+        CheckConstraint("failures >= 0", name="failures_not_negative"),
+        CheckConstraint("ok = (error IS NULL)", name="error_when_failed"),
+        CheckConstraint("ok OR latest_at IS NULL", name="no_latest_when_failed"),
+        # IS NOT DISTINCT FROM: a NULL last answer must fail the check, not leave it unknown.
+        CheckConstraint(
+            "NOT ok OR (failures = 0 AND last_ok_at IS NOT DISTINCT FROM checked_at)",
+            name="ok_resets",
+        ),
+    )
+
+    provider: Mapped[str] = mapped_column(Text, primary_key=True)
+    checked_at: Mapped[datetime] = mapped_column(TIMESTAMPTZ, nullable=False)
+    ok: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    latency_seconds: Mapped[float] = mapped_column(Double, nullable=False)
+    latest_at: Mapped[datetime | None] = mapped_column(TIMESTAMPTZ)
+    error: Mapped[str | None] = mapped_column(Text)
+    last_ok_at: Mapped[datetime | None] = mapped_column(TIMESTAMPTZ)
+    failures: Mapped[int] = mapped_column(Integer, nullable=False)

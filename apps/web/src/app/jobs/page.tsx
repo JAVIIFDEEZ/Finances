@@ -8,7 +8,7 @@ import { Suspense, useState } from "react";
 import { SimulationResult } from "@/components/analysis/simulation";
 import { useI18n } from "@/components/providers";
 import { Badge, Button, Card, PageHeader, ProblemAlert, Skeleton, cn } from "@/components/ui";
-import { problemKind, useCancelJob, useDeleteJob, useJob, useJobs } from "@/lib/api/queries";
+import { problemKind, useCancelJob, useDeleteJob, useHealth, useJob, useJobs } from "@/lib/api/queries";
 import { fill, type MessageKey } from "@/lib/i18n/messages";
 import { canCancel, canDelete, isFinished, runSeconds, statusTone, waitingForWorker, type Job, type SimulationJob } from "@/lib/util/jobs";
 
@@ -127,6 +127,8 @@ function Parameters({ job }: { job: SimulationJob }) {
 function JobDetail({ id, onRemoved }: { id: string; onRemoved: () => void }) {
   const { t, fmt } = useI18n();
   const job = useJob(id);
+  const health = useHealth();
+  const workers = health.data?.workers;
   const cancel = useCancelJob();
   const remove = useDeleteJob();
   const [confirming, setConfirming] = useState(false);
@@ -154,10 +156,10 @@ function JobDetail({ id, onRemoved }: { id: string; onRemoved: () => void }) {
         <div className="flex flex-col gap-4">
           {!isFinished(data.status) ? <ProgressBar job={data} /> : null}
           {data.cancel_requested && !isFinished(data.status) ? <p className="text-[13px] text-text-2">{t("jobs.cancelling")}</p> : null}
-          {waitingForWorker(data) ? (
+          {waitingForWorker(data, workers) ? (
             <p role="status" className="flex items-start gap-2 text-[13px] leading-relaxed text-text-2">
               <Hourglass aria-hidden className="mt-0.5 size-4 shrink-0" />
-              {t("jobs.noWorker")}
+              {t(workers === 0 ? "jobs.noWorkerRunning" : "jobs.noWorker")}
             </p>
           ) : null}
           {data.status === "failed" && data.error ? (

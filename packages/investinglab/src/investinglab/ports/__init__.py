@@ -24,6 +24,7 @@ from investinglab.ports.errors import (
     SymbolNotFoundError,
     UnsupportedRequestError,
 )
+from investinglab.ports.heartbeats import HeartbeatStore
 from investinglab.ports.jobs import (
     JOB_STREAM,
     MAX_KIND_LENGTH,
@@ -39,6 +40,7 @@ from investinglab.ports.market_data import (
     BarsRequest,
     BookDepthProvider,
     BookDepthRequest,
+    Canary,
     Dataset,
     EconomicDataProvider,
     EconomicRequest,
@@ -85,11 +87,13 @@ __all__ = [
     "CachedBars",
     "CachedEconomicSeries",
     "CalendarUnavailableError",
+    "Canary",
     "ChainReport",
     "Dataset",
     "DuplicateNameError",
     "EconomicDataProvider",
     "EconomicRequest",
+    "HeartbeatStore",
     "HoldingRatesProvider",
     "Job",
     "JobError",

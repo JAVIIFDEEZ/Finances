@@ -22,8 +22,9 @@ curl "http://127.0.0.1:8000/api/v1/market/confluence?symbol=SAN.MC&frame=1d&fram
 
 | Método | Ruta | Qué devuelve |
 |--------|------|--------------|
-| GET | `/health/live`, `/health/ready` | Estado, versión, proveedores registrados y estado de la base de datos |
-| GET | `/api/v1/providers` | Capacidades de cada proveedor (datos, frecuencias, cuotas, historia, tipos de mantenimiento) |
+| GET | `/health/live`, `/health/ready` | Estado, versión, proveedores registrados, estado de la base de datos y *workers* en marcha (`workers`: los que enviaron su latido en los últimos 30 s; `null` sin base de datos) |
+| GET | `/api/v1/providers` | Capacidades de cada proveedor (datos, frecuencias, cuotas, historia, tipos de mantenimiento) y su `canary`, la petición con la que el *worker* lo comprueba (`null` si no se comprueba) |
+| GET | `/api/v1/sources` | Lo último que vio el *worker* de cada fuente ([ADR-0047](../adr/0047-source-heartbeat.md)): cuándo la comprobó, si respondió y en cuánto, el instante de su último dato, el error, cuándo respondió por última vez y cuántas veces seguidas ha fallado. Necesita base de datos |
 | GET | `/api/v1/modules`, `/api/v1/modules/{slug}` | Módulos del máster y su trazabilidad (`language=es\|en`) |
 | GET | `/api/v1/market/bars` | Barras de un instrumento con metadatos, procedencia y estadísticos |
 | GET | `/api/v1/market/flow` | Flujo de las mismas barras: volumen y, si la fuente dice quién agredió, *delta* y CVD |

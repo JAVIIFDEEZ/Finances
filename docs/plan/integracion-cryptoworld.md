@@ -766,6 +766,23 @@ Es decir: **unos 6-8 meses hasta la paridad en lo esencial (G0-G8)** y unos 10-1
   fin.
 - **Pendiente de G0b:** la observabilidad mínima.
 
+**Avance (23-11-2026, G0b, latido de las fuentes):** ([ADR-0047](../adr/0047-source-heartbeat.md))
+
+- **El canario.** Cada fuente remota declara un canario: una petición pequeña con la que se
+  comprueba que responde y lo fresco que es su dato. Lo pide a la propia fuente, sin caché ni
+  recurso a otra.
+- **El *worker*** pregunta a todas a la vez al arrancar y cada cuarto de hora. Guarda en
+  `source_heartbeats`, una tabla global:
+  - si respondió y en cuánto;
+  - el instante de su último dato;
+  - el error;
+  - desde cuándo falla.
+- **La API.** `GET /api/v1/sources` da ese estado, y `/health/ready` cuenta los *workers* vivos.
+- **La web.** La «Visión general» muestra el estado junto a cada fuente. «Trabajos» avisa al
+  momento si no hay ningún *worker*.
+- **Comprobación real:** las nueve fuentes respondieron, en entre 0,4 y 1,1 s.
+- **Pendiente de G0b:** las trazas con OpenTelemetry en la API y el *worker*.
+
 ### G1 — Datos cripto y derivados
 
 **Contenido.**

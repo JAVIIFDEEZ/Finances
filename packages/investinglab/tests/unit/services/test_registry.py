@@ -177,6 +177,7 @@ def test_flow_providers_follow_the_preferences_of_the_bars() -> None:
     assert [p.name for p in registry.flow_candidates(minute, TODAY)] == ["tape", "venue"]
     assert [p.name for p in registry.bars_candidates(minute, TODAY)] == ["yahoo", "venue"]
     assert registry.names == ("yahoo", "tape", "venue")
+    assert [p.name for p in registry.providers] == ["yahoo", "tape", "venue"]
     assert registry.capabilities()["venue"] is both
 
 

@@ -196,4 +196,10 @@ async def test_the_worker_serves_both_queues_and_closes_what_it_opened(
     assert started["queues"] == [QUEUE, worker.MAINTENANCE]
     assert (started["concurrency"], started["delete_jobs"]) == (3, "successful")
     assert started["shutdown_graceful_timeout"] == worker.SHUTDOWN_SECONDS
-    assert {RUN_JOB, worker.RETRY_STALLED} <= set(started["tasks"])  # type: ignore[call-overload]
+    assert {RUN_JOB, worker.RETRY_STALLED, worker.CHECK_SOURCES} <= set(started["tasks"])  # type: ignore[call-overload]
+    with psycopg.connect(conninfo(postgres["owner"])) as connection:  # checked from the start
+        waiting = connection.execute(
+            "SELECT queue_name FROM procrastinate_jobs WHERE task_name = %s AND status = 'todo'",
+            (worker.CHECK_SOURCES,),
+        ).fetchall()
+    assert waiting == [(worker.MAINTENANCE,)]

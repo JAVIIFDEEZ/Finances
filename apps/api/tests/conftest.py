@@ -58,7 +58,11 @@ from support.fakes import (
     FakeRatesProvider,
     FakeReferenceProvider,
 )
-from support.repositories import InMemoryJobRepository, InMemoryPortfolioRepository
+from support.repositories import (
+    InMemoryHeartbeatStore,
+    InMemoryJobRepository,
+    InMemoryPortfolioRepository,
+)
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Callable, Iterator
@@ -324,11 +328,18 @@ def jobs() -> InMemoryJobRepository:
 
 
 @pytest.fixture
+def heartbeats() -> InMemoryHeartbeatStore:
+    """The in-memory status of the data sources the ``client`` reads (the worker records it)."""
+    return InMemoryHeartbeatStore()
+
+
+@pytest.fixture
 def client(
     toolkit: AsyncToolkit,
     core_settings: Settings,
     saved: InMemoryPortfolioRepository,
     jobs: InMemoryJobRepository,
+    heartbeats: InMemoryHeartbeatStore,
 ) -> Iterator[TestClient]:
     """A client of the API wired to the synthetic providers and in-memory repositories."""
     app = create_app(
@@ -337,6 +348,7 @@ def client(
         toolkit=toolkit,
         portfolios=saved,
         jobs_repository=jobs,
+        heartbeats=heartbeats,
     )
     with TestClient(app) as test_client:
         yield test_client

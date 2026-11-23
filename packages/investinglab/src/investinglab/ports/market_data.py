@@ -11,7 +11,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import TYPE_CHECKING, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Final, Protocol, runtime_checkable
 
 from investinglab.domain.errors import DomainError
 from investinglab.domain.time import Frequency
@@ -32,6 +32,7 @@ __all__ = [
     "BarsRequest",
     "BookDepthProvider",
     "BookDepthRequest",
+    "Canary",
     "Dataset",
     "EconomicDataProvider",
     "EconomicRequest",
@@ -64,6 +65,41 @@ class Dataset(StrEnum):
     """Depth of an order book within bands around its price, snapshot by snapshot."""
     REFERENCE = "reference"
     """Snapshots of a whole market: its capitalisation, dominance and ranking."""
+
+
+CANARY_DATASETS: Final = frozenset(
+    {Dataset.BARS, Dataset.ECONOMIC, Dataset.HOLDING_RATES, Dataset.REFERENCE}
+)
+"""Data a canary can ask for: what proves a source answers, and shows how fresh it is."""
+
+
+@dataclass(frozen=True, slots=True)
+class Canary:
+    """A small request that proves a provider answers and shows how fresh its data is.
+
+    The source monitor asks it of the provider itself, past every cache and fallback, and
+    keeps when the latest observation of the answer is (ADR-0047).
+
+    Attributes:
+        dataset: What to ask for: price bars, an economic series, funding or a market
+            snapshot.
+        symbol: The instrument, series or perpetual asked for; for a market snapshot, the
+            asset class (``crypto``).
+
+    Raises:
+        DomainError: If the dataset cannot be a canary or the symbol is empty.
+    """
+
+    dataset: Dataset
+    symbol: str
+
+    def __post_init__(self) -> None:
+        if self.dataset not in CANARY_DATASETS:
+            raise DomainError(
+                f"A canary asks for bars, economic, funding or reference data, not {self.dataset}"
+            )
+        if not self.symbol.strip():
+            raise DomainError("A canary names what it asks for")
 
 
 @dataclass(frozen=True, slots=True)
@@ -271,9 +307,12 @@ class ProviderCapabilities:
         cacheable: Whether what it serves may be cached. A source as fast as the cache that
             its owner edits (local files) is read every time instead, so that an edited file
             is seen at once rather than when the cached copy expires.
+        canary: The small request that checks the provider answers (ADR-0047); ``None`` for
+            a source not worth checking (local files).
 
     Raises:
-        DomainError: If an identifiers pattern is not a valid regular expression.
+        DomainError: If an identifiers pattern is not a valid regular expression, or the
+            canary asks for data or an identifier the provider does not serve.
     """
 
     datasets: frozenset[Dataset]
@@ -291,8 +330,13 @@ class ProviderCapabilities:
     positioning_fields: frozenset[PositioningField] = frozenset()
     book_bands: frozenset[float] = frozenset()
     cacheable: bool = True
+    canary: Canary | None = None
 
     def __post_init__(self) -> None:
+        if self.canary is not None and self.canary.dataset not in self.datasets:
+            raise DomainError(
+                f"A canary asks for {self.canary.dataset} data, which the provider does not serve"
+            )
         patterns = [self.identifiers, *self.identifiers_by_dataset.values()]
         for pattern in patterns:
             if pattern is None:
@@ -301,6 +345,15 @@ class ProviderCapabilities:
                 re.compile(pattern)
             except re.error as error:
                 raise DomainError(f"Invalid identifiers pattern: {error}") from error
+        if self.canary is not None and not self._answers(self.canary):
+            raise DomainError(
+                f"A canary asks for {self.canary.symbol}, which the provider does not serve"
+            )
+
+    def _answers(self, canary: Canary) -> bool:
+        if canary.dataset is Dataset.REFERENCE:
+            return canary.symbol in {asset.value for asset in self.asset_classes}
+        return self.serves(canary.symbol, canary.dataset)
 
     def serves(self, identifier: str, dataset: Dataset | None = None) -> bool:
         """Whether ``identifier`` (a symbol or a series id) can belong to this provider.

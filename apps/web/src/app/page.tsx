@@ -8,12 +8,14 @@ import { GroupedBars, Sparkline, TimeSeriesChart } from "@/components/charts/cha
 import { useI18n, useTheme } from "@/components/providers";
 import { Badge, Button, Card, PageHeader, ProblemAlert, Segmented, Skeleton, Stat } from "@/components/ui";
 import { failureOf } from "@/lib/api/client";
-import { isNotFound, useAnalytics, useBars, useEconomic, useHealth, useMarketCaps, useMarketSnapshot, useModules, useProviders, useRiskFree } from "@/lib/api/queries";
-import { fill } from "@/lib/i18n/messages";
+import { isNotFound, problemKind, useAnalytics, useBars, useEconomic, useHealth, useMarketCaps, useMarketSnapshot, useModules, useProviders, useRiskFree, useSources } from "@/lib/api/queries";
+import { fill, type MessageKey } from "@/lib/i18n/messages";
 import { toPortfolioIn, usePortfolio } from "@/lib/portfolio/store";
 import { rangeStart, thin } from "@/lib/util/dates";
 import { ageInMinutes, dominanceRows, shareOfTotal, sourceLabel } from "@/lib/util/marketReference";
+import { secondsSince } from "@/lib/util/jobs";
 import { fearGreedBand, isExtreme } from "@/lib/util/sentiment";
+import { byProvider, dataAge, failingFor, sourceState, stateTone, type SourceState } from "@/lib/util/sources";
 
 const WATCHLIST: readonly { symbol: string; name: string; digits: number }[] = [
   { symbol: "^IBEX", name: "IBEX 35", digits: 0 },
@@ -232,10 +234,62 @@ function CryptoMarketCard() {
   );
 }
 
+const SOURCE_BADGE = {
+  ok: "overview.sources.badge.ok",
+  failing: "overview.sources.badge.failing",
+  stale: "overview.sources.badge.stale",
+  unchecked: "overview.sources.badge.unchecked",
+} as const satisfies Record<Exclude<SourceState["kind"], "local">, MessageKey>;
+
+/** What the worker last saw of a source: how it answered, since when it fails, or nothing yet. */
+function SourceDetail({ state }: { state: SourceState }) {
+  const { t, fmt } = useI18n();
+  switch (state.kind) {
+    case "ok":
+      return (
+        <p className="text-xs text-text-2 tabular">
+          {fill(t("overview.sources.ok"), {
+            latency: fmt.number(state.status.latency_seconds, 2),
+            age: fmt.ago(dataAge(state.status)),
+          })}
+        </p>
+      );
+    case "failing": {
+      const since = failingFor(state.status);
+      return (
+        <>
+          <p className="text-xs text-critical-text tabular">
+            {fill(t("overview.sources.failing"), { count: state.status.failures })}
+            {" · "}
+            {since === null ? t("overview.sources.neverAnswered") : fill(t("overview.sources.lastAnswered"), { when: fmt.ago(since) })}
+          </p>
+          {state.status.error ? (
+            <p className="truncate font-mono text-[11px] text-muted" title={state.status.error}>
+              {state.status.error}
+            </p>
+          ) : null}
+        </>
+      );
+    }
+    case "stale":
+      return (
+        <p className="text-xs text-text-2 tabular">
+          {fill(t("overview.sources.stale"), { when: fmt.ago(secondsSince(state.status.checked_at)) })}
+        </p>
+      );
+    case "unchecked":
+      return <p className="text-xs text-text-2">{t("overview.sources.unchecked")}</p>;
+    default:
+      return <p className="text-xs text-text-2">{t("overview.sources.local")}</p>;
+  }
+}
+
 function ProvidersCard() {
   const { t } = useI18n();
   const providers = useProviders();
   const health = useHealth();
+  const sources = useSources();
+  const statuses = byProvider(sources.data);
   return (
     <Card title={t("overview.providers")} subtitle={t("overview.providersNote")}>
       {providers.isLoading ? (
@@ -244,24 +298,41 @@ function ProvidersCard() {
         <ProblemAlert error={providers.error} onRetry={() => void providers.refetch()} />
       ) : (
         <ul className="flex flex-col divide-y divide-[var(--border)]">
-          {providers.data?.map((provider, index) => (
-            <li key={provider.name} className="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0">
-              <span className="grid size-7 shrink-0 place-items-center rounded-md bg-surface-2 font-mono text-[11px] text-text-2">{index + 1}</span>
-              <div className="min-w-0 flex-1">
-                <p className="font-medium text-text">{provider.name}</p>
-                <p className="truncate text-xs text-muted">
-                  {provider.datasets.join(" · ")} · {provider.asset_classes.length > 6 ? "multi-asset" : provider.asset_classes.join(", ")} · {provider.frequencies[0]}–{provider.frequencies[provider.frequencies.length - 1]}
-                </p>
-              </div>
-              {provider.requires_api_key ? (
-                <Badge tone="warning">
-                  <KeyRound aria-hidden className="size-3" /> {t("overview.requiresKey")}
-                </Badge>
-              ) : (
-                <Badge tone="good">{t("overview.noKey")}</Badge>
-              )}
+          {providers.data?.map((provider, index) => {
+            // Only with a database does the worker keep what it saw of each source.
+            const state = sources.isSuccess ? sourceState(provider, statuses.get(provider.name)) : null;
+            return (
+              <li key={provider.name} className="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0">
+                <span className="grid size-7 shrink-0 place-items-center rounded-md bg-surface-2 font-mono text-[11px] text-text-2">{index + 1}</span>
+                <div className="min-w-0 flex-1">
+                  <p className="flex items-center gap-1.5 font-medium text-text">
+                    {provider.name}
+                    {state && provider.requires_api_key ? (
+                      <KeyRound role="img" aria-label={t("overview.requiresKey")} className="size-3 text-muted" />
+                    ) : null}
+                  </p>
+                  <p className="truncate text-xs text-muted">
+                    {provider.datasets.join(" · ")} · {provider.asset_classes.length > 6 ? "multi-asset" : provider.asset_classes.join(", ")} · {provider.frequencies[0]}–{provider.frequencies[provider.frequencies.length - 1]}
+                  </p>
+                  {state ? <SourceDetail state={state} /> : null}
+                </div>
+                {state && state.kind !== "local" ? (
+                  <Badge tone={stateTone(state)}>{t(SOURCE_BADGE[state.kind])}</Badge>
+                ) : provider.requires_api_key ? (
+                  <Badge tone="warning">
+                    <KeyRound aria-hidden className="size-3" /> {t("overview.requiresKey")}
+                  </Badge>
+                ) : (
+                  <Badge tone="good">{t("overview.noKey")}</Badge>
+                )}
+              </li>
+            );
+          })}
+          {sources.isError ? (
+            <li className="pt-2.5 text-xs text-muted">
+              {t(problemKind(sources.error) === "persistence-not-configured" ? "overview.sources.noDatabase" : "overview.sources.unavailable")}
             </li>
-          ))}
+          ) : null}
           {health.data?.offline ? (
             <li className="pt-2.5">
               <Badge tone="warning">{t("shell.api.offlineMode")}</Badge>
