@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import date, timedelta
 
 import pytest
@@ -8,6 +9,7 @@ from investinglab.domain import AssetClass, DomainError, Frequency, RateKind
 from investinglab.ports import (
     BarsRequest,
     BookDepthRequest,
+    Canary,
     Dataset,
     EconomicRequest,
     MarketCapRequest,
@@ -152,6 +154,33 @@ def test_a_dataset_can_have_identifiers_of_its_own() -> None:
             datasets=frozenset({Dataset.HOLDING_RATES}),
             identifiers_by_dataset={Dataset.HOLDING_RATES: "["},
         )
+
+
+def test_a_canary_asks_for_data_whose_freshness_shows() -> None:
+    assert Canary(Dataset.BARS, "^GSPC").symbol == "^GSPC"
+    with pytest.raises(DomainError, match="not flow"):
+        Canary(Dataset.FLOW, "BTC/USDT")
+    with pytest.raises(DomainError, match="names what it asks for"):
+        Canary(Dataset.BARS, " ")
+
+
+def test_a_provider_answers_its_own_canary() -> None:
+    venue = ProviderCapabilities(
+        datasets=frozenset({Dataset.BARS, Dataset.REFERENCE}),
+        asset_classes=frozenset({AssetClass.CRYPTO}),
+        identifiers=r"[A-Z]+/[A-Z]+",
+        canary=Canary(Dataset.BARS, "BTC/USDT"),
+    )
+
+    assert venue.canary == Canary(Dataset.BARS, "BTC/USDT")
+    assert ProviderCapabilities(datasets=frozenset({Dataset.BARS})).canary is None
+    with pytest.raises(DomainError, match="economic data, which the provider does not serve"):
+        replace(venue, canary=Canary(Dataset.ECONOMIC, "FNG"))
+    with pytest.raises(DomainError, match="asks for SPY, which the provider does not serve"):
+        replace(venue, canary=Canary(Dataset.BARS, "SPY"))
+    assert replace(venue, canary=Canary(Dataset.REFERENCE, "crypto")).canary is not None
+    with pytest.raises(DomainError, match="asks for equity"):
+        replace(venue, canary=Canary(Dataset.REFERENCE, "equity"))
 
 
 def test_provider_errors_carry_context() -> None:
