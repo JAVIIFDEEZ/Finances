@@ -701,6 +701,7 @@ Sustituye a F12. G0 reúne las fases F6, F7, F13 y F10 de la tabla anterior y se
 | **G5** | Volatilidad (HAR), Índice de Fragilidad, mesa de carry, régimen, lead-lag, correlaciones, rupturas, estacionalidad y estudio de eventos | Todo con endpoint, pantalla y nota de metodología |
 | **G0c** | Acceso con usuario (F7) y contenedores (F10) | Lista para guardar datos personales |
 | **G6** | Libro de operaciones con lotes y divisas; riesgo del libro, estrés observado y atribución por factor | Cartera real mixta valorada en euros |
+| **G6b** | Cuentas bancarias (Revolut, Santander, BBVA…) y patrimonio neto: extractos (Norma 43, CAMT.053, OFX, CSV de Revolut) primero y agregador PSD2 de solo lectura después (Enable Banking, modo restringido para cuentas propias); saldos, movimientos sin duplicados, categorías, gasto y ahorro reales para los planes de ahorro; tras G0c y consultando antes de conectar cuentas reales | Patrimonio neto completo en euros |
 | **G7** | *Paper trading* y ejecución propia: órdenes con máquina de estados, *outbox*, `apps/trader` apagado por defecto | Cinco tests de fallo en verde |
 | **G8** | Alertas con disparo por flanco, notificaciones (app, email, push, Telegram, *webhook*) y tiempo real por SSE | **Mismo nivel funcional que CryptoWorld en lo esencial** |
 | **G9** | On-chain y forense | Sección «Cripto · On-chain» |
