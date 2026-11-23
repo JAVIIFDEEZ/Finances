@@ -67,6 +67,7 @@ nav = [
     "adr/0043-verified-published-files-cache.md",
     "adr/0044-order-book-depth-by-bands.md",
     "adr/0045-market-reference-snapshots.md",
+    "adr/0046-background-jobs-on-postgresql.md",
   ] },
   { "Referencia API" = [
     "reference/index.md",
