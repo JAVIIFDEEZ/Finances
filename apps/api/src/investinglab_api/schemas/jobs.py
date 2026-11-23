@@ -44,7 +44,7 @@ class JobOut(ApiModel):
 class SimulationJobOut(JobOut):
     """A Monte Carlo simulation run in the background."""
 
-    kind: Literal["simulation"] = "simulation"
+    kind: Literal["simulation"]
     parameters: SimulationIn = Field(description="The simulation as it was submitted.")
     result: SimulationOut | None = Field(
         description="What `POST /api/v1/simulations` would answer, once succeeded."

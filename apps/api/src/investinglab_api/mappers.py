@@ -1156,6 +1156,7 @@ def job_out(job: Job) -> JobOut:
 def simulation_job_out(job: Job) -> SimulationJobOut:
     """A simulation job with what it was asked and, once succeeded, what it produced."""
     return SimulationJobOut(
+        kind="simulation",
         parameters=SimulationIn.model_validate(job.parameters),
         result=None if job.result is None else SimulationOut.model_validate(job.result),
         **_job_fields(job),  # type: ignore[arg-type]
