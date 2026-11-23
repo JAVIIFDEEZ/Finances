@@ -217,6 +217,28 @@ export function useBookDepth(swap: string | null, venue: string | null, interval
   });
 }
 
+/** The crypto market as its source last computed it: size, change and dominance (ADR-0045). */
+export function useMarketSnapshot(currency: "USD" | "EUR") {
+  return useQuery({
+    queryKey: ["market-snapshot", currency],
+    queryFn: async () => unwrap(await api.GET("/api/v1/market/snapshot", { params: { query: { currency } } })),
+    staleTime: 5 * MINUTE,
+    placeholderData: keepPreviousData,
+    retry: (count, error) => !isNotFound(error) && count < 2,
+  });
+}
+
+/** The largest crypto assets by capitalisation, as last ranked. */
+export function useMarketCaps(currency: "USD" | "EUR", top: number) {
+  return useQuery({
+    queryKey: ["market-caps", currency, top],
+    queryFn: async () => unwrap(await api.GET("/api/v1/market/caps", { params: { query: { currency, top } } })),
+    staleTime: 5 * MINUTE,
+    placeholderData: keepPreviousData,
+    retry: (count, error) => !isNotFound(error) && count < 2,
+  });
+}
+
 /** An economic series (``FNG``, the €STR...) from ``start``; disabled with an empty id. */
 export function useEconomic(seriesId: string, start: string | null) {
   return useQuery({

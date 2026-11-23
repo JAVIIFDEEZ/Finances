@@ -458,17 +458,21 @@ export function GroupedBars({
   categories,
   series,
   format,
+  axisFormat,
   label,
   height,
 }: {
   categories: string[];
   series: { name: string; color: string; values: number[] }[];
   format: Format;
+  /** Format of the axis ticks when coarser than the bars' (``10 %`` rather than ``10,0 %``). */
+  axisFormat?: Format;
   label: string;
   height?: number;
 }) {
   const { tokens } = useTheme();
   const size = height ?? Math.max(180, categories.length * series.length * 18 + categories.length * 14 + 48);
+  const ticks = axisFormat ?? format;
   const option = useMemo<ChartOption>(
     () => ({
       ...base(tokens),
@@ -483,7 +487,7 @@ export function GroupedBars({
           return heading(String(first.axisValue ?? ""), tokens.muted) + params.map((p) => row(p.color, format(Number(p.value)), p.seriesName, tokens.muted)).join("");
         },
       }),
-      xAxis: valueAxis(tokens, format, { scale: false }),
+      xAxis: valueAxis(tokens, ticks, { scale: false, splitNumber: 3, axisLabel: { color: tokens.muted, hideOverlap: true, formatter: (value: number) => ticks(value) } }),
       yAxis: {
         type: "category",
         data: categories,
@@ -502,7 +506,7 @@ export function GroupedBars({
         label: { show: true, position: "right", color: tokens.text2, fontSize: 11, formatter: (p: { value: number }) => format(p.value) },
       })),
     }),
-    [categories, series, format, tokens],
+    [categories, series, format, ticks, tokens],
   );
   return <EChart option={option} height={size} label={label} />;
 }
