@@ -53,6 +53,7 @@ actualiza el estado del antiguo.
 | [0046](0046-background-jobs-on-postgresql.md) | Trabajos en segundo plano con Procrastinate sobre el mismo PostgreSQL | Aceptado |
 | [0047](0047-source-heartbeat.md) | Latido de las fuentes de datos | Aceptado |
 | [0048](0048-tracing-with-opentelemetry.md) | Trazas con OpenTelemetry, opcionales y apagadas por defecto | Aceptado |
+| [0049](0049-backtest-engine.md) | Motor de backtest: relleno a la apertura siguiente, costes por mercado y paridad con CryptoWorld | Aceptado |
 
 ## Cómo añadir un ADR
 

@@ -16,7 +16,11 @@ range and the middle):
   divergences) and the Fibonacci levels of its confluence card, on both. They describe the
   series as of its last bar, so they are run on many cuts of it;
 * its signals dashboard (``calculate_signals_dashboard``: eleven rules and their net) and
-  the trend of its confluence card (``classify_trend``), on cuts of both as well.
+  the trend of its confluence card (``classify_trend``), on cuts of both as well;
+* its backtest engine (``backtest_execution.simulate``) on the daily candles, in scenarios
+  that together use every rule it has: costs, barriers, exit by time, shorts, funding and
+  every sizing. The inputs it is given (signals, ATR, funding, conviction) are recorded too,
+  so that the test feeds InvestingLab's engine exactly the same.
 
 It needs CryptoWorld's pinned versions, in a throwaway environment that never touches the
 project's (they are not dependencies of InvestingLab)::
@@ -27,8 +31,8 @@ project's (they are not dependencies of InvestingLab)::
 pinned packages).
 
 The outputs, ``tests/fixtures/parity/cryptoworld_indicators.json``,
-``cryptoworld_patterns.json``, ``cryptoworld_structure.json`` and
-``cryptoworld_signals.json``, are committed and never edited by hand.
+``cryptoworld_patterns.json``, ``cryptoworld_structure.json``, ``cryptoworld_signals.json``
+and ``cryptoworld_backtest.json``, are committed and never edited by hand.
 """
 
 from __future__ import annotations
@@ -70,6 +74,13 @@ SCREEN = (
 )
 """The screen's candles that the strategy grammar does not have."""
 SCREEN_WINDOW = 5
+BACKTEST_OUTPUT = FIXTURES / "parity" / "cryptoworld_backtest.json"
+BACKTEST_SEED = 20261124
+LONG_RATE = 0.06
+"""Share of the bars the random long side opens on, and closes on."""
+SHORT_RATE = 0.05
+"""...and the random short side."""
+"""Seed of the random signals of the backtest scenarios (recorded with them: never regenerated)."""
 SIGNIFICANT = 15
 """Significant digits kept: well below any tolerance of the tests, half the file size."""
 
@@ -205,6 +216,150 @@ def _signals(name: str) -> dict[str, Any]:
     }
 
 
+def _backtest_inputs(candles: Any) -> dict[str, list[float]]:  # noqa: ANN401 - a DataFrame
+    """The signals, ATR, funding and conviction the scenarios use, as plain lists."""
+    import numpy as np  # noqa: PLC0415 - only available in the throwaway environment
+
+    ta = importlib.import_module("ta")
+    close = candles["close"]
+    fast, slow = close.rolling(10).mean(), close.rolling(30).mean()
+    above = (fast > slow).astype(int)
+    cross = above.diff().fillna(0)
+    rng = np.random.default_rng(BACKTEST_SEED)
+    draws = rng.random(len(candles))
+    longs = np.where(draws < LONG_RATE, 1, np.where(draws > 1 - LONG_RATE, -1, 0))
+    draws = rng.random(len(candles))
+    shorts = np.where(draws < SHORT_RATE, 1, np.where(draws > 1 - SHORT_RATE, -1, 0))
+    atr = ta.volatility.AverageTrueRange(
+        candles["high"], candles["low"], close, window=14
+    ).average_true_range()
+    days = np.arange(len(candles))
+    funding = 0.0003 * np.sin(days / 9.0) + 0.0001  # synthetic: positive and negative
+    conviction = np.round(0.2 + 0.8 * rng.random(len(candles)), 4)
+    return {
+        "trend": [int(v) for v in cross],
+        "random_longs": [int(v) for v in longs],
+        "random_shorts": [int(v) for v in shorts],
+        "atr": [_number(float(v)) or 0.0 for v in atr],
+        "funding": [float(f"{v:.{SIGNIFICANT}g}") for v in funding],
+        "conviction": [float(v) for v in conviction],
+    }
+
+
+BACKTEST_SCENARIOS: tuple[dict[str, Any], ...] = (
+    {"name": "trend_without_costs", "signals": "trend"},
+    {"name": "trend_with_costs", "signals": "trend", "costs": [10.0, 5.0]},
+    {"name": "trend_at_the_close", "signals": "trend", "costs": [10.0, 5.0], "next_bar": False},
+    {
+        "name": "random_with_stops",
+        "signals": "random_longs",
+        "costs": [10.0, 5.0],
+        "risk": {"stop_loss_pct": 0.05, "take_profit_pct": 0.1, "trailing_stop_pct": 0.03},
+    },
+    {
+        "name": "random_triple_barrier",
+        "signals": "random_longs",
+        "costs": [7.5, 2.5],
+        "risk": {"max_bars": 7, "atr_stop_mult": 2.0, "atr_target_mult": 3.0},
+        "atr": True,
+    },
+    {
+        "name": "long_short_with_funding",
+        "signals": "random_longs",
+        "shorts": "random_shorts",
+        "costs": [10.0, 5.0],
+        "risk": {"stop_loss_pct": 0.08, "take_profit_pct": 0.12, "trailing_stop_pct": 0.05},
+        "funding": True,
+    },
+    {
+        "name": "shorts_in_atrs",
+        "signals": None,
+        "shorts": "random_shorts",
+        "costs": [4.0, 2.0],
+        "risk": {"atr_stop_mult": 1.5, "atr_target_mult": 2.5, "max_bars": 10},
+        "atr": True,
+        "funding": True,
+    },
+    {
+        "name": "half_the_equity",
+        "signals": "trend",
+        "costs": [10.0, 5.0],
+        "sizing": {"mode": "fraction", "fraction": 0.5},
+    },
+    {
+        "name": "sized_by_risk",
+        "signals": "random_longs",
+        "costs": [10.0, 5.0],
+        "risk": {"stop_loss_pct": 0.05},
+        "sizing": {"mode": "risk", "risk_pct": 0.02},
+    },
+    {
+        "name": "sized_by_conviction",
+        "signals": "random_longs",
+        "costs": [10.0, 5.0],
+        "risk": {"take_profit_pct": 0.08},
+        "sizing": {"mode": "conviction", "fraction": 0.3},
+        "conviction": True,
+    },
+)
+"""Each scenario names the inputs it uses; together they take every path of the engine."""
+
+
+def _backtests(name: str) -> dict[str, Any]:
+    """CryptoWorld's ``simulate`` in every scenario, on one cassette's candles."""
+    import numpy as np  # noqa: PLC0415 - only available in the throwaway environment
+
+    engine = importlib.import_module("core.domain.services.backtest_execution")
+    candles = _candles(name)
+    inputs = _backtest_inputs(candles)
+    zeros = [0] * len(candles)
+    runs = []
+    for scenario in BACKTEST_SCENARIOS:
+        longs = inputs[scenario["signals"]] if scenario["signals"] else zeros
+        shorts = scenario.get("shorts")
+        commission, slippage = scenario.get("costs", [0.0, 0.0])
+        sizing = dict(scenario.get("sizing", {}))
+        if scenario.get("conviction"):
+            # Through CryptoWorld's own translation: a signal's size, at the bar it fills.
+            meta = importlib.import_module("core.domain.services.meta_sizing")
+            sizes = {
+                bar: inputs["conviction"][bar] for bar, value in enumerate(longs) if value == 1
+            }
+            sizing["conviction"] = meta.conviction_sizing(sizes, sizing["fraction"]).conviction
+        result = engine.simulate(
+            candles["close"].to_numpy(),
+            candles["high"].to_numpy(),
+            candles["low"].to_numpy(),
+            np.asarray(longs),
+            initial_capital=10_000.0,
+            costs=engine.CostModel(commission_bps=commission, slippage_bps=slippage),
+            risk=engine.RiskModel(**scenario["risk"]) if "risk" in scenario else None,
+            sizing=engine.SizingModel(**sizing) if sizing else None,
+            atr=np.asarray(inputs["atr"]) if scenario.get("atr") else None,
+            open_=candles["open"].to_numpy(),
+            fill_next_bar=scenario.get("next_bar", True),
+            funding=np.asarray(inputs["funding"]) if scenario.get("funding") else None,
+            short_signals=np.asarray(inputs[shorts]) if shorts else None,
+        )
+        runs.append(
+            {
+                **scenario,
+                "trades": result["trades"],
+                "equity": [_number(v) for v in result["equity_curve"]],
+                "final_capital": _number(result["final_capital"]),
+                "commission": _number(result["total_commission"]),
+                "funding_paid": _number(result["total_funding"]),
+                "in_market_bars": result["in_market_bars"],
+            }
+        )
+    return {
+        "candles": name,
+        "open_times": [int(t) for t in candles["open_time"]],
+        "inputs": inputs,
+        "scenarios": runs,
+    }
+
+
 def main(source: Path) -> int:
     """Evaluate CryptoWorld's indicators, patterns, structure and signals: the fixtures."""
     sys.path.insert(0, str(source))
@@ -275,6 +430,18 @@ def main(source: Path) -> int:
     SIGNALS_OUTPUT.write_text(json.dumps(signals, separators=(",", ":")) + "\n", "utf-8")
     cuts = sum(len(s["panels"]) + len(s["trends"]) for s in read)
     print(f"{cuts} signal cases over {len(read)} series -> {SIGNALS_OUTPUT}")  # noqa: T201
+    simulated = _backtests(CANDLES)
+    backtest = {
+        "purpose": "CryptoWorld's backtest engine in every scenario, for the parity tests.",
+        "source": "core.domain.services.backtest_execution.simulate",
+        "cryptoworld": fixture["cryptoworld"],
+        "versions": fixture["versions"],
+        "seed": BACKTEST_SEED,
+        **simulated,
+    }
+    BACKTEST_OUTPUT.write_text(json.dumps(backtest, separators=(",", ":")) + "\n", "utf-8")
+    trades = sum(len(run["trades"]) for run in simulated["scenarios"])
+    print(f"{trades} trades in {len(simulated['scenarios'])} scenarios -> {BACKTEST_OUTPUT}")  # noqa: T201
     return 0
 
 

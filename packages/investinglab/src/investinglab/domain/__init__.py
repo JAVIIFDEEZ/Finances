@@ -5,6 +5,20 @@ The domain may use the numerical kernel (:mod:`investinglab.analytics`) but neve
 frameworks, plotting or configuration (enforced by import-linter).
 """
 
+from investinglab.domain.backtest import (
+    ATR_WINDOW,
+    BacktestConfig,
+    BacktestResult,
+    BacktestTrade,
+    CostBreakdown,
+    CostModel,
+    ExitReason,
+    RiskModel,
+    SizingMode,
+    SizingModel,
+    TradeStatistics,
+    run_backtest,
+)
 from investinglab.domain.book_depth import (
     BOOK_DEPTH_FREQUENCIES,
     BookDepthSeries,
@@ -147,6 +161,7 @@ from investinglab.domain.time import (
 from investinglab.domain.universe import Membership, Survivorship, Universe
 
 __all__ = [
+    "ATR_WINDOW",
     "BOOK_DEPTH_FREQUENCIES",
     "CALENDAR_YEAR_DAYS",
     "CHF",
@@ -171,8 +186,13 @@ __all__ = [
     "AlignmentMethod",
     "AssetCard",
     "AssetClass",
+    "BacktestConfig",
+    "BacktestResult",
+    "BacktestTrade",
     "BookDepthSeries",
     "BookSide",
+    "CostBreakdown",
+    "CostModel",
     "CovarianceEstimator",
     "Currency",
     "CurrencyKind",
@@ -187,6 +207,7 @@ __all__ = [
     "EfficientFrontier",
     "Estimates",
     "Exchange",
+    "ExitReason",
     "Fact",
     "FibonacciSwing",
     "FlowField",
@@ -241,6 +262,7 @@ __all__ = [
     "ReturnModel",
     "RiskEstimate",
     "RiskMetrics",
+    "RiskModel",
     "SavingsPlan",
     "SeriesStats",
     "Severity",
@@ -248,6 +270,8 @@ __all__ = [
     "SimulationConfig",
     "SimulationModel",
     "SimulationResult",
+    "SizingMode",
+    "SizingModel",
     "SourceHeartbeat",
     "SourceStatus",
     "StructureLevel",
@@ -255,6 +279,7 @@ __all__ = [
     "TailRisk",
     "TechnicalIndicators",
     "TimeframeConfluence",
+    "TradeStatistics",
     "Unit",
     "Universe",
     "UnknownCurrencyError",
@@ -268,6 +293,7 @@ __all__ = [
     "pillars_for",
     "price_patterns",
     "price_structure",
+    "run_backtest",
     "technical_indicators",
     "timeframe_confluence",
     "weight_problems",
