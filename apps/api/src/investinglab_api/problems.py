@@ -19,6 +19,7 @@ from investinglab.config import get_logger
 from investinglab.domain.errors import DomainError
 from investinglab.ports import (
     DuplicateNameError,
+    JobStateError,
     RecordNotFoundError,
     RepositoryUnavailableError,
     VersionConflictError,
@@ -30,7 +31,7 @@ from investinglab_api.middleware import REQUEST_ID_HEADER
 if TYPE_CHECKING:
     from fastapi import FastAPI, Request
 
-__all__ = ["PROBLEM_JSON", "ProblemType", "install_problem_handlers", "problem"]
+__all__ = ["PROBLEM_JSON", "ProblemType", "data_problem", "install_problem_handlers", "problem"]
 
 log = get_logger(__name__)
 
@@ -53,6 +54,8 @@ class ProblemType(StrEnum):
     PRECONDITION_REQUIRED = "precondition-required"
     PERSISTENCE_NOT_CONFIGURED = "persistence-not-configured"
     PERSISTENCE_UNAVAILABLE = "persistence-unavailable"
+    JOB_STATE = "job-state"
+    JOB_INTERRUPTED = "job-interrupted"
     HTTP_ERROR = "http-error"
     INTERNAL_ERROR = "internal-error"
 
@@ -110,36 +113,29 @@ async def _domain(request: Request, error: Exception) -> JSONResponse:
     )
 
 
+def data_problem(error: DataUnavailableError) -> tuple[int, ProblemType, str]:
+    """Status, type and title of data nobody delivered: it does not exist, or is unreachable.
+
+    Nobody has it, or nobody serves it for the request (a currency pair has no volume, a
+    range older than the source keeps): the data does not exist, nothing to retry.
+    """
+    not_found = bool(error.attempts) and all(
+        a.error_type in NOT_FOUND_ERRORS for a in error.attempts
+    )
+    if not_found or not error.attempts:
+        return 404, ProblemType.DATA_NOT_FOUND, "Data not found"
+    return 503, ProblemType.DATA_UNAVAILABLE, "Data source unavailable"
+
+
 async def _unavailable(request: Request, exc: Exception) -> JSONResponse:
     error = cast("DataUnavailableError", exc)
     attempts = [
         {"provider": a.provider, "error": a.error_type, "message": a.message}
         for a in error.attempts
     ]
-    # Nobody has it, or nobody serves it for this request (a currency pair has no volume,
-    # a range older than the source keeps): the data does not exist, nothing to retry.
-    not_found = bool(error.attempts) and all(
-        a.error_type in NOT_FOUND_ERRORS for a in error.attempts
-    )
-    if not_found or not error.attempts:
-        return problem(
-            request,
-            404,
-            ProblemType.DATA_NOT_FOUND,
-            "Data not found",
-            str(error),
-            attempts=attempts,
-        )
-    retryable = any(a.retryable for a in error.attempts)
-    response = problem(
-        request,
-        503,
-        ProblemType.DATA_UNAVAILABLE,
-        "Data source unavailable",
-        str(error),
-        attempts=attempts,
-    )
-    if retryable:
+    status, kind, title = data_problem(error)
+    response = problem(request, status, kind, title, str(error), attempts=attempts)
+    if kind is ProblemType.DATA_UNAVAILABLE and any(a.retryable for a in error.attempts):
         response.headers["Retry-After"] = "30"
     return response
 
@@ -174,6 +170,13 @@ async def _version_conflict(request: Request, exc: Exception) -> JSONResponse:
     )
     response.headers["ETag"] = f'"{error.current_version}"'
     return response
+
+
+async def _job_state(request: Request, exc: Exception) -> JSONResponse:
+    error = cast("JobStateError", exc)
+    return problem(
+        request, 409, ProblemType.JOB_STATE, "Not possible now", str(error), job_status=error.status
+    )
 
 
 async def _precondition_required(request: Request, _: Exception) -> JSONResponse:
@@ -246,6 +249,7 @@ def install_problem_handlers(app: FastAPI) -> None:
     app.add_exception_handler(RecordNotFoundError, _record_not_found)
     app.add_exception_handler(DuplicateNameError, _name_conflict)
     app.add_exception_handler(VersionConflictError, _version_conflict)
+    app.add_exception_handler(JobStateError, _job_state)
     app.add_exception_handler(PreconditionRequiredError, _precondition_required)
     app.add_exception_handler(PersistenceNotConfiguredError, _persistence_not_configured)
     app.add_exception_handler(RepositoryUnavailableError, _persistence_unavailable)

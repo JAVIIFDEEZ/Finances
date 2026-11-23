@@ -70,6 +70,10 @@ record-parity cryptoworld:
 api:
     uv run investinglab-api --reload
 
+# Run the background jobs (needs the database of INVESTINGLAB_API_DATABASE_URL, migrated).
+worker:
+    uv run investinglab-api worker
+
 # Start a local PostgreSQL with Docker (the database of INVESTINGLAB_API_DATABASE_URL);
 # the first time it downloads the image, retrying when the connection drops.
 db-up:
