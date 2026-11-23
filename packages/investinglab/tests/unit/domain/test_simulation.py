@@ -249,6 +249,33 @@ def test_chunking_does_not_change_gaussian_paths() -> None:
     assert np.allclose(whole.values(), chunked.values())
 
 
+def test_progress_is_reported_after_every_chunk_without_changing_the_paths() -> None:
+    config = SimulationConfig(n_paths=1_000, horizon=10, chunk_size=300)
+    reports: list[float] = []
+
+    quiet = _portfolio().monte_carlo(config)
+    reported = _portfolio().monte_carlo(config, progress=reports.append)
+    asset: list[float] = []
+    _asset().monte_carlo(config, progress=asset.append)
+
+    assert reports == pytest.approx([0.3, 0.6, 0.9, 1.0])  # 300 + 300 + 300 + 100 paths
+    assert asset == pytest.approx(reports)
+    assert np.array_equal(quiet.values(), reported.values())
+
+
+def test_raising_from_the_progress_callback_stops_the_simulation() -> None:
+    class StopError(Exception):
+        pass
+
+    def stop_after_first(done: float) -> None:
+        raise StopError(done)
+
+    with pytest.raises(StopError):
+        _asset().monte_carlo(
+            SimulationConfig(n_paths=1_000, horizon=10, chunk_size=300), progress=stop_after_first
+        )
+
+
 # ── Memory bound ─────────────────────────────────────────────────────
 
 

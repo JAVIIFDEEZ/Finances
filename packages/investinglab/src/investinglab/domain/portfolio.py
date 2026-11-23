@@ -45,7 +45,7 @@ from investinglab.domain.simulation import (
 from investinglab.domain.time import CALENDAR_YEAR_DAYS, Frequency
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Iterator, Mapping, Sequence
+    from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 
     from investinglab.domain.money import Currency
     from investinglab.domain.series import PriceSeries
@@ -575,12 +575,18 @@ class Portfolio:
 
     # ── Simulation ───────────────────────────────────────────────────
 
-    def monte_carlo(self, config: SimulationConfig | None = None) -> SimulationResult:
+    def monte_carlo(
+        self,
+        config: SimulationConfig | None = None,
+        *,
+        progress: Callable[[float], None] | None = None,
+    ) -> SimulationResult:
         """Simulate the portfolio's future value (B1-T1 §4.4).
 
         Asset returns are simulated jointly (correlations included) and the portfolio's
         own rebalancing policy is applied inside every path. See
-        :class:`~investinglab.domain.simulation.SimulationConfig` for the parameters.
+        :class:`~investinglab.domain.simulation.SimulationConfig` for the parameters, and
+        :func:`~investinglab.domain.simulation.simulate` for ``progress``.
 
         Examples:
             >>> result = portfolio.monte_carlo(SimulationConfig(n_paths=10_000, horizon=252))
@@ -599,7 +605,7 @@ class Portfolio:
             band=band,
             start=pd.Timestamp(prices.index[-1]),
         )
-        return simulate(inputs, settings)
+        return simulate(inputs, settings, progress=progress)
 
     def savings_plan(self, plan: SavingsPlan, config: SimulationConfig | None = None) -> PlanResult:
         """Simulate a savings plan invested in this portfolio (monthly Monte Carlo, ADR-0024).

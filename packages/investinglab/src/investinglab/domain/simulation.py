@@ -36,7 +36,7 @@ from investinglab.analytics.montecarlo import (
 from investinglab.domain.errors import DomainError
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping, Sequence
+    from collections.abc import Callable, Mapping, Sequence
 
     from matplotlib.figure import Figure
 
@@ -544,13 +544,25 @@ def _bootstrap_rows(complete: pd.DataFrame, calibration: Calibration) -> np.ndar
     )
 
 
-def simulate(inputs: SimulationInputs, config: SimulationConfig) -> SimulationResult:
+def simulate(
+    inputs: SimulationInputs,
+    config: SimulationConfig,
+    *,
+    progress: Callable[[float], None] | None = None,
+) -> SimulationResult:
     """Run a Monte Carlo simulation of an asset or a portfolio.
 
     Paths are generated in chunks (:meth:`SimulationConfig.paths_per_chunk`): the per-asset
     returns only exist for one chunk at a time and just the portfolio value paths are kept,
     so memory stays bounded whatever the number of assets. The random stream depends only
     on the seed, the configuration and the number of assets.
+
+    Args:
+        inputs: History and portfolio to simulate.
+        config: Model and size of the simulation.
+        progress: Called after every chunk with the fraction of paths done (0 to 1]. Whoever
+            runs the simulation in the background reports it, and stops it by raising from
+            the callback: the exception reaches the caller.
 
     Raises:
         DomainError: If the history cannot calibrate the model or a single path does not
@@ -606,6 +618,8 @@ def simulate(inputs: SimulationInputs, config: SimulationConfig) -> SimulationRe
             band=inputs.band,
         )
         max_drawdowns[start : start + size] = path_max_drawdowns(block)
+        if progress is not None:
+            progress((start + size) / config.n_paths)
     return SimulationResult(
         config=config,
         calibration=calibration,
