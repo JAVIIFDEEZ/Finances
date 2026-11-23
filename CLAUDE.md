@@ -34,8 +34,9 @@ notebooks/       demos ejecutables, versionadas SIN resultados
 scripts/         utilidades de desarrollo: casetes, arranque de API y web (`dev.py`), limpieza
 apps/api/        API REST FastAPI (ADR-0027): app → routers → jobs → use_cases/mappers → schemas;
                  persistence/ (PostgreSQL, SQLAlchemy, migraciones Alembic; ADR-0029);
-                 worker.py (trabajos en segundo plano con Procrastinate; ADR-0046)
-compose.yaml     servicios locales con Docker (por ahora, PostgreSQL)
+                 worker.py (trabajos en segundo plano con Procrastinate; ADR-0046);
+                 telemetry.py (trazas con OpenTelemetry, opcionales; ADR-0048)
+compose.yaml     servicios locales con Docker: PostgreSQL y, con el perfil `tracing`, Jaeger
 apps/web/        web Next.js 16 + TypeScript estricto (ADR-0028): src/app (pantallas), src/components,
                  src/lib/api (cliente generado de apps/api/openapi.json), e2e/ (Playwright)
 docs/            Zensical: guide/, adr/, architecture/, plan/, reference/, modules/
@@ -65,6 +66,10 @@ docs/            Zensical: guide/, adr/, architecture/, plan/, reference/, modul
    `jobs/kinds.py` y un *endpoint* `202 + Location` en `routers/jobs.py`; `JobRepository.submit`
    lo encola en la misma transacción y lo ejecuta `investinglab-api worker`. Solo
    `persistence/`, `app.py` y `worker.py` importan Procrastinate.
+   Trazas ([ADR-0048](docs/adr/0048-tracing-with-opentelemetry.md)): solo
+   `investinglab_api.telemetry` importa OpenTelemetry (el resto usa `telemetry.span`…) y el
+   núcleo nunca; apagadas por defecto (`INVESTINGLAB_API_TRACING`). Nada sensible en un
+   *span*: las URL se enmascaran como en los logs y las sentencias van sin valores.
 6. Nuevo proveedor = nuevo adaptador en `adapters/providers/<nombre>/` que implementa los
    puertos que sirva (`MarketDataProvider`, `TradeFlowProvider`, `HoldingRatesProvider`,
    `PositioningProvider`, `BookDepthProvider`, `EconomicDataProvider`,
@@ -128,6 +133,7 @@ uv run just mobile            # como preview, y accesible desde el móvil en la 
 uv run just api               # solo la API, en http://127.0.0.1:8000/docs, con recarga
 uv run just worker            # el worker de los trabajos en segundo plano (necesita la base de datos)
 uv run just db-up             # PostgreSQL local con Docker (compose.yaml)
+uv run just traces            # Jaeger local para ver las trazas (con INVESTINGLAB_API_TRACING=otlp)
 uv run just db-upgrade        # llevar la base de datos al esquema de esta versión
 uv run just db-revision "…"   # borrador de migración desde los modelos (revisarlo a mano)
 uv run just openapi           # regenerar el contrato de la API y los tipos de la web (CI lo exige)

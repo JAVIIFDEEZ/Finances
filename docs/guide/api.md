@@ -79,7 +79,9 @@ Una cartera se describe en el cuerpo:
 * **`null` antes que inventar.** Una cifra indefinida (una columna que el proveedor no da, un
   ratio sin datos suficientes) es `null`, nunca 0.
 * **Decimales.** Rentabilidades, volatilidades y tipos van en tanto por uno (`0.05` = 5 %).
-* **`X-Request-ID`.** Cada respuesta lo lleva. Envía el tuyo para correlacionar con los logs.
+* **`X-Request-ID`.** Cada respuesta lo lleva. Envía el tuyo para correlacionar con los logs y,
+  si las trazas están encendidas, con el *span* de la petición
+  ([Observabilidad](observability.md)).
 * **Límites** (`INVESTINGLAB_API_*`): 25 instrumentos, 20 000 trayectorias y 2 520 periodos
   de horizonte por petición, por defecto.
 * **Contrato.** `apps/api/openapi.json` es el documento OpenAPI versionado. Si cambias la API,
