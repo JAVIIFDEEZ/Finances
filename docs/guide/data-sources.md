@@ -337,6 +337,30 @@ Lo que sirven tus **ficheros locales** no pasa por la caché: leer el fichero cu
 leer la caché, y así un fichero editado (otra columna, un precio corregido) se ve en la
 siguiente consulta, no cuando caduque una copia guardada. Solo se cachea lo que se descarga.
 
+## Si una fuente responde
+
+Cada fuente remota declara un **canario**: una petición pequeña, siempre la misma, que el
+*worker* le hace al arrancar y cada cuarto de hora, sin caché y sin preguntar a otra
+([ADR-0047](../adr/0047-source-heartbeat.md)). De cada una guarda si respondió, en cuánto, el
+instante de su último dato y, si falla, desde cuándo.
+
+| Fuente | Canario |
+|---|---|
+| Yahoo Finance | velas diarias de `^GSPC` |
+| BCE | velas diarias de `EURUSD=X` |
+| Binance, Kraken, Coinbase | velas diarias de `BTC/USDT` (Binance) o `BTC/USD` |
+| OKX, Deribit | funding de `BTC/USDT:USDT` y de `BTC/USD:BTC` |
+| alternative.me | el índice `FNG` |
+| CoinGecko | la foto del mercado cripto |
+
+* **En la web.** La **Visión general** lo muestra junto a cada fuente: responde, falla o está
+  sin comprobar. Esto último quiere decir que no hay comprobación en los últimos 45 minutos,
+  así que el *worker* no está en marcha.
+* **Desde Python.** `tk.check_sources()` hace la misma comprobación en el momento.
+* **La antigüedad del último dato informa, no juzga:** la bolsa cierra el fin de semana y una
+  serie mensual tiene un mes.
+* **Sin base de datos** no hay *worker* ni comprobación.
+
 ## Trabajar sin red
 
 Con `INVESTINGLAB_OFFLINE=true` no se registra ninguna fuente remota: solo se usan tus

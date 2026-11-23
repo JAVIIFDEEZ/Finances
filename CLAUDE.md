@@ -69,7 +69,8 @@ docs/            Zensical: guide/, adr/, architecture/, plan/, reference/, modul
    puertos que sirva (`MarketDataProvider`, `TradeFlowProvider`, `HoldingRatesProvider`,
    `PositioningProvider`, `BookDepthProvider`, `EconomicDataProvider`,
    `ReferenceDataProvider`), declara sus
-   `ProviderCapabilities`, usa
+   `ProviderCapabilities` (con su `canary`, la petición con la que el *worker* comprueba que
+   responde; [ADR-0047](docs/adr/0047-source-heartbeat.md)), usa
    `HttpClient` para la red, se registra en `ProviderRegistry` y entra como un caso más en el
    contrato de su dato (`tests/contract/`). Nada más cambia: la lista de comprobación está en
    [Añadir una fuente de datos](docs/guide/adding-a-source.md).

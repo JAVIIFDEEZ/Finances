@@ -34,6 +34,12 @@ En `adapters/providers/<nombre>/`:
   `identifiers_by_dataset` y `frequencies_by_dataset`. Para tipos de mantenimiento,
   `rate_kinds`; para posicionamiento, `positioning_fields`; para la profundidad del libro,
   `book_bands`.
+* **Su canario** (`canary`): una petición pequeña que el *worker* le hace cada cuarto de hora
+  para saber si responde y lo fresco que es su dato
+  ([ADR-0047](../adr/0047-source-heartbeat.md)). Pide barras, una serie económica, *funding* o
+  la foto de un mercado, de un instrumento líquido que no vaya a dejar de cotizar
+  (`Canary(Dataset.BARS, "^GSPC")`). `ProviderCapabilities` rechaza uno que la fuente no sirve.
+  Solo los ficheros propios no lo llevan.
 * **Devuelve objetos de dominio validados**, nunca la respuesta cruda. Lo que la fuente no
   publica no existe (una columna ausente, un `NaN`), nunca se rellena.
 * **Sus propias reglas, en su docstring**: unidades, zona horaria, cómo etiqueta los periodos,
@@ -75,7 +81,8 @@ de exclusión.
   buena y la de símbolo inexistente. Es lo que garantiza que se comporta como las demás.
 * **Las reglas propias**: un fichero `tests/unit/adapters/test_<nombre>.py` que compare con
   la casete leída por separado y pruebe cada regla con copias alteradas de lo grabado.
-* **La descripción**: un test de sus `capabilities`.
+* **La descripción**: un test de sus `capabilities`. Su canario lo comprueba el test de las
+  fuentes por defecto de `test_toolkit.py`: entra al añadirla a la lista `REMOTE`.
 
 ## 6. La documentación
 
