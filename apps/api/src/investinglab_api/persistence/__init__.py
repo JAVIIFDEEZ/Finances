@@ -16,15 +16,26 @@ from typing import TYPE_CHECKING, Final
 if TYPE_CHECKING:
     from investinglab_api.persistence.audit import SqlAuditLog
     from investinglab_api.persistence.database import Database, DatabaseStatus
+    from investinglab_api.persistence.jobs import SqlJobRepository
     from investinglab_api.persistence.portfolios import SqlPortfolioRepository
+    from investinglab_api.persistence.queue import queue_app
 
-__all__ = ["Database", "DatabaseStatus", "SqlAuditLog", "SqlPortfolioRepository"]
+__all__ = [
+    "Database",
+    "DatabaseStatus",
+    "SqlAuditLog",
+    "SqlJobRepository",
+    "SqlPortfolioRepository",
+    "queue_app",
+]
 
 _EXPORTS: Final = {
     "Database": "investinglab_api.persistence.database",
     "DatabaseStatus": "investinglab_api.persistence.database",
     "SqlAuditLog": "investinglab_api.persistence.audit",
+    "SqlJobRepository": "investinglab_api.persistence.jobs",
     "SqlPortfolioRepository": "investinglab_api.persistence.portfolios",
+    "queue_app": "investinglab_api.persistence.queue",
 }
 
 

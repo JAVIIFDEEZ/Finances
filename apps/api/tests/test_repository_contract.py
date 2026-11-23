@@ -15,17 +15,35 @@ from investinglab.domain.errors import DomainError
 from investinglab.domain.portfolio import RebalancePolicy
 from investinglab.domain.time import Frequency
 from investinglab.ports import (
+    JOB_STREAM,
     AuditLog,
     DuplicateNameError,
+    JobError,
+    JobRepository,
+    JobStateError,
+    JobStatus,
+    JsonValue,
     PortfolioRepository,
     PortfolioSpec,
     RecordNotFoundError,
     VersionConflictError,
+    job_outcome,
 )
-from investinglab_api.persistence import SqlAuditLog, SqlPortfolioRepository
-from support.repositories import PORTFOLIO_STREAM, InMemoryAuditLog, InMemoryPortfolioRepository
+from investinglab_api.persistence import (
+    SqlAuditLog,
+    SqlJobRepository,
+    SqlPortfolioRepository,
+    queue_app,
+)
+from support.repositories import (
+    PORTFOLIO_STREAM,
+    InMemoryAuditLog,
+    InMemoryJobRepository,
+    InMemoryPortfolioRepository,
+)
 
 type Repositories = tuple[PortfolioRepository, AuditLog]
+type JobStores = tuple[JobRepository, AuditLog]
 
 
 class Clock:
@@ -47,6 +65,19 @@ def repositories(request: pytest.FixtureRequest) -> Repositories:
         return InMemoryPortfolioRepository(audit, clock), audit
     database = request.getfixturevalue("database")
     return SqlPortfolioRepository(database, clock), SqlAuditLog(database, clock)
+
+
+@pytest.fixture(params=["memory", pytest.param("postgres", marks=pytest.mark.integration)])
+def job_stores(request: pytest.FixtureRequest) -> JobStores:
+    clock = Clock()
+    if request.param == "memory":
+        audit = InMemoryAuditLog(clock)
+        return InMemoryJobRepository(audit, clock), audit
+    database = request.getfixturevalue("database")
+    postgres = request.getfixturevalue("postgres")
+    return SqlJobRepository(database, queue_app(postgres["app"]), clock), SqlAuditLog(
+        database, clock
+    )
 
 
 @pytest.fixture
@@ -231,3 +262,220 @@ async def test_every_change_leaves_an_entry_in_the_audit_log(
     ]
     assert all(e.details["id"] == str(saved.id) for e in entries[:3])
     assert (await audit.verify(PORTFOLIO_STREAM)).intact
+
+
+# ── Background jobs ────────────────────────────────────────────────────────
+
+PARAMETERS: dict[str, JsonValue] = {
+    "portfolio": {"holdings": [{"symbol": "AAA.MC", "weight": 1.0}]},
+    "n_paths": 500,
+}
+
+
+async def test_a_submitted_job_reads_back_queued(job_stores: JobStores, owner: str) -> None:
+    jobs, _ = job_stores
+
+    job = await jobs.submit(owner, "simulation", PARAMETERS)
+    read = await jobs.get(owner, job.id)
+
+    assert read == job
+    assert (read.status, read.kind, read.owner_id, read.attempts) == (
+        JobStatus.QUEUED,
+        "simulation",
+        owner,
+        0,
+    )
+    assert read.parameters == PARAMETERS
+    assert (read.started_at, read.finished_at, read.progress, read.result) == (
+        None,
+        None,
+        None,
+        None,
+    )
+    assert read.created_at.tzinfo is not None
+
+
+@pytest.mark.parametrize(
+    ("kind", "parameters", "problem"),
+    [
+        ("", {}, "kind"),
+        ("x" * 41, {}, "kind"),
+        ("simulation", {"value": float("nan")}, "plain JSON"),
+    ],
+    ids=["empty-kind", "long-kind", "nan"],
+)
+async def test_a_submission_is_validated(
+    job_stores: JobStores, owner: str, kind: str, parameters: dict[str, object], problem: str
+) -> None:
+    jobs, _ = job_stores
+
+    with pytest.raises(DomainError, match=problem):
+        await jobs.submit(owner, kind, parameters)  # type: ignore[arg-type]
+    assert (await jobs.list(owner)).items == ()
+
+
+async def test_a_job_runs_from_queued_to_succeeded(job_stores: JobStores, owner: str) -> None:
+    jobs, _ = job_stores
+    job = await jobs.submit(owner, "simulation", PARAMETERS)
+
+    started = await jobs.start(owner, job.id)
+    asked = await jobs.report(owner, job.id, progress=0.25, stage="simulating")
+    running = await jobs.get(owner, job.id)
+    done = await jobs.succeed(owner, job.id, {"paths": [1.0, 2.5], "label": "ñ"})
+
+    assert started is not None
+    assert (started.status, started.attempts) == (JobStatus.RUNNING, 1)
+    assert started.started_at is not None
+    assert asked is False
+    assert (running.progress, running.stage) == (0.25, "simulating")
+    assert (done.status, done.progress, done.stage) == (JobStatus.SUCCEEDED, 1.0, None)
+    assert done.result == {"paths": [1.0, 2.5], "label": "ñ"}
+    assert done.finished_at is not None
+    assert await jobs.get(owner, job.id) == done
+
+
+async def test_a_failed_job_keeps_its_error(job_stores: JobStores, owner: str) -> None:
+    jobs, _ = job_stores
+    job = await jobs.submit(owner, "simulation", PARAMETERS)
+    await jobs.start(owner, job.id)
+    error = JobError("data-not-found", "Data not found", "Nobody has NOPE.MC")
+
+    failed = await jobs.fail(owner, job.id, error)
+
+    assert (failed.status, failed.error, failed.result) == (JobStatus.FAILED, error, None)
+    assert (await jobs.get(owner, job.id)).error == error
+
+
+async def test_cancelling_a_queued_job_finishes_it(job_stores: JobStores, owner: str) -> None:
+    jobs, _ = job_stores
+    job = await jobs.submit(owner, "simulation", PARAMETERS)
+
+    cancelled = await jobs.cancel(owner, job.id)
+
+    assert cancelled.status is JobStatus.CANCELLED
+    assert cancelled.finished_at is not None
+    assert await jobs.start(owner, job.id) is None  # the worker that takes it skips it
+    with pytest.raises(JobStateError) as refused:
+        await jobs.cancel(owner, job.id)
+    assert refused.value.status is JobStatus.CANCELLED
+
+
+async def test_cancelling_a_running_job_asks_it_to_stop(job_stores: JobStores, owner: str) -> None:
+    jobs, _ = job_stores
+    job = await jobs.submit(owner, "simulation", PARAMETERS)
+    await jobs.start(owner, job.id)
+
+    asked = await jobs.cancel(owner, job.id)
+    told = await jobs.report(owner, job.id, progress=0.5, stage=None)
+    stopped = await jobs.stopped(owner, job.id)
+
+    assert (asked.status, asked.cancel_requested) == (JobStatus.RUNNING, True)
+    assert told is True
+    assert (stopped.status, stopped.result, stopped.error, stopped.stage) == (
+        JobStatus.CANCELLED,
+        None,
+        None,
+        None,
+    )
+
+
+async def test_only_a_running_job_can_finish(job_stores: JobStores, owner: str) -> None:
+    jobs, _ = job_stores
+    job = await jobs.submit(owner, "simulation", PARAMETERS)
+
+    with pytest.raises(JobStateError) as queued:
+        await jobs.succeed(owner, job.id, {"early": True})
+    await jobs.start(owner, job.id)
+    await jobs.succeed(owner, job.id, {"done": True})
+    with pytest.raises(JobStateError) as twice:
+        await jobs.fail(owner, job.id, JobError("internal-error", "Internal error", "late"))
+
+    assert queued.value.status is JobStatus.QUEUED
+    assert twice.value.status is JobStatus.SUCCEEDED
+    assert await jobs.report(owner, job.id, progress=0.1, stage=None) is False
+    assert await jobs.start(owner, job.id) is None  # a finished job never runs again
+
+
+async def test_a_lost_worker_lets_the_job_start_again(job_stores: JobStores, owner: str) -> None:
+    jobs, _ = job_stores
+    job = await jobs.submit(owner, "simulation", PARAMETERS)
+
+    await jobs.start(owner, job.id)
+    again = await jobs.start(owner, job.id)
+
+    assert again is not None
+    assert (again.status, again.attempts) == (JobStatus.RUNNING, 2)
+
+
+async def test_only_a_finished_job_can_be_removed(job_stores: JobStores, owner: str) -> None:
+    jobs, _ = job_stores
+    job = await jobs.submit(owner, "simulation", PARAMETERS)
+
+    with pytest.raises(JobStateError):
+        await jobs.remove(owner, job.id)
+    await jobs.cancel(owner, job.id)
+    await jobs.remove(owner, job.id)
+
+    with pytest.raises(RecordNotFoundError):
+        await jobs.get(owner, job.id)
+
+
+async def test_another_owners_job_does_not_exist(job_stores: JobStores, owner: str) -> None:
+    jobs, _ = job_stores
+    job = await jobs.submit(owner, "simulation", PARAMETERS)
+    stranger = f"{owner}-other"
+
+    for attempt in (
+        jobs.get(stranger, job.id),
+        jobs.cancel(stranger, job.id),
+        jobs.remove(stranger, job.id),
+        jobs.succeed(stranger, job.id, {"stolen": True}),
+    ):
+        with pytest.raises(RecordNotFoundError):
+            await attempt
+    assert await jobs.start(stranger, job.id) is None
+    assert (await jobs.list(stranger)).items == ()
+    assert (await jobs.get(owner, job.id)).status is JobStatus.QUEUED
+
+
+async def test_jobs_are_listed_from_the_newest(job_stores: JobStores, owner: str) -> None:
+    jobs, _ = job_stores
+    submitted = [await jobs.submit(owner, "simulation", PARAMETERS) for _ in range(5)]
+
+    first = await jobs.list(owner, limit=2)
+    second = await jobs.list(owner, limit=2, cursor=first.next_cursor)
+    third = await jobs.list(owner, limit=2, cursor=second.next_cursor)
+
+    listed = [job.id for page in (first, second, third) for job in page.items]
+    assert listed == [job.id for job in reversed(submitted)]
+    assert third.next_cursor is None
+    with pytest.raises(DomainError, match="cursor"):
+        await jobs.list(owner, cursor="not-a-cursor")
+
+
+async def test_every_outcome_leaves_an_entry_in_the_audit_log(
+    job_stores: JobStores, owner: str
+) -> None:
+    jobs, audit = job_stores
+    start = len(await audit.read(JOB_STREAM, limit=100_000))
+    done = await jobs.submit(owner, "simulation", PARAMETERS)
+    await jobs.start(owner, done.id)
+    succeeded = await jobs.succeed(owner, done.id, {"value": 1.5})
+    dropped = await jobs.submit(owner, "simulation", PARAMETERS)
+    await jobs.cancel(owner, dropped.id)
+    await jobs.remove(owner, dropped.id)
+
+    entries = [
+        e for e in await audit.read(JOB_STREAM, after=start, limit=100_000) if e.owner_id == owner
+    ]
+
+    assert [e.kind for e in entries] == [
+        "job.submitted",
+        "job.succeeded",
+        "job.submitted",
+        "job.cancelled",
+        "job.removed",
+    ]
+    assert entries[1].details == job_outcome(succeeded)  # the result's digest, not the result
+    assert "result_sha256" in entries[1].details
+    assert (await audit.verify(JOB_STREAM)).intact

@@ -115,7 +115,8 @@ def test_db_reports_and_upgrades_the_schema(
     assert cli.main(["db", "upgrade"]) == 0  # already there: nothing to do, still fine
 
     output = capsys.readouterr().out
-    assert output.count("Database at revision 0001 (this version needs 0001)") == 2
+    head = migrate.head_revision()
+    assert output.count(f"Database at revision {head} (this version needs {head})") == 2
     assert "postgres:" not in output  # the URL and its password are never printed
 
 

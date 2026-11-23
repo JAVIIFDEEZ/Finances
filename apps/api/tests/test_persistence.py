@@ -29,12 +29,14 @@ from investinglab_api.persistence import (
 from investinglab_api.persistence.ddl import OWNER_SETTING
 from investinglab_api.persistence.migrate import (
     alembic_config,
+    compared,
     current_revision,
     head_revision,
     upgrade,
 )
 from investinglab_api.persistence.models import GLOBAL_TABLES, Base, Owned
 from investinglab_api.persistence.portfolios import name_taken
+from investinglab_api.persistence.queue import pending_schema_migrations
 
 pytestmark = pytest.mark.integration
 
@@ -58,11 +60,20 @@ def test_the_models_match_the_migrated_schema(postgres: dict[str, str]) -> None:
     engine = create_engine(postgres["owner"])
     try:
         with engine.connect() as connection:
-            context = MigrationContext.configure(connection, opts={"compare_type": True})
+            context = MigrationContext.configure(
+                connection, opts={"compare_type": True, "include_name": compared}
+            )
             assert compare_metadata(context, Base.metadata) == []
     finally:
         engine.dispose()
     assert current_revision(postgres["owner"]) == head_revision()
+
+
+def test_the_queue_schema_is_the_installed_procrastinates() -> None:
+    """A Procrastinate with schema changes needs a migration that applies them (queue.py)."""
+    assert pending_schema_migrations() == [], (
+        "Procrastinate's schema moved past our migrations: add one that runs these files"
+    )
 
 
 def test_every_table_has_an_owner_or_is_declared_global() -> None:
