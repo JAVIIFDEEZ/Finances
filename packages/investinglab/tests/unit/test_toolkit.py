@@ -42,6 +42,7 @@ from investinglab.toolkit import (
     AsyncToolkit,
     Toolkit,
     _EventLoopThread,
+    _perpetual_of,
     _prefer_fresh_funding,
 )
 from support.cassettes import load_cassette
@@ -322,6 +323,21 @@ def test_series_are_downloaded_from_yahoo(tmp_path: Path) -> None:
 
     assert series.source.provider == "yahoo"
     assert len(series) == len(again) == 22
+
+
+@pytest.mark.parametrize(
+    ("symbol", "swap"),
+    [
+        ("BTC/USDT", "BTC/USDT:USDT"),
+        ("ETH/USDC", "ETH/USDC:USDC"),
+        ("BTC/USD", "BTC/USD:BTC"),  # no venue settles a swap in dollars: the inverse one
+        ("SAN.MC", None),
+        ("BTC-USD", None),
+        ("BTC/USDT:USDT", None),
+    ],
+)
+def test_the_perpetual_of_a_pair(symbol: str, swap: str | None) -> None:
+    assert _perpetual_of(symbol) == swap
 
 
 def test_funding_is_asked_of_the_up_to_date_venue_first() -> None:

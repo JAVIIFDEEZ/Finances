@@ -8,6 +8,11 @@ describe("perpetualOf", () => {
     expect(perpetualOf("1000SATS/USDC")).toBe("1000SATS/USDC:USDC");
   });
 
+  it("names the inverse swap of a pair in dollars, which no venue settles in dollars", () => {
+    expect(perpetualOf("BTC/USD")).toBe("BTC/USD:BTC");
+    expect(perpetualOf("ETH/USD")).toBe("ETH/USD:ETH");
+  });
+
   it("has nothing for symbols that are not pairs", () => {
     for (const symbol of ["SAN.MC", "^GSPC", "EURUSD=X", "BTC-USD", "BTC/USDT:USDT", "btc/usdt"]) {
       expect(perpetualOf(symbol)).toBeNull();

@@ -151,16 +151,23 @@ CARD_POSITIONING: Final = timedelta(days=30)
 """Daily positioning a card reads; the change of the open interest is measured over it."""
 
 _SPOT_PAIR: Final = re.compile(r"^([A-Z0-9]{2,15})/([A-Z0-9]{2,10})$")
+_INVERSE_QUOTE: Final = "USD"
+"""Quote of the pairs whose perpetual is inverse: settled in the base asset, not in dollars."""
 
 
 def _perpetual_of(symbol: str) -> str | None:
-    """The linear perpetual swap of a venue's spot pair (``BTC/USDT`` → ``BTC/USDT:USDT``).
+    """The perpetual swap of a venue's spot pair.
 
-    ``None`` for any other notation: a symbol that does not name its quote asset does not
-    say which swap is its own.
+    The linear swap settled in the quote asset (``BTC/USDT`` → ``BTC/USDT:USDT``); for a pair
+    in US dollars, the inverse swap settled in the base asset (``BTC/USD`` → ``BTC/USD:BTC``),
+    since the venues list no swap settled in dollars. ``None`` for any other notation: a
+    symbol that does not name its quote asset does not say which swap is its own.
     """
     pair = _SPOT_PAIR.match(symbol)
-    return None if pair is None else f"{pair[1]}/{pair[2]}:{pair[2]}"
+    if pair is None:
+        return None
+    base, quote = pair[1], pair[2]
+    return f"{base}/{quote}:{base if quote == _INVERSE_QUOTE else quote}"
 
 
 WARMUP: Final[dict[Frequency, timedelta]] = {
