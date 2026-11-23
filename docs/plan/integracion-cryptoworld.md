@@ -802,6 +802,12 @@ tras su puerto (`ReferenceDataProvider`), como fotos fechadas y nunca como serie
 sin clave (una *demo* opcional sube la cuota). Pendiente de G1: su API y pantalla y el tercer
 *venue*.
 
+**Avance (23-11-2026, el mercado cripto en la API y la web):** `GET /api/v1/market/snapshot` y
+`GET /api/v1/market/caps` (hasta 250 activos, en cualquier divisa ISO que CoinGecko valore); en la
+visión general, la tarjeta «Mercado cripto»: capitalización total, cambio en 24 h (solo en dólares,
+como lo publica la fuente; en otra divisa se dice, no se calcula), volumen, dominancia con el resto
+del mercado y los diez mayores con su cuota del total. Pendiente de G1: el tercer *venue*.
+
 **Decisión al implementarla (13-11-2026):** en lugar de ccxt, un adaptador por *venue* sobre `HttpClient`, con casetes ([ADR-0032](../adr/0032-crypto-venues-on-the-shared-http-client.md)): ccxt salta la capa de red común y sus peticiones no se pueden reproducir con `respx`. La notación de símbolos es la de ccxt (`BTC/USDT`, `BTC/USDT:USDT`) y el enrutado la reconoce sola, así que `tk.series("BTC/USDT", frequency="1h")` va a Binance sin indicar el *venue*. Hechos: Binance *spot* (velas y flujo), funding de OKX, volumen de Yahoo como flujo. Pendientes: el resto de la lista.
 
 ### G2 — Análisis técnico multiactivo y ficha de activo
