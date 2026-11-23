@@ -214,6 +214,51 @@ Solo el pilar técnico es direccional; los demás describen. Un pilar que se apl
 datos no sirve ninguna fuente va con `issue` y los demás se leen igual. No hay veredicto que
 los fusione: los pesos entre pilares se aprenderán en G4, con su muestra a la vista.
 
+## Backtest
+
+`series.backtest(signals)` opera una serie con unas señales y devuelve sus operaciones, su
+*equity* y sus métricas ([ADR-0049](../adr/0049-backtest-engine.md)). El motor es el de
+CryptoWorld, con paridad comprobada: la misma estrategia da las mismas operaciones en las dos
+plataformas.
+
+```python
+from investinglab.domain import BacktestConfig, CostModel, RiskModel
+
+san = tk.series("SAN.MC", start="2020-01-01")
+rapida, lenta = san.prices.rolling(10).mean(), san.prices.rolling(30).mean()
+cruce = (rapida > lenta).astype(int).diff().fillna(0)  # 1 abre, -1 cierra, 0 mantiene
+
+config = BacktestConfig(
+    costs=CostModel(
+        commission_bps=10,  # 0,1 % por orden...
+        minimum_commission=4,  # ...con un mínimo de 4 € (el de tu broker)
+        slippage_bps=5,  # medio spread más el impacto
+        transaction_tax_bps=20,  # el ITF: 0,2 % de cada compra de una gran cotizada española
+    ),
+    risk=RiskModel(stop_loss_pct=0.08, trailing_stop_pct=0.05),
+)
+r = san.backtest(cruce, config=config)
+r.total_return, r.buy_and_hold  # la estrategia frente a mantener
+r.metrics().sharpe_ratio  # anualizado con 252 sesiones: el calendario de la Bolsa de Madrid
+r.statistics.win_rate, r.statistics.profit_factor
+r.costs  # comisión, impuesto, deslizamiento, funding y préstamo, por separado
+r.trades[0].exit_reason  # signal, stop_loss, trailing_stop, take_profit, time_exit…
+```
+
+* **Cuándo se rellena una orden.** La señal de una vela se rellena a la apertura de la
+  siguiente: nunca al cierre que la originó. La siguiente a un viernes es la del lunes, o la
+  del martes si el lunes es festivo.
+* **Barreras.** Los *stops* y los objetivos saltan dentro de la vela, a su precio. Si una vela
+  toca los dos, gana el *stop*.
+* **Cortos.** `short_signals` abre y cierra el lado corto. `borrow`, por vela, es el coste de
+  préstamo del corto. `funding`, por vela, es el de un perpetuo: positivo, pagan los largos.
+* **Dividendos.** Con precios ajustados (Yahoo los da), el resultado es un retorno total.
+* **Tamaño.** `SizingModel` decide cuánto de la *equity* entra:
+  * todo;
+  * una fracción;
+  * por riesgo, lo que se pierde si salta el *stop*;
+  * por convicción, una fracción por señal.
+
 ## Carteras en varias divisas
 
 ```python

@@ -154,7 +154,10 @@ bash). Lo que necesite más lógica va a un script de Python en `scripts/`, tipa
 - Todo proveedor nuevo se añade como caso del contrato `tests/contract/`.
 - Paridad con CryptoWorld: `tests/fixtures/parity/` guarda lo que calcula el propio código de
   CryptoWorld (`just record-parity`); no se edita a mano. Un indicador, patrón, regla o
-  cálculo de estructura nuevo entra en la paridad si CryptoWorld lo tiene.
+  cálculo de estructura nuevo entra en la paridad si CryptoWorld lo tiene. El motor de
+  backtest también ([ADR-0049](docs/adr/0049-backtest-engine.md)): un cambio en
+  `analytics/backtest/` mantiene sus diez escenarios idénticos, o la diferencia se documenta
+  en el test como la del corto.
 - Web: Vitest para la lógica (`src/lib/__tests__/`) y Playwright de extremo a extremo con
   la API real sin red sobre ficheros **sintéticos** (`e2e/synthetic_data.py`).
 - Móvil: toda pantalla nueva entra en `SCREENS` de `e2e/mobile.spec.ts` (sin desplazamiento

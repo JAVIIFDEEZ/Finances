@@ -947,6 +947,31 @@ fundamentales (F11), ML y pesos aprendidos con su muestra (G4).
 
 **Terminado cuando:** un backtest de una estrategia sobre una acción española y sobre BTC sale con costes reales y veredicto; el test nocturno de mundos nulos está en verde y publica su tasa.
 
+**Avance (24-11-2026, G3, motor):** el motor de CryptoWorld, portado a `analytics/backtest/`
+([ADR-0049](../adr/0049-backtest-engine.md)).
+
+- **Paridad.** Diez escenarios grabados con el propio código de CryptoWorld; la *equity* y las
+  142 operaciones coinciden:
+  - relleno a la apertura siguiente;
+  - barreras dentro de la vela y triple barrera en ATR;
+  - salida por tiempo;
+  - cortos con *funding*;
+  - los tres dimensionados.
+- **Lo que se añade para acciones:**
+  - comisión mínima por orden;
+  - impuesto sobre las compras (ITF, TTF);
+  - coste de préstamo de un corto;
+  - precios ajustados (retorno total);
+  - desglose de costes;
+  - métricas con el calendario de cada mercado.
+- **Uso:** `PriceSeries.backtest(signals)`.
+- **Pendiente de G3:**
+  - la API asíncrona con perfiles de costes por mercado;
+  - la validación;
+  - los mundos nulos;
+  - el informe con veredicto;
+  - la metodología.
+
 ### G4 — Laboratorio de estrategias
 
 Es la propuesta de §4.8 bis llevada a fase.
