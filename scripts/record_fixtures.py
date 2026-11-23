@@ -40,6 +40,7 @@ from investinglab.adapters.providers import (
     binance,
     coinbase,
     coingecko,
+    deribit,
     ecb,
     kraken,
     okx,
@@ -83,6 +84,7 @@ type Provider = (
     | coingecko.CoinGeckoProvider
     | kraken.KrakenProvider
     | coinbase.CoinbaseProvider
+    | deribit.DeribitProvider
 )
 
 CASSETTES = Path(__file__).resolve().parents[1] / "packages/investinglab/tests/fixtures/cassettes"
@@ -147,7 +149,8 @@ class RecordingTransport(httpx.AsyncBaseTransport):
 class Recording:
     """One cassette: a name (``<provider>/<case>``), the request it answers and why it exists.
 
-    ``page_size`` records with pages smaller than the provider's default (pagination tests).
+    ``page_size`` records with pages smaller than the provider's default (pagination tests);
+    for Deribit, which pages by time, it is the hours asked for per call.
     """
 
     name: str
@@ -386,6 +389,35 @@ def _recordings(today: date) -> list[Recording]:
             page_size=6,
         ),
         Recording(
+            "deribit/btc_usd_funding",
+            RatesRequest(
+                "BTC/USD:BTC", RateKind.FUNDING, start=date(2026, 10, 1), end=date(2026, 10, 10)
+            ),
+            "Inverse perpetual: the funding each hour accrued, zeros included, in one call.",
+        ),
+        Recording(
+            "deribit/btc_usdc_funding_windows",
+            RatesRequest(
+                "BTC/USDC:USDC", RateKind.FUNDING, start=date(2026, 10, 1), end=date(2026, 10, 3)
+            ),
+            "Linear perpetual in USDC, read in windows of a day, newest first.",
+            page_size=24,
+        ),
+        Recording(
+            "deribit/before_listing",
+            RatesRequest(
+                "BTC/USDC:USDC", RateKind.FUNDING, start=date(2019, 1, 1), end=date(2019, 1, 2)
+            ),
+            "Days before Deribit listed the perpetual: an empty answer, not an error.",
+        ),
+        Recording(
+            "deribit/not_found",
+            RatesRequest(
+                "NOPE/USD:NOPE", RateKind.FUNDING, start=date(2026, 10, 1), end=date(2026, 10, 2)
+            ),
+            "Unknown perpetual: HTTP 400 with JSON-RPC error -32602 on instrument_name.",
+        ),
+        Recording(
             "kraken/btc_usd_1d",
             BarsRequest("BTC/USD", start=date(2026, 10, 1), end=date(2026, 10, 20)),
             "Pair in US dollars, which Binance does not list: daily bars with trades and VWAP.",
@@ -503,6 +535,11 @@ def _provider(
             clock=clock,
             page_size=recording.page_size or coinbase.PAGE_SIZE,
         ),
+        deribit.NAME: lambda: deribit.DeribitProvider(
+            client=deribit.http_client(retry=retry, transport=transport),
+            clock=clock,
+            window=timedelta(hours=recording.page_size) if recording.page_size else deribit.WINDOW,
+        ),
         okx.NAME: lambda: okx.OkxProvider(
             client=okx.http_client(retry=retry, transport=transport),
             clock=clock,
@@ -594,7 +631,7 @@ async def _outcome(provider: Provider, request: Request) -> str:
         snapshots = await provider.fetch_positioning(request)
         return f"{len(snapshots)} snapshots of {len(snapshots.fields)} fields"
     if isinstance(request, RatesRequest) and isinstance(
-        provider, okx.OkxProvider | binance.BinanceProvider
+        provider, okx.OkxProvider | binance.BinanceProvider | deribit.DeribitProvider
     ):
         return f"{len(await provider.fetch_rates(request))} payments"
     if isinstance(request, MarketSnapshotRequest | MarketCapRequest) and isinstance(

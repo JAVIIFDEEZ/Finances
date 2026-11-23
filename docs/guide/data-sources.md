@@ -13,7 +13,9 @@ en orden de prioridad y pasa a la siguiente si una falla (ver [Guía del Toolkit
 | 5 | **Kraken** | No | Respaldo de los pares cripto, también en dólares y euros (`BTC/USD`, `ETH/EUR`); solo sus últimas 720 velas |
 | 6 | **Coinbase** | No | Segundo respaldo de los pares cripto, con toda su historia |
 | 7 | **OKX** | No | Funding de los perpetuos (`BTC/USDT:USDT`) |
-| 8 | **alternative.me** | No | Índice cripto de miedo y codicia (*Fear & Greed*, `FNG`) |
+| 8 | **Deribit** | No | Funding de cada hora de sus perpetuos en dólares (`BTC/USD:BTC`) y en USDC (`BTC/USDC:USDC`) |
+| 9 | **alternative.me** | No | Índice cripto de miedo y codicia (*Fear & Greed*, `FNG`) |
+| 10 | **CoinGecko** | No (*demo* opcional) | Tamaño, dominancia y clasificación del mercado cripto |
 
 Cada fuente declara qué símbolos sirve, así que una acción va directa a Yahoo, `EURUSD=X`
 diario al BCE, `BTC/USDT` a Binance y `BTC/USDT:USDT` a OKX:
@@ -22,7 +24,7 @@ diario al BCE, `BTC/USDT` a Binance y `BTC/USDT:USDT` a OKX:
 |----------|----------|--------|
 | Símbolo de Yahoo | `SAN.MC`, `^GSPC`, `EURUSD=X`, `BTC-USD` | BCE o Yahoo |
 | Par de un *exchange*: `BASE/QUOTE` | `BTC/USDT`, `ETH/BTC`, `BTC/USD`, `ETH/EUR` | Binance, después Kraken y Coinbase |
-| Perpetuo: `BASE/QUOTE:SETTLE` | `BTC/USDT:USDT` (lineal), `BTC/USD:BTC` (inverso) | OKX, después Binance (`venue` elige uno) |
+| Perpetuo: `BASE/QUOTE:SETTLE` | `BTC/USDT:USDT` (lineal), `BTC/USD:BTC` (inverso) | OKX, después Binance y Deribit (`venue` elige uno) |
 
 ## Yahoo Finance
 
@@ -199,6 +201,36 @@ with Toolkit.from_settings() as tk:
 * **Lineales e inversos.** `BTC/USDT:USDT` y `ETH/USDC:USDC` son USDⓈ-M; `BTC/USD:BTC`, COIN-M
   (sus volcados se publicaron hasta junio de 2026). Un contrato que Binance no tiene da
   `SymbolNotFoundError`; un rango sin ficheros dice cuál es el último mes publicado.
+
+## Deribit: funding de cada hora
+
+```python
+with Toolkit.from_settings() as tk:
+    deribit = tk.holding_rates("BTC/USD:BTC", venue="deribit", start="2026-10-01")
+    deribit.interval  # una hora
+    deribit.annualized()  # comparable con el de OKX y Binance
+```
+
+* **Funding continuo.** Deribit cobra el funding de forma continua y publica, para cada hora,
+  lo devengado en ella (`interest_1h`), con la marca de tiempo al final de la hora en UTC. Cada
+  valor es el tipo de un periodo de una hora y así se anualiza. Su `interest_8h` es lo mismo
+  sumado en las ocho horas anteriores (para compararlo con quien liquida cada 8 horas) y no se
+  usa: sumarlo contaría cada hora ocho veces.
+* **Los ceros son pagos.** Dentro de la banda de amortiguación de Deribit una hora devenga
+  exactamente cero: es un pago real de cero, no un hueco.
+* **Sus perpetuos.** Los inversos cotizan en dólares y liquidan en la moneda base
+  (`BTC/USD:BTC`, `ETH/USD:ETH`); los lineales cotizan y liquidan en USDC (`BTC/USDC:USDC`,
+  `SOL/USDC:USDC`). Uno en USDT o una combinación que Deribit no tiene se rechaza antes de
+  preguntar; uno que no lista da `SymbolNotFoundError`.
+* **Toda la historia, por ventanas.** Deribit responde como mucho 744 horas por llamada, así que
+  un rango se lee en ventanas de 30 días, seis a la vez: una llamada por mes de historia (cinco
+  años son 61 llamadas y unos 10 segundos). Las fechas anteriores al lanzamiento del contrato
+  dan un error que lo dice.
+* **Último, si no se nombra.** Sin `venue`, el funding se pide antes a OKX y a Binance: Deribit
+  paga cada hora y no cada 8, así que responde cuando se nombra o cuando los otros no pueden.
+
+En la web, un par en dólares (`BTC/USD` de Kraken o Coinbase) muestra el funding de su perpetuo
+inverso (`BTC/USD:BTC`), el que listan los *venues*: ninguno liquida un perpetuo en dólares.
 
 ## Posicionamiento: interés abierto y ratios largo/corto
 

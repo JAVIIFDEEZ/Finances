@@ -36,6 +36,7 @@ from investinglab.adapters.providers.alternative_me import AlternativeMeProvider
 from investinglab.adapters.providers.binance import BinanceProvider
 from investinglab.adapters.providers.coinbase import CoinbaseProvider
 from investinglab.adapters.providers.coingecko import CoinGeckoProvider
+from investinglab.adapters.providers.deribit import DeribitProvider
 from investinglab.adapters.providers.ecb import EcbProvider
 from investinglab.adapters.providers.files import LocalFilesProvider
 from investinglab.adapters.providers.kraken import KrakenProvider
@@ -112,6 +113,7 @@ type RemoteProvider = (
     | KrakenProvider
     | CoinbaseProvider
     | OkxProvider
+    | DeribitProvider
     | AlternativeMeProvider
     | CoinGeckoProvider
 )
@@ -149,16 +151,23 @@ CARD_POSITIONING: Final = timedelta(days=30)
 """Daily positioning a card reads; the change of the open interest is measured over it."""
 
 _SPOT_PAIR: Final = re.compile(r"^([A-Z0-9]{2,15})/([A-Z0-9]{2,10})$")
+_INVERSE_QUOTE: Final = "USD"
+"""Quote of the pairs whose perpetual is inverse: settled in the base asset, not in dollars."""
 
 
 def _perpetual_of(symbol: str) -> str | None:
-    """The linear perpetual swap of a venue's spot pair (``BTC/USDT`` → ``BTC/USDT:USDT``).
+    """The perpetual swap of a venue's spot pair.
 
-    ``None`` for any other notation: a symbol that does not name its quote asset does not
-    say which swap is its own.
+    The linear swap settled in the quote asset (``BTC/USDT`` → ``BTC/USDT:USDT``); for a pair
+    in US dollars, the inverse swap settled in the base asset (``BTC/USD`` → ``BTC/USD:BTC``),
+    since the venues list no swap settled in dollars. ``None`` for any other notation: a
+    symbol that does not name its quote asset does not say which swap is its own.
     """
     pair = _SPOT_PAIR.match(symbol)
-    return None if pair is None else f"{pair[1]}/{pair[2]}:{pair[2]}"
+    if pair is None:
+        return None
+    base, quote = pair[1], pair[2]
+    return f"{base}/{quote}:{base if quote == _INVERSE_QUOTE else quote}"
 
 
 WARMUP: Final[dict[Frequency, timedelta]] = {
@@ -189,7 +198,8 @@ def _remote_providers(
     back on Kraken (its last 720 bars) and Coinbase, which also list the pairs in dollars and
     euros. The funding of perpetual swaps written ``BASE/QUOTE:SETTLE`` comes from OKX's
     API, up to date, and from Binance's monthly dumps, which keep the whole history
-    (ADR-0032, ADR-0041); ``venue`` picks one. alternative.me
+    (ADR-0032, ADR-0041); Deribit adds the hourly funding of its perpetuals in dollars and
+    USDC; ``venue`` picks one. alternative.me
     publishes the crypto Fear & Greed Index (``FNG``), and CoinGecko the size, dominance and
     ranking of the crypto market (ADR-0045).
 
@@ -207,6 +217,7 @@ def _remote_providers(
         "kraken": lambda: KrakenProvider(timeout=timeout, retry=retry),
         "coinbase": lambda: CoinbaseProvider(timeout=timeout, retry=retry),
         "okx": lambda: OkxProvider(timeout=timeout, retry=retry),
+        "deribit": lambda: DeribitProvider(timeout=timeout, retry=retry),
         "alternative_me": lambda: AlternativeMeProvider(timeout=timeout, retry=retry),
         "coingecko": lambda: CoinGeckoProvider(
             api_key=config.coingecko_api_key, timeout=timeout, retry=retry
@@ -215,9 +226,11 @@ def _remote_providers(
     return [build() for name, build in factories.items() if name not in registry]
 
 
-FUNDING_ORDER: Final = ("okx", "binance")
+FUNDING_ORDER: Final = ("okx", "binance", "deribit")
 """Venues asked for funding when none is named: OKX's API is up to date, and Binance's
-monthly dumps (published once each month ends) add the history OKX does not keep."""
+monthly dumps (published once each month ends) add the history OKX does not keep. Deribit
+comes last: its funding accrues every hour, a different period from the others' payments, so
+it answers when named (``venue="deribit"``) or when they cannot."""
 
 
 POSITIONING_ORDER: Final = ("okx", "binance")

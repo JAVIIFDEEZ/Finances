@@ -808,6 +808,14 @@ visión general, la tarjeta «Mercado cripto»: capitalización total, cambio en
 como lo publica la fuente; en otra divisa se dice, no se calcula), volumen, dominancia con el resto
 del mercado y los diez mayores con su cuota del total. Pendiente de G1: el tercer *venue*.
 
+**Avance (23-11-2026, Deribit; G1 cerrada):** el tercer *venue* de funding es Deribit, que sí
+responde desde el contenedor (Bybit no). Publica lo devengado cada hora en sus perpetuos
+inversos en dólares y lineales en USDC, con toda su historia, leída en ventanas de 30 días. Va
+el último en el orden de funding (paga cada hora, no cada 8) y entra en el contrato como un
+caso más. En la web y en la ficha, un par en dólares toma su perpetuo inverso (`BTC/USD` →
+`BTC/USD:BTC`), el que listan los tres *venues*. Con esto G1 queda cerrada; Bybit queda como
+*venue* opcional cuyas casetes se graban desde un equipo propio.
+
 **Decisión al implementarla (13-11-2026):** en lugar de ccxt, un adaptador por *venue* sobre `HttpClient`, con casetes ([ADR-0032](../adr/0032-crypto-venues-on-the-shared-http-client.md)): ccxt salta la capa de red común y sus peticiones no se pueden reproducir con `respx`. La notación de símbolos es la de ccxt (`BTC/USDT`, `BTC/USDT:USDT`) y el enrutado la reconoce sola, así que `tk.series("BTC/USDT", frequency="1h")` va a Binance sin indicar el *venue*. Hechos: Binance *spot* (velas y flujo), funding de OKX, volumen de Yahoo como flujo. Pendientes: el resto de la lista.
 
 ### G2 — Análisis técnico multiactivo y ficha de activo

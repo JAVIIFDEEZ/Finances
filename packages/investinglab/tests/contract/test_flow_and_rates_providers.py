@@ -19,6 +19,7 @@ import respx
 
 from investinglab.adapters.providers.binance import BinanceProvider
 from investinglab.adapters.providers.coinbase import CoinbaseProvider
+from investinglab.adapters.providers.deribit import DeribitProvider
 from investinglab.adapters.providers.kraken import KrakenProvider
 from investinglab.adapters.providers.okx import OkxProvider
 from investinglab.adapters.providers.yahoo import YahooFinanceProvider
@@ -184,6 +185,13 @@ def _okx(router: respx.MockRouter) -> HoldingRatesProvider:
     return OkxProvider(clock=known.clock)
 
 
+def _deribit(router: respx.MockRouter) -> HoldingRatesProvider:
+    known = load_cassette("deribit/btc_usd_funding")
+    known.play(router)
+    load_cassette("deribit/not_found").play(router)
+    return DeribitProvider(clock=known.clock)
+
+
 def _binance_rates(router: respx.MockRouter) -> HoldingRatesProvider:
     known = load_cassette("binance/btc_usdt_swap_funding")
     known.play(router)
@@ -203,6 +211,12 @@ RATES_CASES = (
         _okx,
         load_cassette("okx/btc_usdt_swap_funding").rates_request,
         load_cassette("okx/not_found").rates_request,
+    ),
+    RatesCase(
+        "deribit",
+        _deribit,
+        load_cassette("deribit/btc_usd_funding").rates_request,
+        load_cassette("deribit/not_found").rates_request,
     ),
 )
 
