@@ -56,6 +56,9 @@ from investinglab_api.schemas.market import (
     IndicatorOut,
     InstrumentOut,
     IssueOut,
+    MarketCapsOut,
+    MarketShareOut,
+    MarketSnapshotOut,
     MetricsOut,
     PatternEventOut,
     PatternOut,
@@ -64,6 +67,7 @@ from investinglab_api.schemas.market import (
     PositioningColumnOut,
     PositioningOut,
     QualityOut,
+    RankedAssetOut,
     RatePointOut,
     RatesOut,
     RatesSummaryOut,
@@ -113,6 +117,7 @@ if TYPE_CHECKING:
     from investinglab.domain.economic import EconomicSeries
     from investinglab.domain.flow import FlowSeries
     from investinglab.domain.instruments import Instrument
+    from investinglab.domain.market_reference import MarketCapRanking, MarketSnapshot
     from investinglab.domain.metrics import RiskMetrics
     from investinglab.domain.optimization import EfficientFrontier, OptimizationResult
     from investinglab.domain.patterns import PricePatterns
@@ -135,6 +140,8 @@ __all__ = [
     "economic_series_out",
     "flow_out",
     "health_out",
+    "market_caps_out",
+    "market_snapshot_out",
     "metrics_out",
     "module_out",
     "optimization_out",
@@ -731,6 +738,49 @@ def book_depth_out(depth: BookDepthSeries) -> BookDepthOut:
         notional_currency=None if currency is None else str(currency),
         times=[stamp.to_pydatetime() for stamp in pd.DatetimeIndex(depth.snapshots.index)],
         bands=[_band_out(depth, band) for band in depth.bands],
+    )
+
+
+def market_snapshot_out(snapshot: MarketSnapshot) -> MarketSnapshotOut:
+    """A market's snapshot with what its largest assets and the rest hold."""
+    return MarketSnapshotOut(
+        asset_class=snapshot.asset_class,
+        currency=str(snapshot.currency),
+        as_of=snapshot.as_of,
+        source=_source_out(snapshot.source),
+        total_market_cap=snapshot.total_market_cap,
+        total_volume_24h=finite(snapshot.total_volume_24h),
+        market_cap_change_24h=finite(snapshot.market_cap_change_24h),
+        assets=snapshot.assets,
+        dominance=[
+            MarketShareOut(symbol=item.symbol, share=item.share) for item in snapshot.dominance
+        ],
+        others=snapshot.others,
+    )
+
+
+def market_caps_out(ranking: MarketCapRanking) -> MarketCapsOut:
+    """A market's ranking by capitalisation, asset by asset."""
+    return MarketCapsOut(
+        asset_class=ranking.asset_class,
+        currency=str(ranking.currency),
+        as_of=ranking.as_of,
+        source=_source_out(ranking.source),
+        assets=[
+            RankedAssetOut(
+                rank=asset.rank,
+                id=asset.id,
+                symbol=asset.symbol,
+                name=asset.name,
+                price=finite(asset.price),
+                market_cap=finite(asset.market_cap),
+                volume_24h=finite(asset.volume_24h),
+                circulating_supply=finite(asset.circulating_supply),
+                max_supply=finite(asset.max_supply),
+                updated=asset.updated,
+            )
+            for asset in ranking.assets
+        ],
     )
 
 

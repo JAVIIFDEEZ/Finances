@@ -10,6 +10,8 @@ curl "http://127.0.0.1:8000/api/v1/market/flow?symbol=BTC/USDT&start=2026-10-01"
 curl "http://127.0.0.1:8000/api/v1/market/holding-rates?symbol=BTC/USDT:USDT&kind=funding"
 curl "http://127.0.0.1:8000/api/v1/market/positioning?symbol=BTC/USDT:USDT&interval=4h"
 curl "http://127.0.0.1:8000/api/v1/market/book-depth?symbol=BTC/USDT:USDT&start=2026-11-14"
+curl "http://127.0.0.1:8000/api/v1/market/snapshot?currency=EUR"
+curl "http://127.0.0.1:8000/api/v1/market/caps?top=10"
 curl "http://127.0.0.1:8000/api/v1/market/venues?symbol=BTC/USDT:USDT&dataset=positioning"
 curl "http://127.0.0.1:8000/api/v1/market/technical?symbol=EURUSD=X&start=2026-01-01&name=RSI&name=MFI"
 curl "http://127.0.0.1:8000/api/v1/market/patterns?symbol=BTC/USDT&interval=1h&start=2026-11-01"
@@ -33,6 +35,8 @@ curl "http://127.0.0.1:8000/api/v1/market/confluence?symbol=SAN.MC&frame=1d&fram
 | GET | `/api/v1/market/holding-rates` | Funding, comisión de préstamo o coste de financiación (`kind`), con su intervalo y lo acumulado |
 | GET | `/api/v1/market/positioning` | Interés abierto y ratios long/short de un perpetuo en una venue ([ADR-0042](../adr/0042-positioning-as-a-dataset.md)), de 5 minutos a un día (`interval`; 30 días por defecto): una lista de instantes (inicio de cada periodo) y una columna por campo que la venue publica, con su primer y último valor, mínimo y máximo; el periodo en curso no se incluye y una foto que falta es `null` |
 | GET | `/api/v1/market/book-depth` | Profundidad del libro de órdenes por bandas alrededor del precio ([ADR-0044](../adr/0044-order-book-depth-by-bands.md)), de 5 minutos a un día (`interval`; 7 días por defecto, 92 como mucho en Binance): una lista de instantes y, por banda (±0,2 % … ±5 %), lo que hay para comprar y para vender en cantidad y, si el *venue* lo da, en valor, con el desequilibrio y la liquidez de cada instante y sus últimos valores; un hueco es `null` |
+| GET | `/api/v1/market/snapshot` | Foto del mercado de una clase de activo (`asset_class`, cripto hoy) en una divisa ([ADR-0045](../adr/0045-market-reference-snapshots.md)): capitalización total, volumen y cambio de 24 horas (`null` si la fuente solo lo da en otra divisa), cuántos activos sigue y la cuota de los mayores, con lo que queda fuera (`others`). Fechada con el instante en que la fuente la calculó; no es una serie |
+| GET | `/api/v1/market/caps` | Los `top` mayores activos de ese mercado por capitalización (1 a 250; 20 por defecto), cada uno con su precio, capitalización, volumen, oferta y cuándo se actualizó; lo que la fuente no da es `null`. No sirve como universo histórico |
 | GET | `/api/v1/market/venues` | Venues que sirven el funding (`dataset=holding_rates`), el posicionamiento (`positioning`) o la profundidad del libro (`book_depth`) de un instrumento, en el orden en que se preguntan: las interfaces las listan de aquí, así una venue nueva aparece sola |
 | POST | `/api/v1/market/compare` | Rendimiento base 100, caídas, métricas y correlación de varios |
 | GET | `/api/v1/market/quality` | Diagnóstico de calidad frente al calendario oficial |

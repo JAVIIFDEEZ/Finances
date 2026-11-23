@@ -369,6 +369,46 @@ def test_book_depth_requests_are_checked(
     assert client.get("/api/v1/market/book-depth", params=params).status_code == status
 
 
+def test_the_market_snapshot_says_what_the_largest_and_the_rest_hold(client: TestClient) -> None:
+    response = client.get("/api/v1/market/snapshot")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert (body["asset_class"], body["currency"]) == ("crypto", "USD")
+    assert body["as_of"] == "2024-03-01T12:00:00Z"
+    assert body["total_market_cap"] == pytest.approx(1.0e12)
+    assert body["market_cap_change_24h"] == pytest.approx(0.02)
+    assert [item["symbol"] for item in body["dominance"]] == ["SYNA", "SYNB"]
+    assert body["others"] == pytest.approx(0.3)
+
+
+def test_the_ranking_is_as_long_as_asked_with_unknown_figures_null(client: TestClient) -> None:
+    response = client.get("/api/v1/market/caps", params={"top": 2})
+    everything = client.get("/api/v1/market/caps").json()
+
+    assert response.status_code == 200
+    assert [asset["symbol"] for asset in response.json()["assets"]] == ["SYNA", "SYNB"]
+    last = everything["assets"][-1]
+    assert (last["rank"], last["price"], last["market_cap"]) == (3, None, None)
+
+
+@pytest.mark.parametrize(
+    ("path", "params", "status"),
+    [
+        ("/api/v1/market/snapshot", {"currency": "usd"}, 422),
+        ("/api/v1/market/snapshot", {"currency": "ZZZ"}, 422),
+        ("/api/v1/market/snapshot", {"asset_class": "equity"}, 404),
+        ("/api/v1/market/caps", {"top": 0}, 422),
+        ("/api/v1/market/caps", {"top": 251}, 422),
+    ],
+    ids=["lowercase", "unknown-currency", "no-source", "none", "too-many"],
+)
+def test_market_reference_requests_are_checked(
+    client: TestClient, path: str, params: dict[str, str | int], status: int
+) -> None:
+    assert client.get(path, params=params).status_code == status
+
+
 # ── Technical indicators (SYNTHETIC) ─────────────────────────────────
 
 

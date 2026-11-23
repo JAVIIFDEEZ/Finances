@@ -37,6 +37,9 @@ __all__ = [
     "IndicatorOut",
     "InstrumentOut",
     "IssueOut",
+    "MarketCapsOut",
+    "MarketShareOut",
+    "MarketSnapshotOut",
     "MetricsOut",
     "PatternEventOut",
     "PatternOut",
@@ -44,6 +47,7 @@ __all__ = [
     "PositioningColumnOut",
     "PositioningOut",
     "QualityOut",
+    "RankedAssetOut",
     "RatePointOut",
     "RatesOut",
     "RatesSummaryOut",
@@ -397,6 +401,59 @@ class BookDepthOut(ApiModel):
         description="Start of each period (UTC); its values are the book when it ended."
     )
     bands: list[BookBandOut] = Field(description="The bands the venue publishes, narrowest first.")
+
+
+class MarketShareOut(ApiModel):
+    """The share of a market's capitalisation one asset holds."""
+
+    symbol: str = Field(description="Ticker, in capitals (BTC).")
+    share: float = Field(description="Share of the total, from 0 to 1.")
+
+
+class MarketSnapshotOut(ApiModel):
+    """The whole market of an asset class at one instant (ADR-0045).
+
+    A snapshot, not a series: no free source keeps its history.
+    """
+
+    asset_class: AssetClass
+    currency: str
+    as_of: datetime = Field(description="The instant the source computed it (UTC).")
+    source: SourceOut
+    total_market_cap: float
+    total_volume_24h: float | None = Field(description="Volume of the last 24 hours, if given.")
+    market_cap_change_24h: float | None = Field(
+        description="Relative change in 24 hours (null when the source gives it in another "
+        "currency only)."
+    )
+    assets: int | None = Field(description="How many assets the source tracks, if given.")
+    dominance: list[MarketShareOut] = Field(description="The largest assets, largest first.")
+    others: float = Field(description="The share of every asset outside ``dominance``.")
+
+
+class RankedAssetOut(ApiModel):
+    """One asset of a ranking by capitalisation; a figure not given is null."""
+
+    rank: int
+    id: str = Field(description="The source's identifier (bitcoin).")
+    symbol: str
+    name: str
+    price: float | None
+    market_cap: float | None
+    volume_24h: float | None
+    circulating_supply: float | None
+    max_supply: float | None
+    updated: datetime | None = Field(description="When the source last updated these figures.")
+
+
+class MarketCapsOut(ApiModel):
+    """The largest assets of a market by capitalisation, at one instant (ADR-0045)."""
+
+    asset_class: AssetClass
+    currency: str
+    as_of: datetime = Field(description="The latest update among the assets (UTC).")
+    source: SourceOut
+    assets: list[RankedAssetOut]
 
 
 VenueDataset = Literal["holding_rates", "positioning", "book_depth"]

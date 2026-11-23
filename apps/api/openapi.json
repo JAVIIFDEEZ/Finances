@@ -1661,6 +1661,206 @@
         }
       }
     },
+    "/api/v1/market/snapshot": {
+      "get": {
+        "tags": [
+          "market"
+        ],
+        "summary": "The whole market of an asset class: size, change and dominance",
+        "description": "The market as its source last computed it (ADR-0045).\n\nA dated snapshot, not a series: no free source keeps its history. A figure the source\ndoes not give in that currency (the 24-hour change, in dollars only) is null.",
+        "operationId": "market_snapshot_api_v1_market_snapshot_get",
+        "parameters": [
+          {
+            "name": "asset_class",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/AssetClass",
+              "description": "The market described (crypto is the one served today).",
+              "default": "crypto"
+            },
+            "description": "The market described (crypto is the one served today)."
+          },
+          {
+            "name": "currency",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Z]{3}$",
+              "description": "ISO 4217 code.",
+              "default": "USD",
+              "title": "Currency"
+            },
+            "description": "ISO 4217 code."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarketSnapshotOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No provider has the requested data.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request breaks the schema, a limit or a domain rule.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Every provider able to serve the data failed; retry later.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/market/caps": {
+      "get": {
+        "tags": [
+          "market"
+        ],
+        "summary": "The largest assets of a market by capitalisation",
+        "description": "The ranking as its source last made it, each asset with its last update (ADR-0045).\n\nToday's ranking is not a point-in-time universe: used on the past, it would leave out\nthe assets that fell out of it.",
+        "operationId": "market_caps_api_v1_market_caps_get",
+        "parameters": [
+          {
+            "name": "asset_class",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/AssetClass",
+              "description": "The market described (crypto is the one served today).",
+              "default": "crypto"
+            },
+            "description": "The market described (crypto is the one served today)."
+          },
+          {
+            "name": "currency",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Z]{3}$",
+              "description": "ISO 4217 code.",
+              "default": "USD",
+              "title": "Currency"
+            },
+            "description": "ISO 4217 code."
+          },
+          {
+            "name": "top",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 250,
+              "minimum": 1,
+              "description": "How many, from the largest.",
+              "default": 20,
+              "title": "Top"
+            },
+            "description": "How many, from the largest."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarketCapsOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No provider has the requested data.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request breaks the schema, a limit or a domain rule.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Every provider able to serve the data failed; retry later.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/market/venues": {
       "get": {
         "tags": [
@@ -5221,6 +5421,152 @@
         "title": "IssueOut",
         "description": "One data-quality issue."
       },
+      "MarketCapsOut": {
+        "properties": {
+          "asset_class": {
+            "$ref": "#/components/schemas/AssetClass"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "as_of": {
+            "type": "string",
+            "format": "date-time",
+            "title": "As Of",
+            "description": "The latest update among the assets (UTC)."
+          },
+          "source": {
+            "$ref": "#/components/schemas/SourceOut"
+          },
+          "assets": {
+            "items": {
+              "$ref": "#/components/schemas/RankedAssetOut"
+            },
+            "type": "array",
+            "title": "Assets"
+          }
+        },
+        "type": "object",
+        "required": [
+          "asset_class",
+          "currency",
+          "as_of",
+          "source",
+          "assets"
+        ],
+        "title": "MarketCapsOut",
+        "description": "The largest assets of a market by capitalisation, at one instant (ADR-0045)."
+      },
+      "MarketShareOut": {
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "title": "Symbol",
+            "description": "Ticker, in capitals (BTC)."
+          },
+          "share": {
+            "type": "number",
+            "title": "Share",
+            "description": "Share of the total, from 0 to 1."
+          }
+        },
+        "type": "object",
+        "required": [
+          "symbol",
+          "share"
+        ],
+        "title": "MarketShareOut",
+        "description": "The share of a market's capitalisation one asset holds."
+      },
+      "MarketSnapshotOut": {
+        "properties": {
+          "asset_class": {
+            "$ref": "#/components/schemas/AssetClass"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "as_of": {
+            "type": "string",
+            "format": "date-time",
+            "title": "As Of",
+            "description": "The instant the source computed it (UTC)."
+          },
+          "source": {
+            "$ref": "#/components/schemas/SourceOut"
+          },
+          "total_market_cap": {
+            "type": "number",
+            "title": "Total Market Cap"
+          },
+          "total_volume_24h": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Volume 24H",
+            "description": "Volume of the last 24 hours, if given."
+          },
+          "market_cap_change_24h": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Market Cap Change 24H",
+            "description": "Relative change in 24 hours (null when the source gives it in another currency only)."
+          },
+          "assets": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assets",
+            "description": "How many assets the source tracks, if given."
+          },
+          "dominance": {
+            "items": {
+              "$ref": "#/components/schemas/MarketShareOut"
+            },
+            "type": "array",
+            "title": "Dominance",
+            "description": "The largest assets, largest first."
+          },
+          "others": {
+            "type": "number",
+            "title": "Others",
+            "description": "The share of every asset outside ``dominance``."
+          }
+        },
+        "type": "object",
+        "required": [
+          "asset_class",
+          "currency",
+          "as_of",
+          "source",
+          "total_market_cap",
+          "total_volume_24h",
+          "market_cap_change_24h",
+          "assets",
+          "dominance",
+          "others"
+        ],
+        "title": "MarketSnapshotOut",
+        "description": "The whole market of an asset class at one instant (ADR-0045).\n\nA snapshot, not a series: no free source keeps its history."
+      },
       "Matrix": {
         "properties": {
           "labels": {
@@ -6961,6 +7307,110 @@
         ],
         "title": "QualityOut",
         "description": "Data-quality diagnosis against the market's official calendar."
+      },
+      "RankedAssetOut": {
+        "properties": {
+          "rank": {
+            "type": "integer",
+            "title": "Rank"
+          },
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "The source's identifier (bitcoin)."
+          },
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price"
+          },
+          "market_cap": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Market Cap"
+          },
+          "volume_24h": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Volume 24H"
+          },
+          "circulating_supply": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Circulating Supply"
+          },
+          "max_supply": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Supply"
+          },
+          "updated": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated",
+            "description": "When the source last updated these figures."
+          }
+        },
+        "type": "object",
+        "required": [
+          "rank",
+          "id",
+          "symbol",
+          "name",
+          "price",
+          "market_cap",
+          "volume_24h",
+          "circulating_supply",
+          "max_supply",
+          "updated"
+        ],
+        "title": "RankedAssetOut",
+        "description": "One asset of a ranking by capitalisation; a figure not given is null."
       },
       "RateKind": {
         "type": "string",
