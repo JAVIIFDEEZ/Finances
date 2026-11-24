@@ -7,6 +7,7 @@ processes run on a ``SelectorEventLoop``. The Windows job of the CI runs this fi
 from __future__ import annotations
 
 import asyncio
+import re
 import sys
 from typing import TYPE_CHECKING, Any
 
@@ -21,8 +22,8 @@ from investinglab_api.settings import ApiSettings, get_api_settings
 if TYPE_CHECKING:
     from investinglab.config import Settings
 
-NOWHERE = "postgresql+psycopg://nobody@127.0.0.1:1/none"
-"""A database URL nothing listens at."""
+NOWHERE = "postgresql+psycopg://nobody@127.0.0.1:1/none?connect_timeout=2"
+"""A database URL nothing listens at (Windows retries a closed port for long: a timeout)."""
 
 
 @pytest.mark.parametrize(
@@ -102,5 +103,8 @@ def test_a_worker_that_cannot_reach_the_database_says_so(core_settings: Settings
     message = str(refused.value)
     assert "does not answer" in message
     assert "just db-up" in message
-    assert "OperationalError" in message  # the cause, as the driver gave it
+    # The cause, as the driver gave it: refused, or timed out on Windows (ConnectionTimeout,
+    # an OperationalError); never psycopg refusing the event loop.
+    assert re.search(r"\((OperationalError|ConnectionTimeout): ", message), message
+    assert "ProactorEventLoop" not in message
     assert "db-upgrade" not in message  # migrating would not help
