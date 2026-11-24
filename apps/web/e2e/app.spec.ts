@@ -309,6 +309,10 @@ test("Monte Carlo, optimisation and savings plans run", async ({ page }) => {
   await page.goto("/simulation");
   await expect(page.getByRole("img", { name: "Abanico de percentiles" })).toBeVisible();
   await expect(page.getByText("Probabilidad de pérdida")).toBeVisible();
+  // Recalculated with other parameters (the form submits with its default capital).
+  await page.getByLabel("Trayectorias").fill("1000");
+  await page.getByRole("button", { name: "Calcular" }).click();
+  await expect(page.getByText(/^1[.\s]?000 trayectorias/)).toBeVisible();
 
   await page.goto("/optimization");
   await expect(page.getByRole("img", { name: "Frontera eficiente" })).toBeVisible();
