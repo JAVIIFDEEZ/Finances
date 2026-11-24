@@ -697,7 +697,8 @@ class AsyncToolkit:
                 series = series.between(None, through)
                 funding = funding.loc[series.bars.index]
                 costs = costs.on(series.bars.index)
-        return backtest_strategy(
+        return await asyncio.to_thread(  # bar by bar: off the event loop
+            backtest_strategy,
             series,
             spec,
             costs=costs,
