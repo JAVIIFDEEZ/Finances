@@ -90,13 +90,15 @@ def kama(values: pd.Series, window: int = 10, fast: int = 2, slow: int = 30) -> 
     out = np.full(len(data), np.nan)
     if len(data) < window:
         return pd.Series(out, index=values.index)
+    out[window - 1] = data[window - 1]
+    if len(data) == window:  # a first value, and no change after it to adapt to
+        return pd.Series(out, index=values.index)
     change = np.abs(data[window:] - data[:-window])
     steps = np.abs(np.diff(data))
     volatility = np.convolve(steps, np.ones(window), mode="valid")  # sums of `window` steps
     ratio = np.divide(change, volatility, out=np.zeros_like(change), where=volatility != 0)
     fast_sc, slow_sc = 2.0 / (fast + 1.0), 2.0 / (slow + 1.0)
     constant = (ratio * (fast_sc - slow_sc) + slow_sc) ** 2
-    out[window - 1] = data[window - 1]
     for i in range(window, len(data)):
         out[i] = out[i - 1] + constant[i - window] * (data[i] - out[i - 1])
     return pd.Series(out, index=values.index)
