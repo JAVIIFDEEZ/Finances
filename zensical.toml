@@ -71,6 +71,7 @@ nav = [
     "adr/0047-source-heartbeat.md",
     "adr/0048-tracing-with-opentelemetry.md",
     "adr/0049-backtest-engine.md",
+    "adr/0050-strategies-as-data.md",
   ] },
   { "Referencia API" = [
     "reference/index.md",

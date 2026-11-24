@@ -259,6 +259,63 @@ r.trades[0].exit_reason  # signal, stop_loss, trailing_stop, take_profit, time_e
   * por riesgo, lo que se pierde si salta el *stop*;
   * por convicción, una fracción por señal.
 
+### Estrategias como datos
+
+Una estrategia también puede escribirse como dato, con la gramática de CryptoWorld
+([ADR-0050](../adr/0050-strategies-as-data.md)): bloques de entrada y salida con condiciones
+sobre los indicadores y los patrones del catálogo. Se valida, se guarda en JSON y tiene un
+*hash* que la identifica.
+
+```python
+import json
+
+from investinglab.analytics.search import (
+    CLASSICS,
+    Block,
+    Compare,
+    Leg,
+    Operator,
+    StrategySpec,
+    Threshold,
+)
+from investinglab.domain import RiskModel
+
+precio, rsi = Leg("PRICE"), Leg("RSI", {"window": 14})
+retroceso = StrategySpec(
+    entry=Block(
+        (
+            Threshold(rsi, Operator.LT, 40),  # RSI barato…
+            Compare(precio, Leg("SMA", {"window": 150}), Operator.ABOVE),  # …en tendencia
+        )
+    ),
+    exit=Block((Threshold(rsi, Operator.GT, 65),)),
+    risk=RiskModel(stop_loss_pct=0.08),
+)
+r = san.backtest_strategy(retroceso, costs=config.costs)
+r.ready_at  # desde cuándo se conocen todas sus condiciones: antes, sus indicadores calientan
+r.strategy.definition_hash  # el mismo que en CryptoWorld
+
+san.backtest_strategy(CLASSICS["donchian_breakout"])  # las siete clásicas, con nombre
+StrategySpec.from_dict(
+    json.loads(texto)
+)  # la forma JSON de CryptoWorld, con errores que dicen dónde
+```
+
+* **Cinco condiciones:**
+  * umbral, un oscilador por encima o por debajo de un valor;
+  * cruce entre dos niveles, en la vela en que ocurre;
+  * estado, un nivel por encima o por debajo de otro mientras dure;
+  * pendiente, cualquier indicador al alza o a la baja frente a hace `bars` velas;
+  * patrón, en esta vela o en alguna de las `lookback − 1` anteriores.
+* **Bloques:** de una a tres condiciones con `AND`, `OR` o «al menos `k`» (`K_OF_N`). Todas
+  menos el cruce admiten `negate`.
+* **Dirección:** `long`, `short` (los mismos bloques abren cortos) o `both` (con
+  `short_entry` y `short_exit` propios).
+* **Riesgo y tamaño** viajan con la estrategia; los costes y el capital son del mercado y se
+  pasan al backtest.
+* **Lo que no se conoce no da señal.** Mientras un indicador calienta, la condición que lo lee
+  no se cumple, ni negada.
+
 ## Carteras en varias divisas
 
 ```python

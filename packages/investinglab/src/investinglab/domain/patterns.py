@@ -28,7 +28,7 @@ if TYPE_CHECKING:
     from investinglab.domain.series import DataSource, PriceSeries
     from investinglab.domain.time import Frequency
 
-__all__ = ["INTRADAY", "PricePatterns", "price_patterns"]
+__all__ = ["INTRADAY", "PricePatterns", "pattern_bars", "price_patterns", "session_labels"]
 
 INTRADAY = "intraday"
 """What a session pattern lacks on daily or coarser bars."""
@@ -143,13 +143,19 @@ class PricePatterns:
         )
 
 
-def _sessions(series: PriceSeries) -> list[Hashable] | None:
+def session_labels(series: PriceSeries) -> list[Hashable] | None:
     """The trading date of each intraday bar in the market's timezone (``None`` otherwise)."""
     if not series.frequency.is_intraday:
         return None
     index = series.bars.index
     assert isinstance(index, pd.DatetimeIndex)  # noqa: S101 - validated by PriceSeries
     return list(index.tz_convert(series.timezone).date)
+
+
+def pattern_bars(series: PriceSeries) -> dict[str, pd.Series]:
+    """The columns patterns read, as traded: open, high, low and close, those it has."""
+    bars = series.bars
+    return {column.value: bars[column] for column in _COLUMNS if column in bars.columns}
 
 
 def price_patterns(
@@ -179,8 +185,8 @@ def price_patterns(
     if stray:
         raise DomainError(f"Parameters for patterns not requested: {stray}")
     bars = series.bars
-    available = {column.value: bars[column] for column in _COLUMNS if column in bars.columns}
-    labels = _sessions(series)
+    available = pattern_bars(series)
+    labels = session_labels(series)
     flags: dict[str, pd.Series] = {}
     used: dict[str, dict[str, float]] = {}
     unavailable: dict[str, tuple[str, ...]] = {}

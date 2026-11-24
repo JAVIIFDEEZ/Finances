@@ -17,3 +17,7 @@
 ::: investinglab.analytics.optimization
 
 ::: investinglab.analytics.quality
+
+::: investinglab.analytics.backtest
+
+::: investinglab.analytics.search

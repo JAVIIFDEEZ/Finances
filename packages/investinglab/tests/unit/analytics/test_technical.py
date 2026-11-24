@@ -158,6 +158,31 @@ def test_short_series_are_all_warm_up() -> None:
     assert ta.psar(short[:1], short[:1], short[:1]).isna().all()
 
 
+def _lengths(indicator: ta.Indicator) -> list[int]:
+    """Series lengths around every window of an indicator: its warm-up's edges."""
+    windows = [int(p.default) for p in indicator.parameters.values() if p.integer] or [1]
+    near = {n + d for w in windows for n in (w, 2 * w, 3 * w) for d in (-1, 0, 1)}
+    return sorted({1, 2, 3} | {n for n in near if n > 0})
+
+
+@pytest.mark.parametrize("name", sorted(ta.CATALOGUE))
+def test_every_indicator_survives_a_series_as_short_as_its_warm_up(name: str) -> None:
+    for size in _lengths(ta.CATALOGUE[name]):
+        close = pd.Series(np.linspace(100.0, 120.0, size)) + np.sin(np.arange(size))
+        bars = {"high": close * 1.01, "low": close * 0.99, "close": close}
+        bars["volume"] = pd.Series(np.full(size, 1_000.0))
+
+        values = ta.compute(name, bars)
+
+        assert len(values) == size
+
+
+def test_kama_starts_at_the_close_of_its_first_full_window() -> None:
+    values = pd.Series([1.0, 2.0, 4.0])
+
+    np.testing.assert_array_equal(ta.kama(values, 3).to_numpy(), [np.nan, np.nan, 4.0])
+
+
 def test_the_catalogue_validates_its_requests() -> None:
     bars = {"close": RISING}
 

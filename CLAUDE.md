@@ -161,7 +161,10 @@ bash). Lo que necesite más lógica va a un script de Python en `scripts/`, tipa
   cálculo de estructura nuevo entra en la paridad si CryptoWorld lo tiene. El motor de
   backtest también ([ADR-0049](docs/adr/0049-backtest-engine.md)): un cambio en
   `analytics/backtest/` mantiene sus diez escenarios idénticos, o la diferencia se documenta
-  en el test como la del corto.
+  en el test como la del corto. La gramática de estrategias también
+  ([ADR-0050](docs/adr/0050-strategies-as-data.md)): un cambio en `analytics/search/` mantiene
+  el JSON, el *hash* y las señales de sus 67 estrategias. Una condición que lee un indicador
+  sin valor (calentamiento) no da señal, ni negada.
 - Web: Vitest para la lógica (`src/lib/__tests__/`) y Playwright de extremo a extremo con
   la API real sin red sobre ficheros **sintéticos** (`e2e/synthetic_data.py`).
 - Móvil: toda pantalla nueva entra en `SCREENS` de `e2e/mobile.spec.ts` (sin desplazamiento
