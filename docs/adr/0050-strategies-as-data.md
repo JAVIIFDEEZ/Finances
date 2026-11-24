@@ -112,8 +112,10 @@ Opción 1.
 * Un patrón que se ha producido es un hecho siempre. Que no se haya producido solo se sabe
   cuando toda su ventana ha pasado su calentamiento.
 * `Sides.ready` (en el dominio, `ready_at`) es la primera vela desde la que todas las
-  condiciones se conocen. El resultado del backtest la lleva, para que el calentamiento no
-  se confunda con una estrategia que no opera.
+  condiciones se conocen pase lo que pase: sus indicadores tienen valor y sus patrones han
+  pasado su calentamiento. No depende de lo que hagan las velas siguientes (un test de
+  propiedades lo comprueba truncando la serie). El resultado del backtest la lleva, para que
+  el calentamiento no se confunda con una estrategia que no opera.
 
 CryptoWorld negaba también lo desconocido: «RSI no está por debajo de 30» era cierto antes de
 que hubiera RSI.
