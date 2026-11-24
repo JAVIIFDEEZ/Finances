@@ -67,6 +67,27 @@ jobs:
           path: coverage.xml
           retention-days: 14
 
+  windows:
+    # psycopg's asynchronous mode refuses Windows' default event loop: the API and the worker
+    # run on a selector loop there (investinglab_api.loops). Checked where it matters.
+    name: Start-up on Windows
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.14"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install dependencies
+        run: uv sync --all-groups
+
+      - name: The API and the worker start on a loop psycopg accepts
+        run: uv run pytest -p no:cacheprovider --no-cov apps/api/tests/test_startup.py
+
   hooks:
     name: Pre-commit hooks
     runs-on: ubuntu-latest
