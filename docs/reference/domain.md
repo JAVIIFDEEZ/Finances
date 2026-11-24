@@ -12,6 +12,10 @@
 
 ::: investinglab.domain.planning
 
+::: investinglab.domain.backtest
+
+::: investinglab.domain.strategy
+
 ::: investinglab.domain.fx
 
 ::: investinglab.domain.quality

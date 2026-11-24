@@ -972,12 +972,29 @@ fundamentales (F11), ML y pesos aprendidos con su muestra (G4).
   - el informe con veredicto;
   - la metodología.
 
+**Avance (24-11-2026, G3, estrategias como datos):** la mitad determinista de la gramática de
+`strategy_spec`, adelantada de G4 porque la API de backtests necesita estrategias como datos
+([ADR-0050](../adr/0050-strategies-as-data.md)).
+
+- **Qué hay.** En `analytics/search/`:
+  - las cinco condiciones, los bloques con «k de n», la dirección, el riesgo, el
+    dimensionado y el filtro de régimen, validados con errores que dicen dónde;
+  - la forma JSON de CryptoWorld, canónica, con su *hash* de definición;
+  - el compilador causal y las siete estrategias clásicas.
+- **Paridad.** Las clásicas y sesenta estrategias del generador de CryptoWorld, sobre una casete
+  diaria y otra horaria: el mismo JSON, el mismo *hash* y las mismas señales (23 685) desde que
+  todas sus condiciones se conocen.
+- **Diferencia, a propósito.** Una condición que lee un indicador sin valor no da señal, ni
+  negada; CryptoWorld disparaba sobre lo que `ta` inventa en el calentamiento.
+- **Uso:** `series.backtest_strategy(spec, costs=...)`.
+- **Se queda en G4:** el generador aleatorio, la mutación, el cruce y el espejo.
+
 ### G4 — Laboratorio de estrategias
 
 Es la propuesta de §4.8 bis llevada a fase.
 
 **Contenido.**
-- Gramática (`StrategySpec` validado y con *hash* de definición), compilador causal, GA, NSGA-II, *gating* con N del registro, cascada de retests, SPP, incubación, triple barrera, meta-modelo y *sizing* por convicción.
+- Gramática (`StrategySpec` validado y con *hash* de definición) y compilador causal, ya en G3 ([ADR-0050](../adr/0050-strategies-as-data.md)); GA, NSGA-II, *gating* con N del registro, cascada de retests, SPP, incubación, triple barrera, meta-modelo y *sizing* por convicción.
 - Tres tipos de objetivo (dirección, magnitud/riesgo, carry) con su métrica y su nulo.
 - *Presets* con su tasa de falsos positivos medida y mostrada.
 - ML como modelo del Laboratorio (`investinglab[ml]`), con baseline ingenuo, *champion-challenger* por McNemar, conformal, `PredictionRecord` con resolución diferida en el *worker* y deriva.
