@@ -58,8 +58,9 @@ class Sides:
         long: Signals of the long side (all ``0`` for a strategy that only trades short).
         short: Signals of the short side; ``None`` for a strategy that only trades long, so
             the engine takes the path it always took.
-        ready: Position of the first bar from which every condition is known (the number of
-            bars if never): before it, an indicator was still warming up.
+        ready: Position of the first bar from which every condition is known whatever the
+            prices do: its indicators have values and its patterns are past their warm-up
+            (the number of bars if never). Before it, something was still warming up.
     """
 
     long: pd.Series
@@ -76,8 +77,9 @@ class _Evaluator:
         self._values: dict[object, NDArray[np.float64]] = {}
         self._flags: dict[object, pd.Series] = {}
         self._size = len(next(iter(bars.values())))
-        self.known = np.ones(self._size, dtype=bool)
-        """Bars where every condition evaluated so far is known."""
+        self.settled = np.ones(self._size, dtype=bool)
+        """Bars where every condition evaluated so far is known by construction: its
+        indicators have values, its patterns are past their warm-up."""
 
     def series(self, leg: Leg) -> NDArray[np.float64]:
         key = leg.key()
@@ -88,11 +90,12 @@ class _Evaluator:
 
     def truth(self, condition: Condition) -> Flags:
         """Where ``condition`` holds and is known (negated, where it fails and is known)."""
-        holds, known = self._evaluate(condition)
-        self.known &= known
+        holds, known, settled = self._evaluate(condition)
+        self.settled &= settled
         return (~holds if condition.negate else holds) & known
 
-    def _evaluate(self, condition: Condition) -> tuple[Flags, Flags]:
+    def _evaluate(self, condition: Condition) -> tuple[Flags, Flags, Flags]:
+        """Where it holds, where that is known, and where it is known whatever happens."""
         if isinstance(condition, PatternCondition):
             return self._pattern(condition)
         if isinstance(condition, Threshold):
@@ -100,22 +103,24 @@ class _Evaluator:
             with np.errstate(invalid="ignore"):
                 above = values > condition.threshold
                 below = values < condition.threshold
-            return (above if condition.op is Operator.GT else below), ~np.isnan(values)
+            known = ~np.isnan(values)
+            return (above if condition.op is Operator.GT else below), known, known
         if isinstance(condition, Slope):
             values = self.series(condition.leg)
             before = _shifted(values, condition.bars)
             with np.errstate(invalid="ignore"):
                 rising, falling = values > before, values < before
             known = ~np.isnan(values) & ~np.isnan(before)
-            return (rising if condition.op is Operator.RISING else falling), known
+            return (rising if condition.op is Operator.RISING else falling), known, known
         gap = self.series(condition.a) - self.series(condition.b)
         if isinstance(condition, Compare):
             with np.errstate(invalid="ignore"):
                 above, below = gap > 0, gap < 0
-            return (above if condition.op is Operator.ABOVE else below), ~np.isnan(gap)
+            known = ~np.isnan(gap)
+            return (above if condition.op is Operator.ABOVE else below), known, known
         return _cross(gap, condition)
 
-    def _pattern(self, condition: PatternCondition) -> tuple[Flags, Flags]:
+    def _pattern(self, condition: PatternCondition) -> tuple[Flags, Flags, Flags]:
         key = (condition.pattern, tuple(sorted(condition.params.items())))
         if key not in self._flags:
             self._flags[key] = detect(
@@ -124,8 +129,8 @@ class _Evaluator:
         within = occurred_within(self._flags[key], condition.lookback).to_numpy(dtype=bool)
         # Having fired is a fact whenever it fires; not having fired is known once the whole
         # window is past the warm-up.
-        known = within | (np.arange(self._size) >= condition.warmup + condition.lookback - 2)
-        return within, known
+        past = np.arange(self._size) >= condition.warmup + condition.lookback - 2
+        return within, within | past, past
 
     def block(self, block: Block) -> Flags:
         truths = np.vstack([self.truth(condition) for condition in block.conditions])
@@ -143,14 +148,15 @@ def _shifted(values: NDArray[np.float64], bars: int) -> NDArray[np.float64]:
     return before
 
 
-def _cross(gap: NDArray[np.float64], condition: Cross) -> tuple[Flags, Flags]:
+def _cross(gap: NDArray[np.float64], condition: Cross) -> tuple[Flags, Flags, Flags]:
     before = _shifted(gap, 1)
     with np.errstate(invalid="ignore"):
         if condition.op is Operator.CROSS_ABOVE:
             crossed = (before <= 0) & (gap > 0)
         else:
             crossed = (before >= 0) & (gap < 0)
-    return crossed, ~np.isnan(gap) & ~np.isnan(before)
+    known = ~np.isnan(gap) & ~np.isnan(before)
+    return crossed, known, known
 
 
 def _side(
@@ -186,7 +192,7 @@ def compile_sides(spec: StrategySpec, bars: Bars, sessions: Sessions | None = No
         adx = evaluator.series(spec.regime.leg)
         with np.errstate(invalid="ignore"):
             trending = adx >= spec.regime.adx_min
-        evaluator.known &= ~np.isnan(adx)
+        evaluator.settled &= ~np.isnan(adx)
     direction = spec.direction
     if direction is StrategyDirection.SHORT:
         long = np.zeros(len(index))
@@ -198,7 +204,7 @@ def compile_sides(spec: StrategySpec, bars: Bars, sessions: Sessions | None = No
             assert spec.short_entry is not None  # noqa: S101 - validated by StrategySpec
             assert spec.short_exit is not None  # noqa: S101 - validated by StrategySpec
             short = _side(evaluator, spec.short_entry, spec.short_exit, trending, index)
-    unknown = np.flatnonzero(~evaluator.known)
+    unknown = np.flatnonzero(~evaluator.settled)
     return Sides(
         long=pd.Series(long, index=index, name="long"),
         short=None if short is None else pd.Series(short, index=index, name="short"),
