@@ -18,7 +18,7 @@ made up.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Final
 
 import numpy as np
@@ -45,6 +45,7 @@ from investinglab.domain.metrics import DEFAULT_CONFIDENCE_LEVELS, RiskMetrics
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
+    from investinglab.analytics.search import StrategySpec
     from investinglab.domain.instruments import Instrument
     from investinglab.domain.series import PriceSeries
     from investinglab.domain.time import Frequency
@@ -267,6 +268,9 @@ class BacktestResult:
         exposure: Share of the bars that closed with a position open.
         turnover: Notional traded over the initial capital.
         buy_and_hold: Return of holding the instrument over the same bars (close to close).
+        strategy: The strategy that gave the signals, when one did.
+        ready_at: The first bar from which every condition of the strategy was known: the
+            bars before it are its indicators' warm-up.
     """
 
     instrument: Instrument
@@ -279,6 +283,14 @@ class BacktestResult:
     exposure: float
     turnover: float
     buy_and_hold: float
+    strategy: StrategySpec | None = None
+    ready_at: pd.Timestamp | None = None
+
+    def with_strategy(
+        self, strategy: StrategySpec, ready_at: pd.Timestamp | None
+    ) -> BacktestResult:
+        """The same result, saying which strategy gave its signals."""
+        return replace(self, strategy=strategy, ready_at=ready_at)
 
     @property
     def returns(self) -> pd.Series:

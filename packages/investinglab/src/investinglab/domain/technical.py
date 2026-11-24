@@ -33,7 +33,7 @@ if TYPE_CHECKING:
     from investinglab.domain.series import DataSource, PriceSeries
     from investinglab.domain.time import Frequency
 
-__all__ = ["IndicatorReading", "TechnicalIndicators", "technical_indicators"]
+__all__ = ["IndicatorReading", "TechnicalIndicators", "indicator_bars", "technical_indicators"]
 
 _COLUMNS = (PriceField.HIGH, PriceField.LOW, PriceField.CLOSE, PriceField.VOLUME)
 
@@ -160,6 +160,20 @@ class TechnicalIndicators:
         )
 
 
+def indicator_bars(series: PriceSeries) -> dict[str, pd.Series]:
+    """The columns indicators read, as traded: high, low, close and volume, those it has.
+
+    A volume of zeros counts as missing: it is what sources publish when they do not know it.
+    """
+    bars = series.bars
+    return {
+        column.value: bars[column]
+        for column in _COLUMNS
+        if column in bars.columns
+        and (column is not PriceField.VOLUME or bool((bars[column] > 0).any()))
+    }
+
+
 def technical_indicators(
     series: PriceSeries,
     names: Iterable[str] | None = None,
@@ -188,12 +202,7 @@ def technical_indicators(
     if stray:
         raise DomainError(f"Parameters for indicators not requested: {stray}")
     bars = series.bars
-    available = {
-        column.value: bars[column]
-        for column in _COLUMNS
-        if column in bars.columns
-        and (column is not PriceField.VOLUME or bool((bars[column] > 0).any()))
-    }
+    available = indicator_bars(series)
     values: dict[str, pd.Series] = {}
     used: dict[str, dict[str, float]] = {}
     unavailable: dict[str, tuple[str, ...]] = {}

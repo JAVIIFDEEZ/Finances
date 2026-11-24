@@ -33,7 +33,7 @@ from investinglab.analytics import (
     simple_returns,
     total_return,
 )
-from investinglab.domain.backtest import BacktestConfig, BacktestResult, run_backtest
+from investinglab.domain.backtest import BacktestConfig, BacktestResult, CostModel, run_backtest
 from investinglab.domain.errors import DomainError, InvalidSeriesError
 from investinglab.domain.metrics import DEFAULT_CONFIDENCE_LEVELS, RiskMetrics
 from investinglab.domain.planning import PlanResult, SavingsPlan, simulate_plan
@@ -50,6 +50,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
     from datetime import date, datetime
 
+    from investinglab.analytics.search import StrategySpec
     from investinglab.domain.instruments import AssetClass, Instrument
     from investinglab.domain.money import Currency
     from investinglab.reporting.entrypoints import (
@@ -554,6 +555,33 @@ class PriceSeries:
             funding=funding,
             borrow=borrow,
             conviction=conviction,
+        )
+
+    def backtest_strategy(
+        self,
+        strategy: StrategySpec,
+        *,
+        costs: CostModel | None = None,
+        initial_capital: float = 10_000.0,
+        funding: pd.Series | None = None,
+        borrow: pd.Series | None = None,
+    ) -> BacktestResult:
+        """Trade this series with ``strategy`` (see :func:`~investinglab.domain.backtest_strategy`).
+
+        Examples:
+            >>> from investinglab.analytics.search import CLASSICS
+            >>> result = series.backtest_strategy(CLASSICS["sma_crossover"])
+            >>> result.metrics().sharpe_ratio, result.ready_at
+        """
+        from investinglab.domain.strategy import backtest_strategy  # noqa: PLC0415 - a cycle
+
+        return backtest_strategy(
+            self,
+            strategy,
+            costs=costs or CostModel(),
+            initial_capital=initial_capital,
+            funding=funding,
+            borrow=borrow,
         )
 
     def beta(self, benchmark: PriceSeries) -> float:
