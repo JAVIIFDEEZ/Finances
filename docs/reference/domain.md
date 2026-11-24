@@ -16,6 +16,8 @@
 
 ::: investinglab.domain.strategy
 
+::: investinglab.domain.costs
+
 ::: investinglab.domain.fx
 
 ::: investinglab.domain.quality

@@ -829,3 +829,107 @@ def test_technical_indicators_without_a_start_show_their_warm_up(toolkit: Toolki
 
     assert indicators.values.index[0] == INDEX[0]
     assert indicators.values["SMA"].iloc[:49].isna().all()
+
+
+# ── Backtests with the market's costs (ADR-0051) ───────────────────
+
+
+def test_a_backtest_warms_up_before_its_start_and_pays_the_markets_costs(
+    toolkit: Toolkit,
+) -> None:
+    result = toolkit.backtest("BARS.MC", "sma_crossover", start="2024-12-02")
+
+    assert result.equity.index[0] == pd.Timestamp("2024-12-02")  # it trades from the start...
+    assert result.ready_at is not None
+    assert result.ready_at < pd.Timestamp("2024-12-02")  # ...with its averages already warm
+    assert result.market is not None
+    assert result.market.profile.key == "XMAD"
+    assert result.market.tax_presumed  # no ISIN: presumed a large Spanish company
+    assert result.config.costs.commission_bps == 10.0
+
+
+def test_a_backtest_takes_a_strategy_its_json_or_a_classics_name(toolkit: Toolkit) -> None:
+    from investinglab.analytics.search import CLASSICS  # noqa: PLC0415
+
+    spec = CLASSICS["rsi_reversal"]
+    mine = toolkit.backtest("BARS.MC", spec.to_dict(), commission_bps=2, taxable=False)
+
+    assert mine.strategy == spec
+    assert mine.config.costs.commission_bps == 2
+    assert mine.costs.tax == 0
+    with pytest.raises(DomainError, match="Unknown classic strategy 'nope'"):
+        toolkit.backtest("BARS.MC", "nope")
+    with pytest.raises(DomainError, match="Invalid strategy"):
+        toolkit.backtest("BARS.MC", {"entry": {}})
+
+
+def test_a_perpetual_backtest_pays_its_venues_funding(tmp_path: Path) -> None:
+    days = pd.date_range("2026-01-01", periods=120, freq="D")
+    coin = make_series(
+        gbm_prices(120, sigma=0.6, seed=9),
+        symbol="BTC/USDT",
+        index=days,
+        currency=USD,
+        asset_class=AssetClass.CRYPTO,
+        exchange=None,
+        ohlc=True,
+    )
+    swap = make_instrument(
+        "BTC/USDT:USDT", currency=USD, asset_class=AssetClass.CRYPTO, exchange=None
+    )
+    stamps = pd.date_range("2025-12-31 00:00", periods=3 * 122, freq="8h", tz="UTC")
+    funding = RateSeries(
+        swap, "binance", RateKind.FUNDING, SYNTHETIC_SOURCE, pd.Series(0.0001, index=stamps)
+    )
+    bars = FakeBarsProvider("fake", {"BTC/USDT": coin, "A.MC": A})
+    rates = FakeRatesProvider("binance", {"BTC/USDT:USDT": funding})
+    short = {**_short_swing(), "direction": "short"}
+
+    with Toolkit.from_settings(_settings(tmp_path), providers=[bars, rates], cache=False) as tk:
+        result = tk.backtest("BTC/USDT", short, profile="binance-usdm")
+        with pytest.raises(DomainError, match="cannot be sold short"):
+            tk.backtest("BTC/USDT", short, profile="binance-spot")
+        with pytest.raises(DomainError, match="names no perpetual swap"):
+            tk.backtest("A.MC", short, profile="binance-usdm")
+
+    assert result.costs.funding < 0  # a short earns a positive funding
+    assert rates.calls[0].venue == "binance"
+
+
+def test_a_perpetual_backtest_ends_where_its_funding_has_settled(tmp_path: Path) -> None:
+    days = pd.date_range("2026-01-01", periods=60, freq="D")
+    coin = make_series(
+        gbm_prices(60, sigma=0.6, seed=9),
+        symbol="BTC/USDT",
+        index=days,
+        currency=USD,
+        asset_class=AssetClass.CRYPTO,
+        exchange=None,
+        ohlc=True,
+    )
+    swap = make_instrument(
+        "BTC/USDT:USDT", currency=USD, asset_class=AssetClass.CRYPTO, exchange=None
+    )
+    stamps = pd.date_range("2025-12-31 00:00", periods=3 * 50, freq="8h", tz="UTC")  # to 18 Feb
+    funding = RateSeries(
+        swap, "binance", RateKind.FUNDING, SYNTHETIC_SOURCE, pd.Series(0.0001, index=stamps)
+    )
+    bars = FakeBarsProvider("fake", {"BTC/USDT": coin})
+    rates = FakeRatesProvider("binance", {"BTC/USDT:USDT": funding})
+
+    with Toolkit.from_settings(_settings(tmp_path), providers=[bars, rates], cache=False) as tk:
+        result = tk.backtest("BTC/USDT", _short_swing(), profile="binance-usdm")
+
+    assert result.equity.index[-1] == pd.Timestamp("2026-02-17")  # the last bar settled
+    assert result.market is not None
+    assert result.market.profile.key == "binance-usdm"
+
+
+def _short_swing() -> dict[str, object]:
+    def slope(op: str) -> dict[str, object]:
+        return {"type": "slope", "indicator": "PRICE", "op": op, "bars": 1}
+
+    return {
+        "entry": {"combine": "AND", "conditions": [slope("rising")]},
+        "exit": {"combine": "AND", "conditions": [slope("falling")]},
+    }

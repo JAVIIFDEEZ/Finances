@@ -97,6 +97,11 @@ docs/            Zensical: guide/, adr/, architecture/, plan/, reference/, modul
 - Divisas: conversión *as-of* con `FxRates` (el último fixing publicado); sin fixing → la
   observación se descarta, nunca se rellena.
 - Fechas siempre con zona horaria (`DTZ` de ruff lo vigila).
+- Costes de un backtest ([ADR-0051](docs/adr/0051-market-cost-profiles.md)): cada comisión e
+  impuesto de `domain/costs.py` lleva su fuente y su fecha; un impuesto, sus tipos en el tiempo;
+  lo que es supuesto se declara en `assumed` y lo que no se modela, en `unmodelled`. Un
+  *funding*, un préstamo o un impuesto desconocidos en una vela no son cero: el backtest los
+  rechaza.
 
 ## Convenciones de código
 

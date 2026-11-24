@@ -46,6 +46,7 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from investinglab.analytics.search import StrategySpec
+    from investinglab.domain.costs import MarketCosts
     from investinglab.domain.instruments import Instrument
     from investinglab.domain.series import PriceSeries
     from investinglab.domain.time import Frequency
@@ -271,6 +272,7 @@ class BacktestResult:
         strategy: The strategy that gave the signals, when one did.
         ready_at: The first bar from which every condition of the strategy was known: the
             bars before it are its indicators' warm-up.
+        market: The market's costs it paid, when a cost profile gave them.
     """
 
     instrument: Instrument
@@ -285,12 +287,17 @@ class BacktestResult:
     buy_and_hold: float
     strategy: StrategySpec | None = None
     ready_at: pd.Timestamp | None = None
+    market: MarketCosts | None = None
 
     def with_strategy(
         self, strategy: StrategySpec, ready_at: pd.Timestamp | None
     ) -> BacktestResult:
         """The same result, saying which strategy gave its signals."""
         return replace(self, strategy=strategy, ready_at=ready_at)
+
+    def with_market(self, market: MarketCosts) -> BacktestResult:
+        """The same result, saying which market's costs it paid."""
+        return replace(self, market=market)
 
     @property
     def returns(self) -> pd.Series:
@@ -338,7 +345,17 @@ def _aligned(values: pd.Series, index: pd.Index, what: str) -> np.ndarray:
 
 
 def _per_bar(values: pd.Series | None, index: pd.Index, what: str) -> np.ndarray | None:
-    return None if values is None else _aligned(values, index, what)
+    """A rate bar by bar, known at every bar: an unknown one is never taken as zero."""
+    if values is None:
+        return None
+    array = _aligned(values, index, what)
+    unknown = np.flatnonzero(~np.isfinite(array))
+    if unknown.size:
+        raise DomainError(
+            f"The {what} is unknown at {unknown.size} bars (the first, {index[unknown[0]]}): "
+            "a backtest does not make it up"
+        )
+    return array
 
 
 def _signals(values: pd.Series, index: pd.Index, what: str) -> np.ndarray:
@@ -376,6 +393,7 @@ def run_backtest(
     funding: pd.Series | None = None,
     borrow: pd.Series | None = None,
     conviction: pd.Series | None = None,
+    tax: pd.Series | None = None,
 ) -> BacktestResult:
     """Backtest ``series`` with ``signals`` (see the module's conventions).
 
@@ -390,9 +408,12 @@ def run_backtest(
         conviction: Fraction of the equity the entry of each bar's signal takes, with
             ``conviction`` sizing, known at that bar's close like the signal (``NaN``: the
             sizing's fraction). The order fills at the next open, so it sizes that fill.
+        tax: Transaction tax rate in force at each bar (a decimal of the amount bought), for
+            a tax whose rate changed: it replaces the configuration's ``transaction_tax_bps``.
 
     Raises:
-        DomainError: If an input is not on the series' bars, or a signal is not -1, 0 or 1.
+        DomainError: If an input is not on the series' bars, a signal is not -1, 0 or 1, or
+            a rate (funding, borrow, tax) is unknown at a bar.
     """
     config = config or BacktestConfig()
     index = series.bars.index
@@ -427,6 +448,7 @@ def run_backtest(
         else np.concatenate(([np.nan], _aligned(conviction, index, "conviction")[:-1])),
         funding=_per_bar(funding, index, "funding"),
         borrow=_per_bar(borrow, index, "borrow"),
+        tax=_per_bar(tax, index, "tax"),
     )
     return _result(series, config, simulation, prices["close"])
 

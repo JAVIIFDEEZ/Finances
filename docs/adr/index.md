@@ -55,6 +55,7 @@ actualiza el estado del antiguo.
 | [0048](0048-tracing-with-opentelemetry.md) | Trazas con OpenTelemetry, opcionales y apagadas por defecto | Aceptado |
 | [0049](0049-backtest-engine.md) | Motor de backtest: relleno a la apertura siguiente, costes por mercado y paridad con CryptoWorld | Aceptado |
 | [0050](0050-strategies-as-data.md) | Estrategias como datos: la gramática de CryptoWorld, validada y con paridad | Aceptado |
+| [0051](0051-market-cost-profiles.md) | Perfiles de costes por mercado, con sus fuentes, sus fechas y lo que suponen | Aceptado |
 
 ## Cómo añadir un ADR
 

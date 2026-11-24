@@ -166,6 +166,7 @@ class _Book:
     sizing: SizingModel
     conviction: NDArray[np.float64] | None
     atr: NDArray[np.float64] | None
+    tax_rates: NDArray[np.float64] | None = None
     position: float = 0.0
     side: int = 0
     entry_price: float = 0.0
@@ -189,6 +190,12 @@ class _Book:
     @property
     def in_trade(self) -> bool:
         return self.side != 0
+
+    def _tax_rate(self, bar: int) -> float:
+        """The tax rate on a purchase filled at ``bar``: the one in force then, if it changes."""
+        if self.tax_rates is not None:
+            return float(self.tax_rates[bar])
+        return self.costs.tax_rate
 
     def _size(self, bar: int) -> float:
         """Notional of a new position (the capital is the equity: nothing is open)."""
@@ -223,11 +230,12 @@ class _Book:
         """Open a long at ``price``: the commission and the tax come out of the notional."""
         notional = self._size(bar)
         fee = self.costs.commission(notional)
-        bought = (notional - fee) / (1.0 + self.costs.tax_rate)
+        rate = self._tax_rate(bar)
+        bought = (notional - fee) / (1.0 + rate)
         if notional <= 0 or bought <= 0:
             return  # nothing to invest, or a minimum commission larger than the order
         fill = price * (1.0 + self.costs.slippage_rate)
-        tax = bought * self.costs.tax_rate
+        tax = bought * rate
         self.position = bought / fill if fill > 0 else 0.0
         self.capital -= notional
         self.open_commission, self.open_tax = fee, tax
@@ -263,7 +271,7 @@ class _Book:
             fill = price * (1.0 + rate)  # a buyer pays more
             gross = units * fill
             fee = self.costs.commission(gross)
-            tax = gross * self.costs.tax_rate
+            tax = gross * self._tax_rate(bar)
             self.capital -= gross + fee + tax
             pnl = self.notional - self.open_commission - gross - fee - tax - self.carry
             slipped = (fill - price) * units
@@ -430,6 +438,7 @@ def simulate(  # noqa: PLR0912, PLR0915 - one loop over the bars, as in CryptoWo
     conviction: ArrayLike | None = None,
     funding: ArrayLike | None = None,
     borrow: ArrayLike | None = None,
+    tax: ArrayLike | None = None,
     fill_next_bar: bool = True,
 ) -> Simulation:
     """Simulate one instrument's signals bar by bar.
@@ -451,6 +460,9 @@ def simulate(  # noqa: PLR0912, PLR0915 - one loop over the bars, as in CryptoWo
             order fills at, as CryptoWorld's: the signal of bar ``s`` reads ``conviction[s+1]``.
         funding: Funding rate of each bar (positive: longs pay).
         borrow: Borrow fee of each bar for a short (a decimal of its value).
+        tax: Transaction tax rate in force at each bar, a decimal of the amount bought: for a
+            tax whose rate changed over the bars (or did not exist yet). It replaces
+            ``costs.transaction_tax_bps``.
         fill_next_bar: Fill at the next open (``True``) or, optimistically, at the close that
             gave the signal: only to compare with engines that did.
 
@@ -472,6 +484,7 @@ def simulate(  # noqa: PLR0912, PLR0915 - one loop over the bars, as in CryptoWo
         sizing=sizing or SizingModel(),
         conviction=None if conviction is None else _array(conviction, n, "conviction"),
         atr=None if atr is None else _array(atr, n, "atr"),
+        tax_rates=None if tax is None else _array(tax, n, "tax"),
     )
     equity = np.empty(n, dtype=np.float64)
     position = np.empty(n, dtype=np.float64)

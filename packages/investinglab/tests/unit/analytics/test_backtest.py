@@ -98,6 +98,19 @@ def test_the_tax_is_paid_on_purchases_only() -> None:
     assert short.pnl == pytest.approx(10_000 - units * 103 * 1.002)
 
 
+def test_a_tax_whose_rate_changed_is_paid_at_the_rate_of_the_fill() -> None:
+    rates = np.array([0.0, 0.0, 0.003, 0.003, 0.003, 0.004])  # it starts at bar 2, rises at 5
+    signals = [1, -1, 0, 1, -1, 0]
+    covers = [0, 0, 0, 1, -1, 0]
+
+    before, during = _run(signals, tax=rates).trades
+    (short,) = _run([0] * 6, short_signals=covers, tax=rates).trades
+
+    assert before.tax == 0.0  # bought at bar 1, before the tax existed
+    assert during.tax == pytest.approx(during.notional / 1.003 * 0.003)  # bought at bar 4
+    assert short.tax == pytest.approx(short.quantity * 105 * 0.004)  # covered at bar 5
+
+
 def test_a_short_gains_when_the_price_falls_and_pays_to_borrow() -> None:
     falling = OPEN[::-1].copy()
     borrow = np.full(6, 0.001)

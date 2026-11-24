@@ -20,7 +20,8 @@ from typing import TYPE_CHECKING, Any
 from investinglab.analytics.backtest import FULL_SIZING, NO_COSTS, NO_RISK, CostModel
 from investinglab.analytics.search import StrategySpec, compile_sides
 from investinglab.domain.backtest import BacktestConfig, BacktestResult, run_backtest
-from investinglab.domain.errors import DomainError
+from investinglab.domain.costs import COST_PROFILES, MarketCosts, Product
+from investinglab.domain.errors import DomainError, InvalidSeriesError
 from investinglab.domain.patterns import pattern_bars, session_labels
 from investinglab.domain.technical import indicator_bars
 
@@ -120,32 +121,72 @@ def backtest_strategy(
     series: PriceSeries,
     strategy: StrategySpec,
     *,
-    costs: CostModel = NO_COSTS,
+    costs: CostModel | MarketCosts = NO_COSTS,
     initial_capital: float = 10_000.0,
     funding: pd.Series | None = None,
     borrow: pd.Series | None = None,
+    trade_from: pd.Timestamp | None = None,
 ) -> BacktestResult:
     """Backtest ``strategy`` on ``series``, with its own barriers and sizing.
 
     Args:
         series: The prices.
         strategy: When to open and close, its barriers and its sizing.
-        costs: What each order costs on this market.
+        costs: What each order costs: a market's costs (:func:`market_costs`, with its tax
+            day by day and the borrow of a short) or just a commission and a slippage.
         initial_capital: Equity before the first bar, in the instrument's currency.
-        funding: Funding rate of each bar for a perpetual (positive: longs pay).
-        borrow: Borrow fee of each bar for a short (a decimal of its value).
+        funding: Funding rate of each bar for a perpetual (positive: longs pay); a perpetual
+            market needs it.
+        borrow: Borrow fee of each bar for a short (a decimal of its value), instead of the
+            market's.
+        trade_from: The first bar it trades (its bar, or the next): the bars before only warm
+            its indicators up, so that its first signals are already informed.
 
     Raises:
-        DomainError: The series lacks what the strategy reads, or a value is out of range.
+        DomainError: The series lacks what the strategy reads, a value is out of range, the
+            market cannot be shorted and the strategy shorts, or a perpetual has no funding.
     """
-    setup = strategy_config(strategy, costs=costs, initial_capital=initial_capital)
+    market = costs if isinstance(costs, MarketCosts) else None
+    orders = costs.costs if isinstance(costs, MarketCosts) else costs
+    if market is not None:
+        if strategy.trades_short and not market.profile.shortable:
+            raise DomainError(
+                f"{market.profile.name} cannot be sold short, and the strategy does: trade its "
+                f"perpetual ({_perpetuals()}) or keep to the long side"
+            )
+        if market.perpetual and funding is None:
+            raise DomainError(f"{market.profile.name} is a perpetual: give its funding rates")
+        borrow = market.borrow if borrow is None else borrow
+    setup = strategy_config(strategy, costs=orders, initial_capital=initial_capital)
     signals = strategy_signals(series, strategy)
+    longs, shorts = signals.long, signals.short
+    if trade_from is not None:
+        try:
+            traded = series.between(trade_from, None)
+        except InvalidSeriesError as error:
+            raise DomainError(
+                f"{series.instrument.symbol} has no bars from {trade_from} to backtest: {error}"
+            ) from error
+        index = traded.bars.index
+        series, longs = traded, longs.loc[index]
+        shorts = None if shorts is None else shorts.loc[index]
+        funding = None if funding is None else funding.loc[index]
+        borrow = None if borrow is None else borrow.loc[index]
+        market = None if market is None else market.on(index)
     result = run_backtest(
         series,
-        signals.long,
-        short_signals=signals.short,
+        longs,
+        short_signals=shorts,
         config=setup,
         funding=funding,
-        borrow=borrow,
+        borrow=borrow if strategy.trades_short else None,
+        tax=None if market is None else market.tax,
     )
-    return result.with_strategy(strategy, signals.ready_at)
+    result = result.with_strategy(strategy, signals.ready_at)
+    return result if market is None else result.with_market(market)
+
+
+def _perpetuals() -> str:
+    return ", ".join(
+        key for key, profile in COST_PROFILES.items() if profile.product is Product.PERPETUAL
+    )

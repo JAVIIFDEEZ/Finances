@@ -989,6 +989,32 @@ fundamentales (F11), ML y pesos aprendidos con su muestra (G4).
 - **Uso:** `series.backtest_strategy(spec, costs=...)`.
 - **Se queda en G4:** el generador aleatorio, la mutación, el cruce y el espejo.
 
+**Avance (24-11-2026, G3, costes por mercado):** perfiles de costes con sus fuentes y sus
+fechas ([ADR-0051](../adr/0051-market-cost-profiles.md)).
+
+- **Impuestos sobre las compras, con sus tipos en el tiempo:**
+  - ITF (España), desde 2021;
+  - TTF (Francia), del 0,2 % de 2012 al 0,4 % de abril de 2025;
+  - IFTT (Italia);
+  - *stamp duty* (Reino Unido).
+
+  Siguen al emisor por su ISIN, o se presumen.
+- **Un perfil por bolsa y por producto cripto:** Binance al contado y USDⓈ-M, Kraken Pro y
+  Coinbase Advanced, con su comisión *taker* publicada y lo supuesto marcado como tal.
+- ***Funding* por vela** desde las tasas publicadas. Uno desconocido no es cero: el backtest lo
+  rechaza.
+- **Uso:** `tk.backtest(símbolo, estrategia, start=…)`, con un año de calentamiento previo. En
+  vivo, una SMA 20/50 sobre BTC/USDT con la historia real de Binance:
+  - al contado, con el 0,10 % de comisión: un 6,1 % desde junio de 2025, frente a un −26,6 % de
+    mantener;
+  - en el perpetuo, con el *funding* real pagado: un 3,2 %.
+- **Pendiente de G3:**
+  - la API asíncrona `/api/v1/backtests` y su pantalla;
+  - la validación;
+  - los mundos nulos;
+  - el informe con veredicto;
+  - la metodología.
+
 ### G4 — Laboratorio de estrategias
 
 Es la propuesta de §4.8 bis llevada a fase.
