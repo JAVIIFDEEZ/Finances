@@ -316,6 +316,40 @@ StrategySpec.from_dict(
 * **Lo que no se conoce no da señal.** Mientras un indicador calienta, la condición que lo lee
   no se cumple, ni negada.
 
+### Con los costes de su mercado
+
+`tk.backtest` descarga la serie, opera una estrategia con los costes del mercado donde cotiza y,
+si es un perpetuo, con el *funding* que hubo ([ADR-0051](../adr/0051-market-cost-profiles.md)):
+
+```python
+r = tk.backtest("SAN.MC", "sma_crossover", start="2021-01-01")
+r.market.profile.key  # "XMAD": la Bolsa de Madrid
+r.market.tax_presumed  # True: sin ISIN, se presume una gran empresa española (ITF)
+r.costs.tax  # el ITF de cada compra, desde el 16 de enero de 2021
+
+tk.backtest("SAN.MC", retroceso, commission_bps=5, minimum_commission=3)  # tu bróker
+tk.backtest("BTC/USDT", "ema_trend", start="2025-06-01")  # Binance al contado: 0,10 %
+tk.backtest("BTC/USDT", corta, profile="binance-usdm")  # el perpetuo, con su funding
+```
+
+* **Calentamiento.** Se descarga un año de historia antes de `start`: los indicadores llegan
+  calientes y la estrategia opera desde `start`.
+* **Perfiles** (`COST_PROFILES`): uno por bolsa, por su MIC, y uno por producto de cada
+  plataforma cripto (`binance-spot`, `binance-usdm`, `kraken-spot`, `coinbase-spot`). Cada uno
+  lleva:
+  * sus fuentes y la fecha en que se leyeron (`as_of`);
+  * qué cifras son supuestos (`assumed`): en una bolsa, la comisión del 0,10 %, el
+    deslizamiento del 0,05 % y el préstamo de un corto del 0,50 % anual;
+  * qué costes deja fuera (`unmodelled`).
+* **Impuestos con fecha.** El ITF (España), la TTF (Francia), el IFTT (Italia) y el *stamp duty*
+  (Reino Unido) se cobran al tipo en vigor el día de cada compra, y nada antes de que
+  existieran. Siguen al emisor: con ISIN, decide su país; sin él, se presume. Los ETF no los
+  pagan.
+* **Cortos.** Una acción paga su préstamo por días naturales. Un mercado al contado de cripto
+  no se puede vender en corto: la estrategia que lo hace necesita el perpetuo.
+* ***Funding*.** Se reparte por velas: una vela paga las liquidaciones que caen en ella. Uno que
+  no se ha publicado no es cero, así que el backtest acaba en la última vela liquidada.
+
 ## Carteras en varias divisas
 
 ```python
