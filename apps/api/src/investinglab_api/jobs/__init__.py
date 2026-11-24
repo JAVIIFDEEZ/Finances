@@ -5,7 +5,7 @@ The API submits jobs through the :class:`~investinglab.ports.JobRepository`; a w
 :func:`~investinglab_api.jobs.runner.run_job`.
 """
 
-from investinglab_api.jobs.kinds import HANDLERS, SIMULATION, Stage
+from investinglab_api.jobs.kinds import BACKTEST, HANDLERS, SIMULATION, Stage
 from investinglab_api.jobs.runner import (
     FLUSH_SECONDS,
     MAX_ATTEMPTS,
@@ -18,6 +18,7 @@ from investinglab_api.jobs.runner import (
 )
 
 __all__ = [
+    "BACKTEST",
     "FLUSH_SECONDS",
     "HANDLERS",
     "MAX_ATTEMPTS",

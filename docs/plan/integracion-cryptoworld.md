@@ -1009,11 +1009,28 @@ fechas ([ADR-0051](../adr/0051-market-cost-profiles.md)).
     mantener;
   - en el perpetuo, con el *funding* real pagado: un 3,2 %.
 - **Pendiente de G3:**
-  - la API asíncrona `/api/v1/backtests` y su pantalla;
   - la validación;
   - los mundos nulos;
   - el informe con veredicto;
   - la metodología.
+
+**Avance (24-11-2026, G3, API y pantalla):**
+
+- **Endpoints:**
+  - `POST /api/v1/backtests`, en la petición;
+  - `POST /api/v1/jobs/backtests`, en segundo plano, con la estrategia y el perfil comprobados
+    antes de encolarlo;
+  - `GET /api/v1/strategies/classics` y `GET /api/v1/cost-profiles`.
+- **La estrategia, tipada condición a condición** en el contrato, para que la web tenga sus
+  tipos. El núcleo la valida otra vez y dice dónde está el error.
+- **Pantalla «Backtest»:** una clásica sobre cualquier instrumento, con:
+  - sus cifras frente a mantener;
+  - su *equity*;
+  - los costes por tipo;
+  - el perfil del mercado, con lo que supone y lo que no modela;
+  - sus operaciones.
+
+  «Trabajos» muestra cada trabajo según su tipo.
 
 ### G4 — Laboratorio de estrategias
 

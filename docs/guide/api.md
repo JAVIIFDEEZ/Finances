@@ -52,6 +52,10 @@ curl "http://127.0.0.1:8000/api/v1/market/confluence?symbol=SAN.MC&frame=1d&fram
 | POST | `/api/v1/optimizations` | Pesos óptimos y frontera eficiente |
 | POST | `/api/v1/plans` | Plan de ahorro: probabilidad de éxito y aportación necesaria |
 | POST | `/api/v1/jobs/simulations` | Monte Carlo en segundo plano, hasta 200 000 trayectorias: `202` con el trabajo en cola y su `Location` ([ADR-0046](../adr/0046-background-jobs-on-postgresql.md)) |
+| POST | `/api/v1/backtests` | Una estrategia (como datos o el nombre de una clásica) sobre un instrumento, con los costes de su mercado: cifras frente a mantener, *equity*, costes por tipo, el perfil con lo que supone y lo que no modela, y las operaciones ([ADR-0050](../adr/0050-strategies-as-data.md), [ADR-0051](../adr/0051-market-cost-profiles.md)) |
+| POST | `/api/v1/jobs/backtests` | El mismo backtest en segundo plano: `202` con el trabajo en cola; la estrategia y el perfil se comprueban antes de encolarlo |
+| GET | `/api/v1/strategies/classics` | Las siete estrategias clásicas, con su JSON y su *hash* |
+| GET | `/api/v1/cost-profiles` | Los perfiles de costes: comisiones con su fuente y su fecha, impuestos, supuestos y lo no modelado |
 | GET | `/api/v1/jobs` | Trabajos del propietario, del más reciente al más antiguo (paginado por cursor; sin parámetros ni resultado) |
 | GET, DELETE | `/api/v1/jobs/{id}` | Leer un trabajo (estado, progreso, etapa y, al terminar, resultado o error; `Retry-After` mientras no termina) y borrar uno terminado |
 | POST | `/api/v1/jobs/{id}/cancel` | Cancelar: uno en cola, al momento; uno en marcha, en su siguiente aviso de progreso |

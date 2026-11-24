@@ -2,24 +2,7 @@
 
 import * as Dialog from "@radix-ui/react-dialog";
 import { Command } from "cmdk";
-import {
-  BarChart3,
-  Boxes,
-  Compass,
-  GraduationCap,
-  Hourglass,
-  LayoutDashboard,
-  LineChart,
-  Menu,
-  Moon,
-  PiggyBank,
-  RotateCw,
-  Search,
-  Sun,
-  Target,
-  Unplug,
-  X,
-} from "lucide-react";
+import { BarChart3, Boxes, Compass, FlaskConical, GraduationCap, Hourglass, LayoutDashboard, LineChart, Menu, Moon, PiggyBank, RotateCw, Search, Sun, Target, Unplug, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -51,6 +34,7 @@ const NAVIGATION: readonly { section: MessageKey | null; items: readonly NavItem
     items: [
       { href: "/portfolio", label: "nav.portfolio", icon: Boxes },
       { href: "/simulation", label: "nav.simulation", icon: BarChart3 },
+      { href: "/backtest", label: "nav.backtest", icon: FlaskConical },
       { href: "/optimization", label: "nav.optimization", icon: Target },
       { href: "/planning", label: "nav.planning", icon: PiggyBank },
     ],

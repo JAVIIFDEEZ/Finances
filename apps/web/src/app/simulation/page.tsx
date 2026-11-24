@@ -82,7 +82,7 @@ export default function SimulationPage() {
                 <Input id="sim-horizon" type="number" min={1} max={2_520} value={form.horizon} onChange={(e) => set("horizon", Number(e.target.value))} className="tabular" />
               </Field>
               <Field label={t("simulation.initial")} htmlFor="sim-initial">
-                <Input id="sim-initial" type="number" min={1} step={1_000} value={form.initial_value} onChange={(e) => set("initial_value", Number(e.target.value))} className="tabular" />
+                <Input id="sim-initial" type="number" min={1} step="any" value={form.initial_value} onChange={(e) => set("initial_value", Number(e.target.value))} className="tabular" />
               </Field>
               <Field label={t("simulation.seed")} htmlFor="sim-seed">
                 <Input id="sim-seed" type="number" min={0} value={form.seed} onChange={(e) => set("seed", Number(e.target.value))} className="tabular" />

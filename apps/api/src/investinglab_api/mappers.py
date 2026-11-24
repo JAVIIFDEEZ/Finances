@@ -36,9 +36,26 @@ from investinglab_api.schemas.analysis import (
     SimulationOut,
     WeightOut,
 )
+from investinglab_api.schemas.backtest import (
+    BacktestIn,
+    BacktestOut,
+    ClassicOut,
+    CostProfileOut,
+    CostsOut,
+    MarketOut,
+    StrategyIn,
+    TradeOut,
+    TradeStatisticsOut,
+)
 from investinglab_api.schemas.common import Matrix, Point, finite
 from investinglab_api.schemas.economic import EconomicObservationOut, EconomicSeriesOut
-from investinglab_api.schemas.jobs import JobErrorOut, JobOut, JobPage, SimulationJobOut
+from investinglab_api.schemas.jobs import (
+    BacktestJobOut,
+    JobErrorOut,
+    JobOut,
+    JobPage,
+    SimulationJobOut,
+)
 from investinglab_api.schemas.market import (
     BarOut,
     BookBandOut,
@@ -116,9 +133,12 @@ if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping, Sequence
     from datetime import date, datetime
 
+    from investinglab.analytics.search import StrategySpec
+    from investinglab.domain.backtest import BacktestResult, BacktestTrade
     from investinglab.domain.book_depth import BookDepthSeries
     from investinglab.domain.card import AssetCard
     from investinglab.domain.confluence import FrameReading, TimeframeConfluence
+    from investinglab.domain.costs import CostProfile, MarketCosts
     from investinglab.domain.economic import EconomicSeries
     from investinglab.domain.flow import FlowSeries
     from investinglab.domain.heartbeat import SourceStatus
@@ -1192,3 +1212,131 @@ def simulation_job_out(job: Job) -> SimulationJobOut:
 def job_page(page: Page[Job]) -> JobPage:
     """A page of jobs."""
     return JobPage(items=[job_out(job) for job in page.items], next_cursor=page.next_cursor)
+
+
+def strategy_in(spec: StrategySpec) -> StrategyIn:
+    """A strategy in its JSON form."""
+    return StrategyIn.model_validate(spec.to_dict())
+
+
+def classic_out(name: str, spec: StrategySpec) -> ClassicOut:
+    """A classic strategy."""
+    return ClassicOut(name=name, strategy=strategy_in(spec), definition_hash=spec.definition_hash)
+
+
+def cost_profile_out(profile: CostProfile) -> CostProfileOut:
+    """A market's costs, with what is assumed and what is left out."""
+    tax = profile.tax
+    return CostProfileOut(
+        key=profile.key,
+        name=profile.name,
+        as_of=profile.as_of,
+        product=profile.product.value,
+        commission_bps=profile.commission_bps,
+        minimum_commission=profile.minimum_commission,
+        slippage_bps=profile.slippage_bps,
+        borrow_bps=profile.borrow_bps,
+        shortable=profile.shortable,
+        tax=None if tax is None else tax.code,
+        tax_bps=None if tax is None else tax.rate_on(profile.as_of),
+        sources=list(profile.sources),
+        assumed=list(profile.assumed),
+        unmodelled=list(profile.unmodelled),
+    )
+
+
+def _market_out(market: MarketCosts) -> MarketOut:
+    return MarketOut(
+        profile=cost_profile_out(market.profile),
+        commission_bps=market.costs.commission_bps,
+        minimum_commission=market.costs.minimum_commission,
+        slippage_bps=market.costs.slippage_bps,
+        taxable=market.taxable,
+        tax_presumed=market.tax_presumed,
+    )
+
+
+def _trade_out(trade: BacktestTrade) -> TradeOut:
+    return TradeOut(
+        side="long" if trade.side > 0 else "short",
+        entry_time=_time(trade.entry_time),
+        exit_time=_time(trade.exit_time),
+        entry_fill=trade.entry_fill,
+        exit_fill=trade.exit_fill,
+        quantity=trade.quantity,
+        notional=trade.notional,
+        pnl=trade.pnl,
+        trade_return=trade.return_,
+        commission=trade.commission,
+        tax=trade.tax,
+        slippage=trade.slippage,
+        carry=trade.carry,
+        exit_reason=str(trade.exit_reason),
+        bars=trade.bars,
+    )
+
+
+def backtest_out(result: BacktestResult) -> BacktestOut:
+    """What trading a strategy did: its metrics, costs, market, equity and trades."""
+    strategy = result.strategy
+    if strategy is None:
+        msg = "the result of a strategy's backtest carries its strategy"
+        raise ValueError(msg)
+    stats = result.statistics
+    costs = result.costs
+    equity = result.equity
+    instrument = result.instrument
+    return BacktestOut(
+        symbol=instrument.symbol,
+        name=instrument.name,
+        currency=str(instrument.currency),
+        frequency=str(result.frequency),
+        strategy=strategy_in(strategy),
+        definition_hash=strategy.definition_hash,
+        start=_time(equity.index[0]),
+        end=_time(equity.index[-1]),
+        ready_at=None if result.ready_at is None else _time(result.ready_at),
+        initial_capital=result.config.initial_capital,
+        final_equity=float(equity.iloc[-1]),
+        total_return=result.total_return,
+        buy_and_hold=result.buy_and_hold,
+        exposure=result.exposure,
+        turnover=result.turnover,
+        metrics=metrics_out(result.metrics()),
+        statistics=TradeStatisticsOut(
+            count=stats.count,
+            win_rate=finite(stats.win_rate),
+            average_win=finite(stats.average_win),
+            average_loss=finite(stats.average_loss),
+            profit_factor=finite(stats.profit_factor),
+            average_bars=finite(stats.average_bars),
+            best=finite(stats.best),
+            worst=finite(stats.worst),
+        ),
+        costs=CostsOut(
+            commission=costs.commission,
+            tax=costs.tax,
+            slippage=costs.slippage,
+            funding=costs.funding,
+            borrow=costs.borrow,
+            total=costs.total,
+        ),
+        market=None if result.market is None else _market_out(result.market),
+        equity=_points(equity),
+        trades=[_trade_out(trade) for trade in result.trades],
+    )
+
+
+def backtest_job_out(job: Job) -> BacktestJobOut:
+    """A backtest job with what it was asked and, once succeeded, what it did."""
+    return BacktestJobOut(
+        kind="backtest",
+        parameters=BacktestIn.model_validate(job.parameters),
+        result=None if job.result is None else BacktestOut.model_validate(job.result),
+        **_job_fields(job),  # type: ignore[arg-type]
+    )
+
+
+def job_detail_out(job: Job) -> SimulationJobOut | BacktestJobOut:
+    """A job with its parameters and result, by its kind."""
+    return backtest_job_out(job) if job.kind == "backtest" else simulation_job_out(job)

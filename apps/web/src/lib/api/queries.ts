@@ -461,3 +461,32 @@ export function useDeleteJob() {
     onSettled: () => client.invalidateQueries({ queryKey: JOBS }),
   });
 }
+
+// ── Backtests (ADR-0050, ADR-0051) ──────────────────────────────────
+
+export function useBacktest(request: Schemas["BacktestIn"] | null) {
+  return useQuery({
+    queryKey: ["backtest", request],
+    queryFn: async () => unwrap(await api.POST("/api/v1/backtests", { body: request as Schemas["BacktestIn"] })),
+    enabled: request !== null,
+    placeholderData: keepPreviousData,
+    staleTime: Infinity,
+  });
+}
+
+/** Queue a backtest; the answer is the job, queued. */
+export function useSubmitBacktestJob() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (request: Schemas["BacktestIn"]) => unwrap(await api.POST("/api/v1/jobs/backtests", { body: request })),
+    onSettled: () => client.invalidateQueries({ queryKey: JOBS }),
+  });
+}
+
+export function useCostProfiles() {
+  return useQuery({
+    queryKey: ["cost-profiles"],
+    queryFn: async () => unwrap(await api.GET("/api/v1/cost-profiles")),
+    staleTime: Infinity,
+  });
+}

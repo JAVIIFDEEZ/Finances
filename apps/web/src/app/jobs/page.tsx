@@ -5,12 +5,13 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 
+import { BacktestResult } from "@/components/analysis/backtest";
 import { SimulationResult } from "@/components/analysis/simulation";
 import { useI18n } from "@/components/providers";
 import { Badge, Button, Card, PageHeader, ProblemAlert, Skeleton, cn } from "@/components/ui";
 import { problemKind, useCancelJob, useDeleteJob, useHealth, useJob, useJobs } from "@/lib/api/queries";
 import { fill, type MessageKey } from "@/lib/i18n/messages";
-import { canCancel, canDelete, isFinished, runSeconds, statusTone, waitingForWorker, type Job, type SimulationJob } from "@/lib/util/jobs";
+import { canCancel, canDelete, isFinished, runSeconds, statusTone, waitingForWorker, type BacktestJob, type Job, type JobDetail, type SimulationJob } from "@/lib/util/jobs";
 
 const STATUS: Record<Job["status"], MessageKey> = {
   queued: "jobs.status.queued",
@@ -23,6 +24,7 @@ const STATUS: Record<Job["status"], MessageKey> = {
 const STAGES: Record<string, MessageKey> = {
   loading: "jobs.stage.loading",
   simulating: "jobs.stage.simulating",
+  backtesting: "jobs.stage.backtesting",
   summarising: "jobs.stage.summarising",
 };
 
@@ -103,15 +105,31 @@ function JobList({ selected, onSelect }: { selected: string | null; onSelect: (i
   );
 }
 
-function Parameters({ job }: { job: SimulationJob }) {
-  const { t, fmt } = useI18n();
+function simulationRows(job: SimulationJob, t: (key: MessageKey) => string, fmt: ReturnType<typeof useI18n>["fmt"]): [string, string][] {
   const parameters = job.parameters;
-  const rows: [string, string][] = [
+  return [
     [t("simulation.paths"), fmt.number(parameters.n_paths ?? null, 0)],
     [t("simulation.horizon"), fmt.number(parameters.horizon ?? null, 0)],
     [t("simulation.model"), t(`simulation.model.${parameters.model ?? "gbm"}` as MessageKey)],
     [t("jobs.holdings"), parameters.portfolio.holdings.map((h) => `${h.symbol} ${fmt.percent(h.weight, 0)}`).join(" · ")],
   ];
+}
+
+function backtestRows(job: BacktestJob, t: (key: MessageKey) => string, fmt: ReturnType<typeof useI18n>["fmt"]): [string, string][] {
+  const parameters = job.parameters;
+  const strategy = typeof parameters.strategy === "string" ? t(`backtest.strategy.${parameters.strategy}` as MessageKey) : (job.result?.definition_hash ?? "—");
+  const period = [parameters.start ? fmt.date(parameters.start) : "…", parameters.end ? fmt.date(parameters.end) : "…"].join(" – ");
+  return [
+    [t("backtest.symbol"), parameters.symbol],
+    [t("backtest.strategy"), strategy],
+    [t("backtest.profile"), parameters.profile ?? t("backtest.profile.default")],
+    [`${t("backtest.start")} – ${t("backtest.end")}`, period],
+  ];
+}
+
+function Parameters({ job }: { job: JobDetail }) {
+  const { t, fmt } = useI18n();
+  const rows = job.kind === "backtest" ? backtestRows(job, t, fmt) : simulationRows(job, t, fmt);
   return (
     <dl className="grid grid-cols-1 gap-x-6 gap-y-3 text-[13px] sm:grid-cols-2">
       {rows.map(([label, value]) => (
@@ -122,6 +140,12 @@ function Parameters({ job }: { job: SimulationJob }) {
       ))}
     </dl>
   );
+}
+
+/** What a job produced, in the view of its kind. */
+function JobResult({ job }: { job: JobDetail }) {
+  if (job.kind === "backtest") return job.result ? <BacktestResult data={job.result} /> : null;
+  return job.result ? <SimulationResult data={job.result} currency={job.parameters.portfolio.base_currency ?? "EUR"} /> : null;
 }
 
 function JobDetail({ id, onRemoved }: { id: string; onRemoved: () => void }) {
@@ -197,7 +221,7 @@ function JobDetail({ id, onRemoved }: { id: string; onRemoved: () => void }) {
           {failure ? <ProblemAlert error={failure} /> : null}
         </div>
       </Card>
-      {data.status === "succeeded" && data.result ? <SimulationResult data={data.result} currency={data.parameters.portfolio.base_currency ?? "EUR"} /> : null}
+      {data.status === "succeeded" && data.result ? <JobResult job={data} /> : null}
     </div>
   );
 }

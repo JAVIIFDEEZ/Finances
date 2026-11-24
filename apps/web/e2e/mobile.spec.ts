@@ -5,7 +5,7 @@ import { devices, expect, test } from "@playwright/test";
 const { viewport, deviceScaleFactor, isMobile, hasTouch, userAgent } = devices["iPhone 14"];
 test.use({ viewport, deviceScaleFactor, isMobile, hasTouch, userAgent });
 
-const SCREENS = ["/", "/markets", "/portfolio", "/simulation", "/optimization", "/planning", "/jobs", "/modules"];
+const SCREENS = ["/", "/markets", "/portfolio", "/simulation", "/backtest", "/optimization", "/planning", "/jobs", "/modules"];
 
 test.beforeEach(async ({ context }) => {
   await context.addCookies([{ name: "investinglab.locale", value: "es", url: "http://127.0.0.1:3000" }]);
