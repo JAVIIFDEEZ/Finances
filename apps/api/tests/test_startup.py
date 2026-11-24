@@ -8,15 +8,21 @@ from __future__ import annotations
 
 import asyncio
 import sys
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import psycopg
 import pytest
 import uvicorn
 
 from investinglab_api import __main__ as entry
-from investinglab_api import loops
-from investinglab_api.settings import get_api_settings
+from investinglab_api import loops, worker
+from investinglab_api.settings import ApiSettings, get_api_settings
+
+if TYPE_CHECKING:
+    from investinglab.config import Settings
+
+NOWHERE = "postgresql+psycopg://nobody@127.0.0.1:1/none"
+"""A database URL nothing listens at."""
 
 
 @pytest.mark.parametrize(
@@ -85,3 +91,16 @@ def test_the_api_runs_on_the_selector_loop_on_windows(monkeypatch: pytest.Monkey
 
     assert entry.main([]) == 0
     assert used["loop"] == loops.UVICORN_SELECTOR
+
+
+def test_a_worker_that_cannot_reach_the_database_says_so(core_settings: Settings) -> None:
+    settings = ApiSettings(database_url=NOWHERE)  # type: ignore[arg-type]
+
+    with pytest.raises(worker.WorkerNotReadyError) as refused:  # on its loop, as it starts
+        asyncio.run(worker.serve(settings, core_settings), loop_factory=loops.loop_factory())
+
+    message = str(refused.value)
+    assert "does not answer" in message
+    assert "just db-up" in message
+    assert "OperationalError" in message  # the cause, as the driver gave it
+    assert "db-upgrade" not in message  # migrating would not help

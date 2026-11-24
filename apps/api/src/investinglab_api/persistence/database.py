@@ -11,7 +11,7 @@ from sqlalchemy import func, select, text
 from sqlalchemy.exc import DBAPIError, InterfaceError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from investinglab.config import get_logger
+from investinglab.config import get_logger, redact_text
 from investinglab.ports import RepositoryUnavailableError
 from investinglab_api.persistence.ddl import OWNER_SETTING
 from investinglab_api.persistence.migrate import head_revision
@@ -51,6 +51,8 @@ class Database:
             url, pool_size=pool_size, pool_pre_ping=True
         )
         self._sessions = async_sessionmaker(self._engine, expire_on_commit=False)
+        self.last_error: str | None = None
+        """Why the last :meth:`status` found the database unavailable (its first line)."""
 
     @asynccontextmanager
     async def transaction(self, owner: str | None = None) -> AsyncIterator[AsyncSession]:
@@ -79,6 +81,9 @@ class Database:
                 current = await connection.scalar(text("SELECT version_num FROM alembic_version"))
         except DBAPIError as error:
             if isinstance(error, (OperationalError, InterfaceError)):
+                cause = error.orig if error.orig is not None else error
+                first = (str(cause).strip().splitlines() or [""])[0]
+                self.last_error = redact_text(f"{type(cause).__name__}: {first}")
                 return DatabaseStatus.UNAVAILABLE
             return DatabaseStatus.MIGRATIONS_PENDING  # no alembic_version table yet
         return (
