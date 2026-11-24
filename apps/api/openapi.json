@@ -2442,6 +2442,150 @@
         }
       }
     },
+    "/api/v1/backtests": {
+      "post": {
+        "tags": [
+          "backtests"
+        ],
+        "summary": "Backtest a strategy",
+        "description": "Trade a strategy on one symbol with the costs of its market (ADR-0050, ADR-0051).\n\nA year of history before `start` warms its indicators up; it trades from `start`. The\ncosts are the profile's (where the symbol trades by default): its commission, the tax\nof each day's purchases, the borrow of a short and, for a perpetual, the funding its\nvenue published.",
+        "operationId": "backtests_api_v1_backtests_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BacktestIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BacktestOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No provider has the requested data.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request breaks the schema, a limit or a domain rule.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Every provider able to serve the data failed; retry later.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "The request took too long.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/strategies/classics": {
+      "get": {
+        "tags": [
+          "backtests"
+        ],
+        "summary": "List the classic strategies",
+        "description": "The classic strategies written in the grammar (CryptoWorld's seeds), by name.",
+        "operationId": "list_classics_api_v1_strategies_classics_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ClassicOut"
+                  },
+                  "type": "array",
+                  "title": "Response List Classics Api V1 Strategies Classics Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cost-profiles": {
+      "get": {
+        "tags": [
+          "backtests"
+        ],
+        "summary": "List the markets' cost profiles",
+        "description": "Each market's costs (ADR-0051).\n\nPublished fees with their sources and date, the assumptions said as such, and what a\nbacktest leaves out.",
+        "operationId": "list_cost_profiles_api_v1_cost_profiles_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CostProfileOut"
+                  },
+                  "type": "array",
+                  "title": "Response List Cost Profiles Api V1 Cost Profiles Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/portfolios": {
       "get": {
         "tags": [
@@ -3463,6 +3607,68 @@
         }
       }
     },
+    "/api/v1/jobs/backtests": {
+      "post": {
+        "tags": [
+          "jobs"
+        ],
+        "summary": "Backtest a strategy in the background",
+        "description": "Queue a backtest of a strategy on one symbol, with the costs of its market (ADR-0051).\n\nThe strategy and the cost profile are checked now: an invalid one answers `422` before\nanything is queued. Read its `Location` until `status` is `succeeded` (its `result` is\nwhat trading the strategy did) or `failed` (its `error`: no data, a market it cannot\ntrade...).",
+        "operationId": "submit_backtest_api_v1_jobs_backtests_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BacktestIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BacktestJobOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request breaks the schema, a limit or a domain rule.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The API runs without a database, or the database is not answering.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/jobs": {
       "get": {
         "tags": [
@@ -3575,7 +3781,22 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SimulationJobOut"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/SimulationJobOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/BacktestJobOut"
+                    }
+                  ],
+                  "discriminator": {
+                    "propertyName": "kind",
+                    "mapping": {
+                      "simulation": "#/components/schemas/SimulationJobOut",
+                      "backtest": "#/components/schemas/BacktestJobOut"
+                    }
+                  },
+                  "title": "Response Read Job Api V1 Jobs  Job Id  Get"
                 }
               }
             }
@@ -3739,7 +3960,22 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SimulationJobOut"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/SimulationJobOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/BacktestJobOut"
+                    }
+                  ],
+                  "discriminator": {
+                    "propertyName": "kind",
+                    "mapping": {
+                      "simulation": "#/components/schemas/SimulationJobOut",
+                      "backtest": "#/components/schemas/BacktestJobOut"
+                    }
+                  },
+                  "title": "Response Cancel Job Api V1 Jobs  Job Id  Cancel Post"
                 }
               }
             }
@@ -3864,6 +4100,416 @@
         "title": "AssetPointOut",
         "description": "A holding alone, on the same axes as the frontier."
       },
+      "BacktestIn": {
+        "properties": {
+          "start": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start",
+            "description": "First session (inclusive)."
+          },
+          "end": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End",
+            "description": "Last session (inclusive)."
+          },
+          "frequency": {
+            "$ref": "#/components/schemas/Frequency",
+            "description": "Bar frequency.",
+            "default": "1d"
+          },
+          "symbol": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Symbol",
+            "description": "`SAN.MC`, `BTC/USDT`..."
+          },
+          "strategy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StrategyIn"
+              },
+              {
+                "$ref": "#/components/schemas/ClassicStrategy"
+              }
+            ],
+            "title": "Strategy",
+            "description": "A strategy, or the name of a classic one."
+          },
+          "profile": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profile",
+            "description": "A cost profile (`XMAD`, `binance-usdm`); where it trades."
+          },
+          "taxable": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Taxable",
+            "description": "Whether purchases pay the market's tax, if not presumed."
+          },
+          "commission_bps": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Commission Bps",
+            "description": "Your broker's."
+          },
+          "minimum_commission": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minimum Commission"
+          },
+          "slippage_bps": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slippage Bps"
+          },
+          "initial_capital": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Initial Capital",
+            "default": 10000.0
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "symbol",
+          "strategy"
+        ],
+        "title": "BacktestIn",
+        "description": "A strategy on one symbol, with the costs of its market (ADR-0051)."
+      },
+      "BacktestJobOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "const": "backtest",
+            "title": "Kind"
+          },
+          "status": {
+            "$ref": "#/components/schemas/JobStatus"
+          },
+          "progress": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Progress",
+            "description": "Fraction done, from 0 to 1, when known."
+          },
+          "stage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stage",
+            "description": "What it is doing now (`loading`, `simulating`, `backtesting`, `summarising`)."
+          },
+          "cancel_requested": {
+            "type": "boolean",
+            "title": "Cancel Requested",
+            "description": "Its owner asked to stop it while it ran."
+          },
+          "attempts": {
+            "type": "integer",
+            "title": "Attempts",
+            "description": "Times a worker started it (more after a lost worker)."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/JobErrorOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why it failed, once failed."
+          },
+          "parameters": {
+            "$ref": "#/components/schemas/BacktestIn",
+            "description": "The backtest as it was submitted."
+          },
+          "result": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BacktestOut"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What trading the strategy did, once succeeded."
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "status",
+          "progress",
+          "stage",
+          "cancel_requested",
+          "attempts",
+          "created_at",
+          "started_at",
+          "finished_at",
+          "error",
+          "parameters",
+          "result"
+        ],
+        "title": "BacktestJobOut",
+        "description": "A backtest run in the background."
+      },
+      "BacktestOut": {
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "title": "Symbol"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "frequency": {
+            "type": "string",
+            "title": "Frequency"
+          },
+          "strategy": {
+            "$ref": "#/components/schemas/StrategyIn"
+          },
+          "definition_hash": {
+            "type": "string",
+            "title": "Definition Hash",
+            "description": "Identifies the strategy (CryptoWorld's hash)."
+          },
+          "start": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ],
+            "title": "Start",
+            "description": "First bar traded."
+          },
+          "end": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ],
+            "title": "End",
+            "description": "Last bar traded."
+          },
+          "ready_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ready At",
+            "description": "First bar every condition was known (before: its indicators' warm-up)."
+          },
+          "initial_capital": {
+            "type": "number",
+            "title": "Initial Capital"
+          },
+          "final_equity": {
+            "type": "number",
+            "title": "Final Equity"
+          },
+          "total_return": {
+            "type": "number",
+            "title": "Total Return"
+          },
+          "buy_and_hold": {
+            "type": "number",
+            "title": "Buy And Hold"
+          },
+          "exposure": {
+            "type": "number",
+            "title": "Exposure",
+            "description": "Share of the bars with a position open."
+          },
+          "turnover": {
+            "type": "number",
+            "title": "Turnover",
+            "description": "Notional traded over the initial capital."
+          },
+          "metrics": {
+            "$ref": "#/components/schemas/MetricsOut"
+          },
+          "statistics": {
+            "$ref": "#/components/schemas/TradeStatisticsOut"
+          },
+          "costs": {
+            "$ref": "#/components/schemas/CostsOut"
+          },
+          "market": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MarketOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "equity": {
+            "items": {
+              "$ref": "#/components/schemas/Point"
+            },
+            "type": "array",
+            "title": "Equity"
+          },
+          "trades": {
+            "items": {
+              "$ref": "#/components/schemas/TradeOut"
+            },
+            "type": "array",
+            "title": "Trades"
+          }
+        },
+        "type": "object",
+        "required": [
+          "symbol",
+          "name",
+          "currency",
+          "frequency",
+          "strategy",
+          "definition_hash",
+          "start",
+          "end",
+          "ready_at",
+          "initial_capital",
+          "final_equity",
+          "total_return",
+          "buy_and_hold",
+          "exposure",
+          "turnover",
+          "metrics",
+          "statistics",
+          "costs",
+          "market",
+          "equity",
+          "trades"
+        ],
+        "title": "BacktestOut",
+        "description": "What trading a strategy on one symbol did."
+      },
       "BarOut": {
         "properties": {
           "time": {
@@ -3947,6 +4593,74 @@
         ],
         "title": "BarOut",
         "description": "One bar; absent columns are ``null``."
+      },
+      "BlockIn": {
+        "properties": {
+          "combine": {
+            "type": "string",
+            "enum": [
+              "AND",
+              "OR",
+              "K_OF_N"
+            ],
+            "title": "Combine",
+            "default": "AND"
+          },
+          "k": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "K",
+            "description": "With `K_OF_N`: from 2 to one fewer than n."
+          },
+          "conditions": {
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/ThresholdIn"
+                },
+                {
+                  "$ref": "#/components/schemas/CrossIn"
+                },
+                {
+                  "$ref": "#/components/schemas/CompareIn"
+                },
+                {
+                  "$ref": "#/components/schemas/SlopeIn"
+                },
+                {
+                  "$ref": "#/components/schemas/PatternIn"
+                }
+              ],
+              "discriminator": {
+                "propertyName": "type",
+                "mapping": {
+                  "compare": "#/components/schemas/CompareIn",
+                  "cross": "#/components/schemas/CrossIn",
+                  "pattern": "#/components/schemas/PatternIn",
+                  "slope": "#/components/schemas/SlopeIn",
+                  "threshold": "#/components/schemas/ThresholdIn"
+                }
+              }
+            },
+            "type": "array",
+            "maxItems": 3,
+            "minItems": 1,
+            "title": "Conditions"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "conditions"
+        ],
+        "title": "BlockIn",
+        "description": "One to three conditions, joined by `AND`, `OR` or at least `k` of them."
       },
       "BookBandOut": {
         "properties": {
@@ -4328,6 +5042,79 @@
         "title": "CardOut",
         "description": "The card of an instrument: its pillars on the last bar (ADR-0040)."
       },
+      "ClassicOut": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "strategy": {
+            "$ref": "#/components/schemas/StrategyIn"
+          },
+          "definition_hash": {
+            "type": "string",
+            "title": "Definition Hash"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "strategy",
+          "definition_hash"
+        ],
+        "title": "ClassicOut",
+        "description": "A classic strategy, by name."
+      },
+      "ClassicStrategy": {
+        "type": "string",
+        "enum": [
+          "rsi_reversal",
+          "macd_crossover",
+          "sma_crossover",
+          "ema_trend",
+          "bollinger_bounce",
+          "donchian_breakout",
+          "trend_pullback"
+        ]
+      },
+      "CompareIn": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "compare",
+            "title": "Type"
+          },
+          "a": {
+            "$ref": "#/components/schemas/LegIn"
+          },
+          "b": {
+            "$ref": "#/components/schemas/LegIn"
+          },
+          "op": {
+            "type": "string",
+            "enum": [
+              "above",
+              "below"
+            ],
+            "title": "Op"
+          },
+          "negate": {
+            "type": "boolean",
+            "title": "Negate",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "a",
+          "b",
+          "op"
+        ],
+        "title": "CompareIn",
+        "description": "A price level above or below another while it lasts."
+      },
       "CompareRequest": {
         "properties": {
           "start": {
@@ -4547,6 +5334,159 @@
         "title": "ConfluenceOut",
         "description": "The frames of an instrument and whether they agree (ADR-0038)."
       },
+      "CostProfileOut": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "as_of": {
+            "type": "string",
+            "format": "date",
+            "title": "As Of",
+            "description": "When its fees were read from their sources."
+          },
+          "product": {
+            "type": "string",
+            "enum": [
+              "cash",
+              "perpetual"
+            ],
+            "title": "Product"
+          },
+          "commission_bps": {
+            "type": "number",
+            "title": "Commission Bps"
+          },
+          "minimum_commission": {
+            "type": "number",
+            "title": "Minimum Commission"
+          },
+          "slippage_bps": {
+            "type": "number",
+            "title": "Slippage Bps"
+          },
+          "borrow_bps": {
+            "type": "number",
+            "title": "Borrow Bps",
+            "description": "Yearly fee to borrow what a short sells."
+          },
+          "shortable": {
+            "type": "boolean",
+            "title": "Shortable"
+          },
+          "tax": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tax",
+            "description": "The tax on purchases (`ITF`, `TTF`...), if any."
+          },
+          "tax_bps": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tax Bps",
+            "description": "Its rate today, in basis points."
+          },
+          "sources": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Sources"
+          },
+          "assumed": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Assumed",
+            "description": "Which of its figures are assumptions."
+          },
+          "unmodelled": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Unmodelled",
+            "description": "Costs of this market a backtest leaves out."
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "name",
+          "as_of",
+          "product",
+          "commission_bps",
+          "minimum_commission",
+          "slippage_bps",
+          "borrow_bps",
+          "shortable",
+          "tax",
+          "tax_bps",
+          "sources",
+          "assumed",
+          "unmodelled"
+        ],
+        "title": "CostProfileOut",
+        "description": "A market's costs: what is published, what is assumed, what is left out."
+      },
+      "CostsOut": {
+        "properties": {
+          "commission": {
+            "type": "number",
+            "title": "Commission"
+          },
+          "tax": {
+            "type": "number",
+            "title": "Tax"
+          },
+          "slippage": {
+            "type": "number",
+            "title": "Slippage"
+          },
+          "funding": {
+            "type": "number",
+            "title": "Funding",
+            "description": "Negative: earned."
+          },
+          "borrow": {
+            "type": "number",
+            "title": "Borrow"
+          },
+          "total": {
+            "type": "number",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "commission",
+          "tax",
+          "slippage",
+          "funding",
+          "borrow",
+          "total"
+        ],
+        "title": "CostsOut",
+        "description": "What trading cost, by kind, in the instrument's currency."
+      },
       "CovarianceEstimator": {
         "type": "string",
         "enum": [
@@ -4555,6 +5495,39 @@
         ],
         "title": "CovarianceEstimator",
         "description": "Estimator of the historical covariance."
+      },
+      "CrossIn": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "cross",
+            "title": "Type"
+          },
+          "a": {
+            "$ref": "#/components/schemas/LegIn"
+          },
+          "b": {
+            "$ref": "#/components/schemas/LegIn"
+          },
+          "op": {
+            "type": "string",
+            "enum": [
+              "cross_above",
+              "cross_below"
+            ],
+            "title": "Op"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "a",
+          "b",
+          "op"
+        ],
+        "title": "CrossIn",
+        "description": "A price level crossing another on this bar (it cannot be negated)."
       },
       "Dataset": {
         "type": "string",
@@ -5934,7 +6907,7 @@
           "kind": {
             "type": "string",
             "title": "Kind",
-            "description": "What it runs (`simulation`); says what its result is."
+            "description": "What it runs (`simulation`, `backtest`); says what its result is."
           },
           "status": {
             "$ref": "#/components/schemas/JobStatus"
@@ -5961,7 +6934,7 @@
               }
             ],
             "title": "Stage",
-            "description": "What it is doing now (`loading`, `simulating`, `summarising`)."
+            "description": "What it is doing now (`loading`, `simulating`, `backtesting`, `summarising`)."
           },
           "cancel_requested": {
             "type": "boolean",
@@ -6073,6 +7046,29 @@
         "title": "JobStatus",
         "description": "Where a job is in its life."
       },
+      "LegIn": {
+        "properties": {
+          "indicator": {
+            "type": "string",
+            "title": "Indicator",
+            "description": "Its name in the catalogue (`SMA`, `PRICE`...)."
+          },
+          "params": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Params"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "indicator"
+        ],
+        "title": "LegIn",
+        "description": "An indicator of the catalogue with its parameters (defaults where left out)."
+      },
       "MarketCapsOut": {
         "properties": {
           "asset_class": {
@@ -6109,6 +7105,46 @@
         ],
         "title": "MarketCapsOut",
         "description": "The largest assets of a market by capitalisation, at one instant (ADR-0045)."
+      },
+      "MarketOut": {
+        "properties": {
+          "profile": {
+            "$ref": "#/components/schemas/CostProfileOut"
+          },
+          "commission_bps": {
+            "type": "number",
+            "title": "Commission Bps",
+            "description": "The commission charged (yours, if given)."
+          },
+          "minimum_commission": {
+            "type": "number",
+            "title": "Minimum Commission"
+          },
+          "slippage_bps": {
+            "type": "number",
+            "title": "Slippage Bps"
+          },
+          "taxable": {
+            "type": "boolean",
+            "title": "Taxable"
+          },
+          "tax_presumed": {
+            "type": "boolean",
+            "title": "Tax Presumed",
+            "description": "Presumed in scope: no ISIN said the issuer."
+          }
+        },
+        "type": "object",
+        "required": [
+          "profile",
+          "commission_bps",
+          "minimum_commission",
+          "slippage_bps",
+          "taxable",
+          "tax_presumed"
+        ],
+        "title": "MarketOut",
+        "description": "The costs a backtest paid."
       },
       "MarketShareOut": {
         "properties": {
@@ -6796,6 +7832,47 @@
         ],
         "title": "PatternEventOut",
         "description": "An occurrence of an event pattern: the bar that completed it."
+      },
+      "PatternIn": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "pattern",
+            "title": "Type"
+          },
+          "pattern": {
+            "type": "string",
+            "title": "Pattern",
+            "description": "Its name in the catalogue (`SWEEP_LOW`...)."
+          },
+          "params": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Params"
+          },
+          "lookback": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Lookback",
+            "default": 1
+          },
+          "negate": {
+            "type": "boolean",
+            "title": "Negate",
+            "description": "Needs a lookback of 3 bars or more.",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "pattern"
+        ],
+        "title": "PatternIn",
+        "description": "A price pattern on this bar or on one of the `lookback - 1` before."
       },
       "PatternOut": {
         "properties": {
@@ -8306,6 +9383,21 @@
         "title": "RebalanceKind",
         "description": "How a portfolio returns to its target weights."
       },
+      "RegimeIn": {
+        "properties": {
+          "adx_min": {
+            "type": "number",
+            "title": "Adx Min"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "adx_min"
+        ],
+        "title": "RegimeIn",
+        "description": "Enter only in a trend: the ADX(14) at least `adx_min`."
+      },
       "RequirementOut": {
         "properties": {
           "id": {
@@ -8458,6 +9550,81 @@
         ],
         "title": "RiskFreeOut",
         "description": "Effective annual risk-free rate known at each business day."
+      },
+      "RiskIn": {
+        "properties": {
+          "stop_loss_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stop Loss Pct"
+          },
+          "take_profit_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Take Profit Pct"
+          },
+          "trailing_stop_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trailing Stop Pct"
+          },
+          "max_bars": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Bars"
+          },
+          "atr_stop_mult": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Atr Stop Mult"
+          },
+          "atr_target_mult": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Atr Target Mult"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "RiskIn",
+        "description": "Barriers that close a position before its signal does (decimals: 0.05 is 5 %)."
       },
       "RuleOut": {
         "properties": {
@@ -8802,7 +9969,7 @@
               }
             ],
             "title": "Stage",
-            "description": "What it is doing now (`loading`, `simulating`, `summarising`)."
+            "description": "What it is doing now (`loading`, `simulating`, `backtesting`, `summarising`)."
           },
           "cancel_requested": {
             "type": "boolean",
@@ -9029,6 +10196,48 @@
         "title": "SimulationOut",
         "description": "Fan chart, terminal distribution and tail risk of the simulated value."
       },
+      "SizingIn": {
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "full",
+              "fraction",
+              "risk"
+            ],
+            "title": "Mode",
+            "default": "full"
+          },
+          "fraction": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fraction",
+            "description": "With `fraction`."
+          },
+          "risk_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Risk Pct",
+            "description": "With `risk`."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "SizingIn",
+        "description": "How large a position is: all the equity, a fraction, or what a stop loses."
+      },
       "SkippedRuleOut": {
         "properties": {
           "name": {
@@ -9056,6 +10265,54 @@
         ],
         "title": "SkippedRuleOut",
         "description": "A rule that could not be read, and what it lacks."
+      },
+      "SlopeIn": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "slope",
+            "title": "Type"
+          },
+          "indicator": {
+            "type": "string",
+            "title": "Indicator"
+          },
+          "params": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Params"
+          },
+          "op": {
+            "type": "string",
+            "enum": [
+              "rising",
+              "falling"
+            ],
+            "title": "Op"
+          },
+          "bars": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Bars"
+          },
+          "negate": {
+            "type": "boolean",
+            "title": "Negate",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "indicator",
+          "op",
+          "bars"
+        ],
+        "title": "SlopeIn",
+        "description": "An indicator higher (`rising`) or lower (`falling`) than `bars` ago."
       },
       "SourceOut": {
         "properties": {
@@ -9312,6 +10569,86 @@
         ],
         "title": "StatsOut",
         "description": "Statistics computed when the series was built (per period unless annualised)."
+      },
+      "StrategyIn": {
+        "properties": {
+          "entry": {
+            "$ref": "#/components/schemas/BlockIn"
+          },
+          "exit": {
+            "$ref": "#/components/schemas/BlockIn"
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "long",
+              "short",
+              "both"
+            ],
+            "title": "Direction",
+            "default": "long"
+          },
+          "short_entry": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BlockIn"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "With `both`."
+          },
+          "short_exit": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BlockIn"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "With `both`."
+          },
+          "risk": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RiskIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sizing": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SizingIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "regime": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RegimeIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "entry",
+          "exit"
+        ],
+        "title": "StrategyIn",
+        "description": "A strategy in CryptoWorld's JSON form (ADR-0050)."
       },
       "StructureLevelOut": {
         "properties": {
@@ -9639,6 +10976,259 @@
         ],
         "title": "TechnicalOut",
         "description": "Technical indicators of an instrument, for any asset class."
+      },
+      "ThresholdIn": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "threshold",
+            "title": "Type"
+          },
+          "indicator": {
+            "type": "string",
+            "title": "Indicator"
+          },
+          "params": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Params"
+          },
+          "op": {
+            "type": "string",
+            "enum": [
+              "gt",
+              "lt"
+            ],
+            "title": "Op"
+          },
+          "threshold": {
+            "type": "number",
+            "title": "Threshold"
+          },
+          "negate": {
+            "type": "boolean",
+            "title": "Negate",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "indicator",
+          "op",
+          "threshold"
+        ],
+        "title": "ThresholdIn",
+        "description": "An oscillator above (`gt`) or below (`lt`) a value."
+      },
+      "TradeOut": {
+        "properties": {
+          "side": {
+            "type": "string",
+            "enum": [
+              "long",
+              "short"
+            ],
+            "title": "Side"
+          },
+          "entry_time": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ],
+            "title": "Entry Time"
+          },
+          "exit_time": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "string",
+                "format": "date-time"
+              }
+            ],
+            "title": "Exit Time"
+          },
+          "entry_fill": {
+            "type": "number",
+            "title": "Entry Fill"
+          },
+          "exit_fill": {
+            "type": "number",
+            "title": "Exit Fill"
+          },
+          "quantity": {
+            "type": "number",
+            "title": "Quantity"
+          },
+          "notional": {
+            "type": "number",
+            "title": "Notional"
+          },
+          "pnl": {
+            "type": "number",
+            "title": "Pnl"
+          },
+          "trade_return": {
+            "type": "number",
+            "title": "Trade Return",
+            "description": "Its result over what it took, net of costs."
+          },
+          "commission": {
+            "type": "number",
+            "title": "Commission"
+          },
+          "tax": {
+            "type": "number",
+            "title": "Tax"
+          },
+          "slippage": {
+            "type": "number",
+            "title": "Slippage"
+          },
+          "carry": {
+            "type": "number",
+            "title": "Carry",
+            "description": "Funding and borrow paid while open (negative: earned)."
+          },
+          "exit_reason": {
+            "type": "string",
+            "title": "Exit Reason"
+          },
+          "bars": {
+            "type": "integer",
+            "title": "Bars"
+          }
+        },
+        "type": "object",
+        "required": [
+          "side",
+          "entry_time",
+          "exit_time",
+          "entry_fill",
+          "exit_fill",
+          "quantity",
+          "notional",
+          "pnl",
+          "trade_return",
+          "commission",
+          "tax",
+          "slippage",
+          "carry",
+          "exit_reason",
+          "bars"
+        ],
+        "title": "TradeOut",
+        "description": "One position, from its entry to its exit."
+      },
+      "TradeStatisticsOut": {
+        "properties": {
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "win_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Win Rate"
+          },
+          "average_win": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average Win"
+          },
+          "average_loss": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average Loss"
+          },
+          "profit_factor": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profit Factor"
+          },
+          "average_bars": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average Bars"
+          },
+          "best": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Best"
+          },
+          "worst": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Worst"
+          }
+        },
+        "type": "object",
+        "required": [
+          "count",
+          "win_rate",
+          "average_win",
+          "average_loss",
+          "profit_factor",
+          "average_bars",
+          "best",
+          "worst"
+        ],
+        "title": "TradeStatisticsOut",
+        "description": "What the trades were like (`null` where undefined: no trades, no losers...)."
       },
       "TrendOut": {
         "properties": {

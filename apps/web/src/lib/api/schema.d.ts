@@ -513,6 +513,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/backtests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Backtest a strategy
+         * @description Trade a strategy on one symbol with the costs of its market (ADR-0050, ADR-0051).
+         *
+         *     A year of history before `start` warms its indicators up; it trades from `start`. The
+         *     costs are the profile's (where the symbol trades by default): its commission, the tax
+         *     of each day's purchases, the borrow of a short and, for a perpetual, the funding its
+         *     venue published.
+         */
+        post: operations["backtests_api_v1_backtests_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/strategies/classics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the classic strategies
+         * @description The classic strategies written in the grammar (CryptoWorld's seeds), by name.
+         */
+        get: operations["list_classics_api_v1_strategies_classics_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cost-profiles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the markets' cost profiles
+         * @description Each market's costs (ADR-0051).
+         *
+         *     Published fees with their sources and date, the assumptions said as such, and what a
+         *     backtest leaves out.
+         */
+        get: operations["list_cost_profiles_api_v1_cost_profiles_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/portfolios": {
         parameters: {
             query?: never;
@@ -711,6 +779,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/jobs/backtests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Backtest a strategy in the background
+         * @description Queue a backtest of a strategy on one symbol, with the costs of its market (ADR-0051).
+         *
+         *     The strategy and the cost profile are checked now: an invalid one answers `422` before
+         *     anything is queued. Read its `Location` until `status` is `succeeded` (its `result` is
+         *     what trading the strategy did) or `failed` (its `error`: no data, a market it cannot
+         *     trade...).
+         */
+        post: operations["submit_backtest_api_v1_jobs_backtests_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/jobs": {
         parameters: {
             query?: never;
@@ -801,6 +894,174 @@ export interface components {
             volatility: number | null;
         };
         /**
+         * BacktestIn
+         * @description A strategy on one symbol, with the costs of its market (ADR-0051).
+         */
+        BacktestIn: {
+            /**
+             * Start
+             * @description First session (inclusive).
+             */
+            start?: string | null;
+            /**
+             * End
+             * @description Last session (inclusive).
+             */
+            end?: string | null;
+            /**
+             * @description Bar frequency.
+             * @default 1d
+             */
+            frequency?: components["schemas"]["Frequency"];
+            /**
+             * Symbol
+             * @description `SAN.MC`, `BTC/USDT`...
+             */
+            symbol: string;
+            /**
+             * Strategy
+             * @description A strategy, or the name of a classic one.
+             */
+            strategy: components["schemas"]["StrategyIn"] | components["schemas"]["ClassicStrategy"];
+            /**
+             * Profile
+             * @description A cost profile (`XMAD`, `binance-usdm`); where it trades.
+             */
+            profile?: string | null;
+            /**
+             * Taxable
+             * @description Whether purchases pay the market's tax, if not presumed.
+             */
+            taxable?: boolean | null;
+            /**
+             * Commission Bps
+             * @description Your broker's.
+             */
+            commission_bps?: number | null;
+            /** Minimum Commission */
+            minimum_commission?: number | null;
+            /** Slippage Bps */
+            slippage_bps?: number | null;
+            /**
+             * Initial Capital
+             * @default 10000
+             */
+            initial_capital?: number;
+        };
+        /**
+         * BacktestJobOut
+         * @description A backtest run in the background.
+         */
+        BacktestJobOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "backtest";
+            status: components["schemas"]["JobStatus"];
+            /**
+             * Progress
+             * @description Fraction done, from 0 to 1, when known.
+             */
+            progress: number | null;
+            /**
+             * Stage
+             * @description What it is doing now (`loading`, `simulating`, `backtesting`, `summarising`).
+             */
+            stage: string | null;
+            /**
+             * Cancel Requested
+             * @description Its owner asked to stop it while it ran.
+             */
+            cancel_requested: boolean;
+            /**
+             * Attempts
+             * @description Times a worker started it (more after a lost worker).
+             */
+            attempts: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Started At */
+            started_at: string | null;
+            /** Finished At */
+            finished_at: string | null;
+            /** @description Why it failed, once failed. */
+            error: components["schemas"]["JobErrorOut"] | null;
+            /** @description The backtest as it was submitted. */
+            parameters: components["schemas"]["BacktestIn"];
+            /** @description What trading the strategy did, once succeeded. */
+            result: components["schemas"]["BacktestOut"] | null;
+        };
+        /**
+         * BacktestOut
+         * @description What trading a strategy on one symbol did.
+         */
+        BacktestOut: {
+            /** Symbol */
+            symbol: string;
+            /** Name */
+            name: string;
+            /** Currency */
+            currency: string;
+            /** Frequency */
+            frequency: string;
+            strategy: components["schemas"]["StrategyIn"];
+            /**
+             * Definition Hash
+             * @description Identifies the strategy (CryptoWorld's hash).
+             */
+            definition_hash: string;
+            /**
+             * Start
+             * @description First bar traded.
+             */
+            start: string;
+            /**
+             * End
+             * @description Last bar traded.
+             */
+            end: string;
+            /**
+             * Ready At
+             * @description First bar every condition was known (before: its indicators' warm-up).
+             */
+            ready_at: string | null;
+            /** Initial Capital */
+            initial_capital: number;
+            /** Final Equity */
+            final_equity: number;
+            /** Total Return */
+            total_return: number;
+            /** Buy And Hold */
+            buy_and_hold: number;
+            /**
+             * Exposure
+             * @description Share of the bars with a position open.
+             */
+            exposure: number;
+            /**
+             * Turnover
+             * @description Notional traded over the initial capital.
+             */
+            turnover: number;
+            metrics: components["schemas"]["MetricsOut"];
+            statistics: components["schemas"]["TradeStatisticsOut"];
+            costs: components["schemas"]["CostsOut"];
+            market: components["schemas"]["MarketOut"] | null;
+            /** Equity */
+            equity: components["schemas"]["Point"][];
+            /** Trades */
+            trades: components["schemas"]["TradeOut"][];
+        };
+        /**
          * BarOut
          * @description One bar; absent columns are ``null``.
          */
@@ -822,6 +1083,25 @@ export interface components {
             adj_close?: number | null;
             /** Volume */
             volume?: number | null;
+        };
+        /**
+         * BlockIn
+         * @description One to three conditions, joined by `AND`, `OR` or at least `k` of them.
+         */
+        BlockIn: {
+            /**
+             * Combine
+             * @default AND
+             * @enum {string}
+             */
+            combine?: "AND" | "OR" | "K_OF_N";
+            /**
+             * K
+             * @description With `K_OF_N`: from 2 to one fewer than n.
+             */
+            k?: number | null;
+            /** Conditions */
+            conditions: (components["schemas"]["ThresholdIn"] | components["schemas"]["CrossIn"] | components["schemas"]["CompareIn"] | components["schemas"]["SlopeIn"] | components["schemas"]["PatternIn"])[];
         };
         /**
          * BookBandOut
@@ -959,6 +1239,42 @@ export interface components {
             not_applicable: components["schemas"]["Pillar"][];
         };
         /**
+         * ClassicOut
+         * @description A classic strategy, by name.
+         */
+        ClassicOut: {
+            /** Name */
+            name: string;
+            strategy: components["schemas"]["StrategyIn"];
+            /** Definition Hash */
+            definition_hash: string;
+        };
+        /** @enum {string} */
+        ClassicStrategy: "rsi_reversal" | "macd_crossover" | "sma_crossover" | "ema_trend" | "bollinger_bounce" | "donchian_breakout" | "trend_pullback";
+        /**
+         * CompareIn
+         * @description A price level above or below another while it lasts.
+         */
+        CompareIn: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "compare";
+            a: components["schemas"]["LegIn"];
+            b: components["schemas"]["LegIn"];
+            /**
+             * Op
+             * @enum {string}
+             */
+            op: "above" | "below";
+            /**
+             * Negate
+             * @default false
+             */
+            negate?: boolean;
+        };
+        /**
          * CompareRequest
          * @description Several instruments to compare on a common footing.
          */
@@ -1056,11 +1372,106 @@ export interface components {
             frames: components["schemas"]["FrameOut"][];
         };
         /**
+         * CostProfileOut
+         * @description A market's costs: what is published, what is assumed, what is left out.
+         */
+        CostProfileOut: {
+            /** Key */
+            key: string;
+            /** Name */
+            name: string;
+            /**
+             * As Of
+             * Format: date
+             * @description When its fees were read from their sources.
+             */
+            as_of: string;
+            /**
+             * Product
+             * @enum {string}
+             */
+            product: "cash" | "perpetual";
+            /** Commission Bps */
+            commission_bps: number;
+            /** Minimum Commission */
+            minimum_commission: number;
+            /** Slippage Bps */
+            slippage_bps: number;
+            /**
+             * Borrow Bps
+             * @description Yearly fee to borrow what a short sells.
+             */
+            borrow_bps: number;
+            /** Shortable */
+            shortable: boolean;
+            /**
+             * Tax
+             * @description The tax on purchases (`ITF`, `TTF`...), if any.
+             */
+            tax: string | null;
+            /**
+             * Tax Bps
+             * @description Its rate today, in basis points.
+             */
+            tax_bps: number | null;
+            /** Sources */
+            sources: string[];
+            /**
+             * Assumed
+             * @description Which of its figures are assumptions.
+             */
+            assumed: string[];
+            /**
+             * Unmodelled
+             * @description Costs of this market a backtest leaves out.
+             */
+            unmodelled: string[];
+        };
+        /**
+         * CostsOut
+         * @description What trading cost, by kind, in the instrument's currency.
+         */
+        CostsOut: {
+            /** Commission */
+            commission: number;
+            /** Tax */
+            tax: number;
+            /** Slippage */
+            slippage: number;
+            /**
+             * Funding
+             * @description Negative: earned.
+             */
+            funding: number;
+            /** Borrow */
+            borrow: number;
+            /** Total */
+            total: number;
+        };
+        /**
          * CovarianceEstimator
          * @description Estimator of the historical covariance.
          * @enum {string}
          */
         CovarianceEstimator: "sample" | "ledoit_wolf";
+        /**
+         * CrossIn
+         * @description A price level crossing another on this bar (it cannot be negated).
+         */
+        CrossIn: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "cross";
+            a: components["schemas"]["LegIn"];
+            b: components["schemas"]["LegIn"];
+            /**
+             * Op
+             * @enum {string}
+             */
+            op: "cross_above" | "cross_below";
+        };
         /**
          * Dataset
          * @description Kind of data a provider serves.
@@ -1668,7 +2079,7 @@ export interface components {
             id: string;
             /**
              * Kind
-             * @description What it runs (`simulation`); says what its result is.
+             * @description What it runs (`simulation`, `backtest`); says what its result is.
              */
             kind: string;
             status: components["schemas"]["JobStatus"];
@@ -1679,7 +2090,7 @@ export interface components {
             progress: number | null;
             /**
              * Stage
-             * @description What it is doing now (`loading`, `simulating`, `summarising`).
+             * @description What it is doing now (`loading`, `simulating`, `backtesting`, `summarising`).
              */
             stage: string | null;
             /**
@@ -1724,6 +2135,21 @@ export interface components {
          */
         JobStatus: "queued" | "running" | "succeeded" | "failed" | "cancelled";
         /**
+         * LegIn
+         * @description An indicator of the catalogue with its parameters (defaults where left out).
+         */
+        LegIn: {
+            /**
+             * Indicator
+             * @description Its name in the catalogue (`SMA`, `PRICE`...).
+             */
+            indicator: string;
+            /** Params */
+            params?: {
+                [key: string]: number;
+            };
+        };
+        /**
          * MarketCapsOut
          * @description The largest assets of a market by capitalisation, at one instant (ADR-0045).
          */
@@ -1740,6 +2166,29 @@ export interface components {
             source: components["schemas"]["SourceOut"];
             /** Assets */
             assets: components["schemas"]["RankedAssetOut"][];
+        };
+        /**
+         * MarketOut
+         * @description The costs a backtest paid.
+         */
+        MarketOut: {
+            profile: components["schemas"]["CostProfileOut"];
+            /**
+             * Commission Bps
+             * @description The commission charged (yours, if given).
+             */
+            commission_bps: number;
+            /** Minimum Commission */
+            minimum_commission: number;
+            /** Slippage Bps */
+            slippage_bps: number;
+            /** Taxable */
+            taxable: boolean;
+            /**
+             * Tax Presumed
+             * @description Presumed in scope: no ISIN said the issuer.
+             */
+            tax_presumed: boolean;
         };
         /**
          * MarketShareOut
@@ -1984,6 +2433,37 @@ export interface components {
             time: string;
             /** Name */
             name: string;
+        };
+        /**
+         * PatternIn
+         * @description A price pattern on this bar or on one of the `lookback - 1` before.
+         */
+        PatternIn: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "pattern";
+            /**
+             * Pattern
+             * @description Its name in the catalogue (`SWEEP_LOW`...).
+             */
+            pattern: string;
+            /** Params */
+            params?: {
+                [key: string]: number;
+            };
+            /**
+             * Lookback
+             * @default 1
+             */
+            lookback?: number;
+            /**
+             * Negate
+             * @description Needs a lookback of 3 bars or more.
+             * @default false
+             */
+            negate?: boolean;
         };
         /**
          * PatternOut
@@ -2657,6 +3137,14 @@ export interface components {
          */
         RebalanceKind: "buy_and_hold" | "periodic" | "threshold";
         /**
+         * RegimeIn
+         * @description Enter only in a trend: the ADX(14) at least `adx_min`.
+         */
+        RegimeIn: {
+            /** Adx Min */
+            adx_min: number;
+        };
+        /**
          * RequirementOut
          * @description A requirement of a module and where it is implemented and tested.
          */
@@ -2718,6 +3206,24 @@ export interface components {
              * @description Decimal rates; null before any publication.
              */
             rates: components["schemas"]["Point"][];
+        };
+        /**
+         * RiskIn
+         * @description Barriers that close a position before its signal does (decimals: 0.05 is 5 %).
+         */
+        RiskIn: {
+            /** Stop Loss Pct */
+            stop_loss_pct?: number | null;
+            /** Take Profit Pct */
+            take_profit_pct?: number | null;
+            /** Trailing Stop Pct */
+            trailing_stop_pct?: number | null;
+            /** Max Bars */
+            max_bars?: number | null;
+            /** Atr Stop Mult */
+            atr_stop_mult?: number | null;
+            /** Atr Target Mult */
+            atr_target_mult?: number | null;
         };
         /**
          * RuleOut
@@ -2906,8 +3412,8 @@ export interface components {
              */
             id: string;
             /**
-             * Kind
-             * @constant
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
              */
             kind: "simulation";
             status: components["schemas"]["JobStatus"];
@@ -2918,7 +3424,7 @@ export interface components {
             progress: number | null;
             /**
              * Stage
-             * @description What it is doing now (`loading`, `simulating`, `summarising`).
+             * @description What it is doing now (`loading`, `simulating`, `backtesting`, `summarising`).
              */
             stage: string | null;
             /**
@@ -2997,6 +3503,28 @@ export interface components {
             calibration: components["schemas"]["CalibrationOut"];
         };
         /**
+         * SizingIn
+         * @description How large a position is: all the equity, a fraction, or what a stop loses.
+         */
+        SizingIn: {
+            /**
+             * Mode
+             * @default full
+             * @enum {string}
+             */
+            mode?: "full" | "fraction" | "risk";
+            /**
+             * Fraction
+             * @description With `fraction`.
+             */
+            fraction?: number | null;
+            /**
+             * Risk Pct
+             * @description With `risk`.
+             */
+            risk_pct?: number | null;
+        };
+        /**
          * SkippedRuleOut
          * @description A rule that could not be read, and what it lacks.
          */
@@ -3008,6 +3536,35 @@ export interface components {
              * @description Price columns the series does not have, or `undefined` when its bars give the rule no value (too few of them, or a price that never moves).
              */
             missing: ("high" | "low" | "undefined")[];
+        };
+        /**
+         * SlopeIn
+         * @description An indicator higher (`rising`) or lower (`falling`) than `bars` ago.
+         */
+        SlopeIn: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "slope";
+            /** Indicator */
+            indicator: string;
+            /** Params */
+            params?: {
+                [key: string]: number;
+            };
+            /**
+             * Op
+             * @enum {string}
+             */
+            op: "rising" | "falling";
+            /** Bars */
+            bars: number;
+            /**
+             * Negate
+             * @default false
+             */
+            negate?: boolean;
         };
         /**
          * SourceOut
@@ -3100,6 +3657,27 @@ export interface components {
             skewness: number | null;
             /** Excess Kurtosis */
             excess_kurtosis: number | null;
+        };
+        /**
+         * StrategyIn
+         * @description A strategy in CryptoWorld's JSON form (ADR-0050).
+         */
+        StrategyIn: {
+            entry: components["schemas"]["BlockIn"];
+            exit: components["schemas"]["BlockIn"];
+            /**
+             * Direction
+             * @default long
+             * @enum {string}
+             */
+            direction?: "long" | "short" | "both";
+            /** @description With `both`. */
+            short_entry?: components["schemas"]["BlockIn"] | null;
+            /** @description With `both`. */
+            short_exit?: components["schemas"]["BlockIn"] | null;
+            risk?: components["schemas"]["RiskIn"] | null;
+            sizing?: components["schemas"]["SizingIn"] | null;
+            regime?: components["schemas"]["RegimeIn"] | null;
         };
         /**
          * StructureLevelOut
@@ -3216,6 +3794,102 @@ export interface components {
             indicators: components["schemas"]["IndicatorOut"][];
             /** Unavailable */
             unavailable: components["schemas"]["UnavailableIndicatorOut"][];
+        };
+        /**
+         * ThresholdIn
+         * @description An oscillator above (`gt`) or below (`lt`) a value.
+         */
+        ThresholdIn: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "threshold";
+            /** Indicator */
+            indicator: string;
+            /** Params */
+            params?: {
+                [key: string]: number;
+            };
+            /**
+             * Op
+             * @enum {string}
+             */
+            op: "gt" | "lt";
+            /** Threshold */
+            threshold: number;
+            /**
+             * Negate
+             * @default false
+             */
+            negate?: boolean;
+        };
+        /**
+         * TradeOut
+         * @description One position, from its entry to its exit.
+         */
+        TradeOut: {
+            /**
+             * Side
+             * @enum {string}
+             */
+            side: "long" | "short";
+            /** Entry Time */
+            entry_time: string;
+            /** Exit Time */
+            exit_time: string;
+            /** Entry Fill */
+            entry_fill: number;
+            /** Exit Fill */
+            exit_fill: number;
+            /** Quantity */
+            quantity: number;
+            /** Notional */
+            notional: number;
+            /** Pnl */
+            pnl: number;
+            /**
+             * Trade Return
+             * @description Its result over what it took, net of costs.
+             */
+            trade_return: number;
+            /** Commission */
+            commission: number;
+            /** Tax */
+            tax: number;
+            /** Slippage */
+            slippage: number;
+            /**
+             * Carry
+             * @description Funding and borrow paid while open (negative: earned).
+             */
+            carry: number;
+            /** Exit Reason */
+            exit_reason: string;
+            /** Bars */
+            bars: number;
+        };
+        /**
+         * TradeStatisticsOut
+         * @description What the trades were like (`null` where undefined: no trades, no losers...).
+         */
+        TradeStatisticsOut: {
+            /** Count */
+            count: number;
+            /** Win Rate */
+            win_rate: number | null;
+            /** Average Win */
+            average_win: number | null;
+            /** Average Loss */
+            average_loss: number | null;
+            /** Profit Factor */
+            profit_factor: number | null;
+            /** Average Bars */
+            average_bars: number | null;
+            /** Best */
+            best: number | null;
+            /** Worst */
+            worst: number | null;
         };
         /**
          * TrendOut
@@ -4488,6 +5162,110 @@ export interface operations {
             };
         };
     };
+    backtests_api_v1_backtests_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BacktestIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BacktestOut"];
+                };
+            };
+            /** @description No provider has the requested data. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The request breaks the schema, a limit or a domain rule. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Every provider able to serve the data failed; retry later. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The request took too long. */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_classics_api_v1_strategies_classics_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClassicOut"][];
+                };
+            };
+        };
+    };
+    list_cost_profiles_api_v1_cost_profiles_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CostProfileOut"][];
+                };
+            };
+        };
+    };
     list_saved_api_v1_portfolios_get: {
         parameters: {
             query?: {
@@ -5153,6 +5931,50 @@ export interface operations {
             };
         };
     };
+    submit_backtest_api_v1_jobs_backtests_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BacktestIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BacktestJobOut"];
+                };
+            };
+            /** @description The request breaks the schema, a limit or a domain rule. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description The API runs without a database, or the database is not answering. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                    "application/json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     list_jobs_api_v1_jobs_get: {
         parameters: {
             query?: {
@@ -5215,7 +6037,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SimulationJobOut"];
+                    "application/json": components["schemas"]["SimulationJobOut"] | components["schemas"]["BacktestJobOut"];
                 };
             };
             /** @description The owner has no such job. */
@@ -5327,7 +6149,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SimulationJobOut"];
+                    "application/json": components["schemas"]["SimulationJobOut"] | components["schemas"]["BacktestJobOut"];
                 };
             };
             /** @description The owner has no such job. */

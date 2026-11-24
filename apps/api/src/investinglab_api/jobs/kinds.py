@@ -2,7 +2,7 @@
 
 A kind's parameters are the request body of its endpoint, stored as JSON when it is
 submitted, and its result is the same document the synchronous endpoint would answer. A
-new kind (a backtest in G3) is one handler here and one endpoint in ``routers/jobs.py``.
+new kind is one handler here and one endpoint in ``routers/jobs.py``.
 """
 
 from __future__ import annotations
@@ -11,8 +11,9 @@ import asyncio
 from typing import TYPE_CHECKING, Final
 
 from investinglab_api import use_cases
-from investinglab_api.mappers import simulation_out
+from investinglab_api.mappers import backtest_out, simulation_out
 from investinglab_api.schemas.analysis import SimulationIn
+from investinglab_api.schemas.backtest import BacktestIn
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -20,17 +21,21 @@ if TYPE_CHECKING:
     from investinglab.ports import JsonValue
     from investinglab_api.jobs.runner import Handler, JobContext
 
-__all__ = ["HANDLERS", "SIMULATION", "Stage", "simulation"]
+__all__ = ["BACKTEST", "HANDLERS", "SIMULATION", "Stage", "backtest", "simulation"]
 
 SIMULATION: Final = "simulation"
 """A Monte Carlo simulation of a portfolio, larger than a request allows."""
 
+BACKTEST: Final = "backtest"
+"""A strategy on one symbol with the costs of its market (ADR-0051)."""
+
 
 class Stage:
-    """Stages a simulation reports (slugs the web translates)."""
+    """Stages a job reports (slugs the web translates)."""
 
     LOADING: Final = "loading"
     SIMULATING: Final = "simulating"
+    BACKTESTING: Final = "backtesting"
     SUMMARISING: Final = "summarising"
 
 
@@ -51,5 +56,16 @@ async def simulation(context: JobContext) -> JsonValue:
     return document
 
 
-HANDLERS: Final[Mapping[str, Handler]] = {SIMULATION: simulation}
+async def backtest(context: JobContext) -> JsonValue:
+    """Download the bars (and a perpetual's funding), trade the strategy and summarise it."""
+    request = BacktestIn.model_validate(context.parameters)
+    context.progress.update(0.0, Stage.BACKTESTING)
+    result = await use_cases.backtest(context.toolkit, request)
+    context.progress.update(1.0, Stage.SUMMARISING)
+    summary = await asyncio.to_thread(backtest_out, result)
+    document: JsonValue = summary.model_dump(mode="json")
+    return document
+
+
+HANDLERS: Final[Mapping[str, Handler]] = {SIMULATION: simulation, BACKTEST: backtest}
 """Every kind a worker knows how to run."""

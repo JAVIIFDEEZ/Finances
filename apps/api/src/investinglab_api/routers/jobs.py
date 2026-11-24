@@ -1,6 +1,6 @@
 """Background jobs: submitted with ``202 Accepted`` and a ``Location`` to read until finished.
 
-Work too long for a request (a large Monte Carlo now, backtests in G3) is submitted here
+Work too long for a request (a large Monte Carlo, a backtest) is submitted here
 and run by a worker (``investinglab-api worker``). Reading the job shows its progress, and
 its result once it succeeds.
 """
@@ -12,13 +12,20 @@ from uuid import UUID
 
 from fastapi import APIRouter, Query, Request, Response
 
+from investinglab.domain.costs import cost_profile
 from investinglab.ports import JobStatus
 from investinglab_api.dependencies import JobsDep, OwnerDep, SettingsDep, at_most
-from investinglab_api.jobs import SIMULATION
-from investinglab_api.mappers import job_page, simulation_job_out
+from investinglab_api.jobs import BACKTEST, SIMULATION
+from investinglab_api.mappers import (
+    backtest_job_out,
+    job_detail_out,
+    job_page,
+    simulation_job_out,
+)
 from investinglab_api.routers import problems
 from investinglab_api.schemas.analysis import SimulationIn
-from investinglab_api.schemas.jobs import JobPage, SimulationJobOut
+from investinglab_api.schemas.backtest import BacktestIn
+from investinglab_api.schemas.jobs import BacktestJobOut, JobDetailOut, JobPage, SimulationJobOut
 
 __all__ = ["router"]
 
@@ -65,6 +72,32 @@ async def submit_simulation(  # noqa: PLR0917 - FastAPI injects them by name
     return simulation_job_out(job)
 
 
+@router.post(
+    "/backtests",
+    summary="Backtest a strategy in the background",
+    status_code=202,
+    response_model=BacktestJobOut,
+    responses=problems(422, s503=NO_DATABASE),
+)
+async def submit_backtest(
+    body: BacktestIn, request: Request, response: Response, owner: OwnerDep, jobs: JobsDep
+) -> BacktestJobOut:
+    """Queue a backtest of a strategy on one symbol, with the costs of its market (ADR-0051).
+
+    The strategy and the cost profile are checked now: an invalid one answers `422` before
+    anything is queued. Read its `Location` until `status` is `succeeded` (its `result` is
+    what trading the strategy did) or `failed` (its `error`: no data, a market it cannot
+    trade...).
+    """
+    body.to_strategy()  # the core's rules fail now, not in the worker
+    if body.profile is not None:
+        cost_profile(body.profile)
+    job = await jobs.submit(owner.owner_id, BACKTEST, body.model_dump(mode="json"))
+    response.headers["Location"] = str(request.url_for("read_job", job_id=job.id))
+    _poll_hint(response, job.status)
+    return backtest_job_out(job)
+
+
 @router.get(
     "",
     summary="List jobs",
@@ -85,22 +118,22 @@ async def list_jobs(
     "/{job_id}",
     name="read_job",
     summary="Read a job",
-    response_model=SimulationJobOut,
+    response_model=JobDetailOut,
     responses=problems(422, s404=NOT_FOUND, s503=NO_DATABASE),
 )
 async def read_job(
     job_id: UUID, response: Response, owner: OwnerDep, jobs: JobsDep
-) -> SimulationJobOut:
+) -> SimulationJobOut | BacktestJobOut:
     """Where the job is; its result once it succeeded. `Retry-After` while it runs."""
     job = await jobs.get(owner.owner_id, job_id)
     _poll_hint(response, job.status)
-    return simulation_job_out(job)
+    return job_detail_out(job)
 
 
 @router.post(
     "/{job_id}/cancel",
     summary="Cancel a job",
-    response_model=SimulationJobOut,
+    response_model=JobDetailOut,
     responses=problems(
         422,
         s404=NOT_FOUND,
@@ -110,7 +143,7 @@ async def read_job(
 )
 async def cancel_job(
     job_id: UUID, response: Response, owner: OwnerDep, jobs: JobsDep
-) -> SimulationJobOut:
+) -> SimulationJobOut | BacktestJobOut:
     """Stop a job: a queued one at once, a running one at its next progress report.
 
     A running job answers with `cancel_requested: true` and `status: running`; read it
@@ -118,7 +151,7 @@ async def cancel_job(
     """
     job = await jobs.cancel(owner.owner_id, job_id)
     _poll_hint(response, job.status)
-    return simulation_job_out(job)
+    return job_detail_out(job)
 
 
 @router.delete(

@@ -30,7 +30,7 @@ from investinglab_api.persistence import (
     queue_app,
 )
 from investinglab_api.problems import install_problem_handlers
-from investinglab_api.routers import economic, jobs, market, saved_portfolios, system
+from investinglab_api.routers import backtests, economic, jobs, market, saved_portfolios, system
 from investinglab_api.routers import portfolios as portfolio_analysis
 from investinglab_api.settings import ApiSettings, get_api_settings
 
@@ -153,6 +153,7 @@ def create_app(
         system.router,
         market.router,
         economic.router,
+        backtests.router,
         saved_portfolios.router,
         portfolio_analysis.router,
         jobs.router,

@@ -21,6 +21,7 @@ from investinglab.services import DataUnavailableError
 
 if TYPE_CHECKING:
     from investinglab.domain import Portfolio, PriceSeries
+    from investinglab.domain.backtest import BacktestResult
     from investinglab.domain.metrics import RiskMetrics
     from investinglab.domain.optimization import EfficientFrontier, OptimizationResult
     from investinglab.domain.planning import PlanResult
@@ -28,6 +29,7 @@ if TYPE_CHECKING:
     from investinglab.services import BatchResult
     from investinglab.toolkit import AsyncToolkit
     from investinglab_api.schemas.analysis import OptimizationIn, PlanIn, SimulationIn
+    from investinglab_api.schemas.backtest import BacktestIn
     from investinglab_api.schemas.market import CompareRequest
     from investinglab_api.schemas.portfolio import PortfolioIn
 
@@ -154,3 +156,20 @@ async def risk_free_rates(
     last = end or datetime.now(UTC).date()
     days = pd.bdate_range(start=start, end=last)
     return await toolkit.risk_free(currency, days)
+
+
+async def backtest(toolkit: AsyncToolkit, request: BacktestIn) -> BacktestResult:
+    """A strategy on one symbol with the costs of its market (ADR-0051)."""
+    return await toolkit.backtest(
+        request.symbol,
+        request.to_strategy(),
+        start=request.start,
+        end=request.end,
+        frequency=request.frequency,
+        profile=request.profile,
+        taxable=request.taxable,
+        commission_bps=request.commission_bps,
+        minimum_commission=request.minimum_commission,
+        slippage_bps=request.slippage_bps,
+        initial_capital=request.initial_capital,
+    )
