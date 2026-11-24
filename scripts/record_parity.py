@@ -20,7 +20,11 @@ range and the middle):
 * its backtest engine (``backtest_execution.simulate``) on the daily candles, in scenarios
   that together use every rule it has: costs, barriers, exit by time, shorts, funding and
   every sizing. The inputs it is given (signals, ATR, funding, conviction) are recorded too,
-  so that the test feeds InvestingLab's engine exactly the same.
+  so that the test feeds InvestingLab's engine exactly the same;
+* its strategy grammar (``strategy_spec``): the classic strategies (``seed_specs``) and
+  random ones from its own generator (``random_spec``, long, short and both ways), with
+  their definition hashes and the signals its compiler (``compile_sides``) gives on both
+  cassettes.
 
 It needs CryptoWorld's pinned versions, in a throwaway environment that never touches the
 project's (they are not dependencies of InvestingLab)::
@@ -31,8 +35,9 @@ project's (they are not dependencies of InvestingLab)::
 pinned packages).
 
 The outputs, ``tests/fixtures/parity/cryptoworld_indicators.json``,
-``cryptoworld_patterns.json``, ``cryptoworld_structure.json``, ``cryptoworld_signals.json``
-and ``cryptoworld_backtest.json``, are committed and never edited by hand.
+``cryptoworld_patterns.json``, ``cryptoworld_structure.json``, ``cryptoworld_signals.json``,
+``cryptoworld_backtest.json`` and ``cryptoworld_strategies.json``, are committed and never
+edited by hand.
 """
 
 from __future__ import annotations
@@ -76,11 +81,16 @@ SCREEN = (
 SCREEN_WINDOW = 5
 BACKTEST_OUTPUT = FIXTURES / "parity" / "cryptoworld_backtest.json"
 BACKTEST_SEED = 20261124
+"""Seed of the random signals of the backtest scenarios (recorded with them: never regenerated)."""
 LONG_RATE = 0.06
 """Share of the bars the random long side opens on, and closes on."""
 SHORT_RATE = 0.05
 """...and the random short side."""
-"""Seed of the random signals of the backtest scenarios (recorded with them: never regenerated)."""
+STRATEGIES_OUTPUT = FIXTURES / "parity" / "cryptoworld_strategies.json"
+STRATEGY_SEED = 20261125
+"""Seed of CryptoWorld's generator for the random strategies (recorded with them)."""
+RANDOM_STRATEGIES = 60
+"""Random strategies drawn by CryptoWorld's generator, its direction drawn too (``auto``)."""
 SIGNIFICANT = 15
 """Significant digits kept: well below any tolerance of the tests, half the file size."""
 
@@ -360,6 +370,51 @@ def _backtests(name: str) -> dict[str, Any]:
     }
 
 
+def _events(values: Any) -> dict[str, list[int]]:  # noqa: ANN401 - an array of signals
+    """The bars a side opens and closes at (its signals are 0 everywhere else)."""
+    return {
+        "opens": [int(i) for i, v in enumerate(values) if v == 1],
+        "closes": [int(i) for i, v in enumerate(values) if v == -1],
+    }
+
+
+def _strategies() -> dict[str, Any]:
+    """CryptoWorld's classic and random strategies: hashes and signals on both cassettes."""
+    import numpy as np  # noqa: PLC0415 - only available in the throwaway environment
+
+    grammar = importlib.import_module("core.domain.services.strategy_spec")
+    rng = np.random.default_rng(STRATEGY_SEED)
+    drawn = [grammar.random_spec(rng, "auto") for _ in range(RANDOM_STRATEGIES)]
+    specs = [("classic", spec) for spec in grammar.seed_specs()]
+    specs += [("random", spec) for spec in drawn]
+    frames = {}
+    for name in (CANDLES, HOURLY):
+        candles = _candles(name)
+        frames[name] = candles.assign(timestamp=candles["open_time"])  # for its sessions
+    cases = []
+    for origin, spec in specs:
+        assert grammar.validate_spec(spec), spec  # noqa: S101 - its own generator's output
+        signals = {}
+        for name, frame in frames.items():
+            sides = grammar.compile_sides(frame.copy(), spec)
+            signals[name] = {
+                "long": _events(sides.long),
+                "short": None if sides.short is None else _events(sides.short),
+            }
+        cases.append(
+            {
+                "origin": origin,
+                "spec": spec,
+                "hash": grammar.spec_hash(spec),
+                "signals": signals,
+            }
+        )
+    return {
+        "series": {name: [int(t) for t in frame["open_time"]] for name, frame in frames.items()},
+        "strategies": cases,
+    }
+
+
 def main(source: Path) -> int:
     """Evaluate CryptoWorld's indicators, patterns, structure and signals: the fixtures."""
     sys.path.insert(0, str(source))
@@ -442,6 +497,23 @@ def main(source: Path) -> int:
     BACKTEST_OUTPUT.write_text(json.dumps(backtest, separators=(",", ":")) + "\n", "utf-8")
     trades = sum(len(run["trades"]) for run in simulated["scenarios"])
     print(f"{trades} trades in {len(simulated['scenarios'])} scenarios -> {BACKTEST_OUTPUT}")  # noqa: T201
+    compiled = _strategies()
+    strategies = {
+        "purpose": "CryptoWorld's strategies, their hashes and their signals, for parity.",
+        "source": [
+            "core.domain.services.strategy_spec.seed_specs",
+            "core.domain.services.strategy_spec.random_spec",
+            "core.domain.services.strategy_spec.spec_hash",
+            "core.domain.services.strategy_spec.compile_sides",
+        ],
+        "cryptoworld": fixture["cryptoworld"],
+        "versions": fixture["versions"],
+        "seed": STRATEGY_SEED,
+        **compiled,
+    }
+    STRATEGIES_OUTPUT.write_text(json.dumps(strategies, separators=(",", ":")) + "\n", "utf-8")
+    count = len(compiled["strategies"])
+    print(f"{count} strategies over {len(compiled['series'])} series -> {STRATEGIES_OUTPUT}")  # noqa: T201
     return 0
 
 
