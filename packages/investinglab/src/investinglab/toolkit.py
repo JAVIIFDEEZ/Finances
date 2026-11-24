@@ -27,6 +27,7 @@ from dataclasses import replace
 from datetime import UTC, date, datetime, timedelta
 from typing import TYPE_CHECKING, Any, Final, Self, Unpack
 
+import numpy as np
 import pandas as pd
 
 from investinglab.adapters.calendars import ExchangeCalendarsAdapter
@@ -43,10 +44,12 @@ from investinglab.adapters.providers.kraken import KrakenProvider
 from investinglab.adapters.providers.okx import OkxProvider
 from investinglab.adapters.providers.yahoo import YahooFinanceProvider
 from investinglab.adapters.storage import ParquetSeriesStore, PublishedFileCache
+from investinglab.analytics.search import CLASSICS, StrategySpec
 from investinglab.config.logging import get_logger
 from investinglab.config.settings import Settings, get_settings
 from investinglab.domain.card import Pillar, asset_card, pillars_for
 from investinglab.domain.confluence import timeframe_confluence
+from investinglab.domain.costs import Product, funding_per_bar, market_costs
 from investinglab.domain.errors import DomainError, InvalidSeriesError, InvestingLabError
 from investinglab.domain.instruments import AssetClass
 from investinglab.domain.metrics import DEFAULT_CONFIDENCE_LEVELS
@@ -54,6 +57,7 @@ from investinglab.domain.money import Currency
 from investinglab.domain.patterns import price_patterns
 from investinglab.domain.portfolio import Portfolio
 from investinglab.domain.rate_series import RateKind
+from investinglab.domain.strategy import backtest_strategy, strategy_from_dict
 from investinglab.domain.structure import price_structure
 from investinglab.domain.technical import technical_indicators
 from investinglab.domain.time import Frequency
@@ -81,6 +85,7 @@ if TYPE_CHECKING:
     from pathlib import Path
     from types import TracebackType
 
+    from investinglab.domain.backtest import BacktestResult
     from investinglab.domain.book_depth import BookDepthSeries
     from investinglab.domain.card import AssetCard
     from investinglab.domain.confluence import TimeframeConfluence
@@ -170,6 +175,18 @@ def _perpetual_of(symbol: str) -> str | None:
         return None
     base, quote = pair[1], pair[2]
     return f"{base}/{quote}:{base if quote == _INVERSE_QUOTE else quote}"
+
+
+def _strategy(strategy: StrategySpec | Mapping[str, Any] | str) -> StrategySpec:
+    """A strategy from itself, its JSON form or the name of a classic."""
+    if isinstance(strategy, StrategySpec):
+        return strategy
+    if isinstance(strategy, str):
+        found = CLASSICS.get(strategy)
+        if found is None:
+            raise DomainError(f"Unknown classic strategy {strategy!r}; known: {sorted(CLASSICS)}")
+        return found
+    return strategy_from_dict(strategy)
 
 
 WARMUP: Final[dict[Frequency, timedelta]] = {
@@ -606,6 +623,87 @@ class AsyncToolkit:
             quality=self.quality(series),
             funding=rates,
             positioning=standing,
+        )
+
+    async def backtest(
+        self,
+        symbol: str,
+        strategy: StrategySpec | Mapping[str, Any] | str,
+        *,
+        start: DateLike = None,
+        end: DateLike = None,
+        frequency: Frequency | str = Frequency.DAY_1,
+        profile: str | None = None,
+        taxable: bool | None = None,
+        commission_bps: float | None = None,
+        minimum_commission: float | None = None,
+        slippage_bps: float | None = None,
+        initial_capital: float = 10_000.0,
+    ) -> BacktestResult:
+        """Backtest a strategy on a symbol with the costs of its market (ADR-0051).
+
+        The bars from :data:`WARMUP` before ``start`` warm the indicators up, so that the
+        first signals are already informed; the strategy trades from ``start``. The costs are
+        the profile's: its commission (yours if given), its tax on each day's purchases and
+        the borrow of a short; a perpetual's funding is downloaded from its venue and paid
+        bar by bar, and the backtest ends at the last bar whose funding has settled.
+
+        Example: ``tk.backtest("SAN.MC", "sma_crossover", start="2021-01-01")``.
+
+        Args:
+            symbol: Any symbol (``SAN.MC``, ``^GSPC``, ``BTC/USDT``).
+            strategy: A strategy, its JSON form, or the name of a classic
+                (:data:`~investinglab.analytics.search.CLASSICS`).
+            start: First date traded.
+            end: Last date traded.
+            frequency: Bar frequency.
+            profile: A cost profile (``XMAD``, ``binance-usdm``...); where it trades by default.
+            taxable: Whether its purchases pay the market's tax, if not presumed right.
+            commission_bps: Your broker's commission.
+            minimum_commission: Your broker's minimum per order.
+            slippage_bps: Your estimate of half the spread plus the impact.
+            initial_capital: Equity before the first bar, in the instrument's currency.
+
+        Raises:
+            DataUnavailableError: If no provider could deliver the bars or the funding.
+            DomainError: An invalid strategy, an unknown profile, or a market it cannot trade.
+        """
+        spec = _strategy(strategy)
+        series, first = await self._with_history(symbol, start, end, frequency)
+        costs = market_costs(
+            series,
+            profile,
+            taxable=taxable,
+            commission_bps=commission_bps,
+            minimum_commission=minimum_commission,
+            slippage_bps=slippage_bps,
+        )
+        funding = None
+        if costs.profile.product is Product.PERPETUAL:
+            swap = _perpetual_of(series.symbol)
+            if swap is None:
+                raise DomainError(f"{series.symbol} names no perpetual swap: give a spot pair")
+            last = _as_date(end)
+            rates = await self.holding_rates(
+                swap,
+                venue=costs.profile.venue,
+                start=series.start.date() - timedelta(days=1),
+                end=None if last is None else last + timedelta(days=1),  # its last bar's end
+            )
+            funding = funding_per_bar(rates, series)
+            settled = funding.notna().to_numpy()
+            if settled.any() and not settled[-1]:  # the last bars have not settled yet
+                through = funding.index[int(np.flatnonzero(settled)[-1])]
+                series = series.between(None, through)
+                funding = funding.loc[series.bars.index]
+                costs = costs.on(series.bars.index)
+        return backtest_strategy(
+            series,
+            spec,
+            costs=costs,
+            initial_capital=initial_capital,
+            funding=funding,
+            trade_from=first,
         )
 
     async def _with_history(
@@ -1167,6 +1265,38 @@ class Toolkit:
         return self._run(
             self._inner.holding_rates(
                 symbol, kind=kind, venue=venue, start=start, end=end, refresh=refresh
+            )
+        )
+
+    def backtest(
+        self,
+        symbol: str,
+        strategy: StrategySpec | Mapping[str, Any] | str,
+        *,
+        start: DateLike = None,
+        end: DateLike = None,
+        frequency: Frequency | str = Frequency.DAY_1,
+        profile: str | None = None,
+        taxable: bool | None = None,
+        commission_bps: float | None = None,
+        minimum_commission: float | None = None,
+        slippage_bps: float | None = None,
+        initial_capital: float = 10_000.0,
+    ) -> BacktestResult:
+        """A strategy with its market's costs (see :meth:`AsyncToolkit.backtest`)."""
+        return self._run(
+            self._inner.backtest(
+                symbol,
+                strategy,
+                start=start,
+                end=end,
+                frequency=frequency,
+                profile=profile,
+                taxable=taxable,
+                commission_bps=commission_bps,
+                minimum_commission=minimum_commission,
+                slippage_bps=slippage_bps,
+                initial_capital=initial_capital,
             )
         )
 
