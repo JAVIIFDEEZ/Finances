@@ -158,5 +158,13 @@ Los tests de extremo a extremo de la web usan `INVESTINGLAB_E2E_DATABASE_URL` de
 * **«Para guardar carteras hace falta una base de datos»**: la API arrancó sin
   `INVESTINGLAB_API_DATABASE_URL`. Añádela a `.env` y reinicia.
 * **`/health/ready` dice `migrations_pending`**: ejecuta `uv run just db-upgrade`.
+* **El *worker* dice que la base de datos no responde** («does not answer»), con el error del
+  controlador entre paréntesis. PostgreSQL no está en marcha (`uv run just db-up`) o
+  `INVESTINGLAB_API_DATABASE_URL` apunta a otro sitio. Migrar no lo arregla.
+* **En Windows, el *worker* o la API sin recarga no llegaban a la base de datos**, aunque
+  `db-upgrade` funcionara. El motivo: psycopg no acepta el bucle de eventos que Python usa por
+  defecto en Windows (`ProactorEventLoop`) y las migraciones se ejecutan de forma síncrona.
+  Desde esta versión los dos procesos arrancan con un `SelectorEventLoop`
+  (`investinglab_api.loops`), y un trabajo de la CI lo comprueba en Windows.
 * **`/health/ready` dice `unavailable`**: PostgreSQL no responde en esa URL (¿está arrancado?,
   ¿el puerto es el correcto?).

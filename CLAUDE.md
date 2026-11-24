@@ -35,7 +35,8 @@ scripts/         utilidades de desarrollo: casetes, arranque de API y web (`dev.
 apps/api/        API REST FastAPI (ADR-0027): app → routers → jobs → use_cases/mappers → schemas;
                  persistence/ (PostgreSQL, SQLAlchemy, migraciones Alembic; ADR-0029);
                  worker.py (trabajos en segundo plano con Procrastinate; ADR-0046);
-                 telemetry.py (trazas con OpenTelemetry, opcionales; ADR-0048)
+                 telemetry.py (trazas con OpenTelemetry, opcionales; ADR-0048);
+                 loops.py (el bucle de eventos: en Windows, uno que psycopg acepte)
 compose.yaml     servicios locales con Docker: PostgreSQL y, con el perfil `tracing`, Jaeger
 apps/web/        web Next.js 16 + TypeScript estricto (ADR-0028): src/app (pantallas), src/components,
                  src/lib/api (cliente generado de apps/api/openapi.json), e2e/ (Playwright)
@@ -100,6 +101,9 @@ docs/            Zensical: guide/, adr/, architecture/, plan/, reference/, modul
 ## Convenciones de código
 
 - Python ≥ 3.13 (desarrollo en 3.14). Tipado completo; `mypy --strict` también en tests.
+- Todo proceso asíncrono de la API arranca con `investinglab_api.loops`: `asyncio.run(…,
+  loop_factory=loop_factory())` y `uvicorn.run(…, loop=uvicorn_loop())`. En Windows, psycopg
+  no acepta el bucle por defecto; `tests/test_startup.py` lo comprueba en la CI de Windows.
 - Dominio con `@dataclass(frozen=True, slots=True)`; Pydantic v2 solo en los bordes (entradas,
   API, configuración).
 - pandas y NumPy en la interfaz pública.
