@@ -325,6 +325,23 @@ test("Monte Carlo, optimisation and savings plans run", async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
+test("a classic strategy is backtested with the costs of its market", async ({ page }) => {
+  const errors = trackErrors(page);
+  await page.goto("/backtest");
+  // SAN.MC (SYNTHETIC) on the Bolsa de Madrid: its ITF is presumed, its commission assumed.
+  await expect(page.getByRole("img", { name: "Patrimonio" })).toBeVisible();
+  await expect(page.getByText("ITF presumido", { exact: false })).toBeVisible();
+  await expect(page.getByText("la comisión", { exact: false })).toBeVisible();
+  await expect(page.getByRole("columnheader", { name: "Motivo" })).toBeVisible();
+
+  // Another classic, with your broker's commission.
+  await page.getByLabel("Estrategia").selectOption("rsi_reversal");
+  await page.getByLabel("Tu comisión (pb)").fill("2");
+  await page.getByRole("button", { name: "Calcular" }).click();
+  await expect(page.getByText("2,0 pb")).toBeVisible(); // the commission charged: yours
+  expect(errors).toEqual([]);
+});
+
 test("a simulation larger than a request goes to the background, or says what it needs", async ({ page }) => {
   test.skip(Boolean(process.env.INVESTINGLAB_E2E_DATABASE_URL), "with a database the job runs (next test)");
   const errors = trackErrors(page);
@@ -360,6 +377,22 @@ test("a large simulation runs in the background, is followed to its result and d
   await page.getByRole("button", { name: "¿Borrar? Confirmar" }).click();
   await expect(page).toHaveURL(/\/jobs$/);
   await expect(page.getByText("Elige un trabajo de la lista")).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test("a backtest runs in the background and its job shows what it did", async ({ page }) => {
+  test.skip(!process.env.INVESTINGLAB_E2E_DATABASE_URL, "needs PostgreSQL and its worker (INVESTINGLAB_E2E_DATABASE_URL)");
+  const errors = trackErrors(page);
+  await page.goto("/backtest");
+  await page.getByLabel("Estrategia").selectOption("donchian_breakout");
+  await page.getByRole("button", { name: "En segundo plano" }).click();
+
+  await expect(page).toHaveURL(/\/jobs\?id=/);
+  await expect(page.getByRole("heading", { name: "Backtest" }).first()).toBeVisible();
+  await expect(page.getByText("Ruptura de Donchian en tendencia")).toBeVisible(); // its parameters
+  await expect(page.getByText("Terminado").first()).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByRole("img", { name: "Patrimonio" })).toBeVisible(); // its result
+  await expect(page.getByText("ITF presumido", { exact: false })).toBeVisible();
   expect(errors).toEqual([]);
 });
 

@@ -8,6 +8,9 @@ import type { Schemas } from "@/lib/api/client";
 
 export type Job = Schemas["JobOut"];
 export type SimulationJob = Schemas["SimulationJobOut"];
+export type BacktestJob = Schemas["BacktestJobOut"];
+/** A job with its parameters and result, whose shape follows its kind. */
+export type JobDetail = SimulationJob | BacktestJob;
 export type JobStatus = Job["status"];
 
 /** Most paths of a simulation answered in the request; more run in the background. */
