@@ -195,6 +195,10 @@ queued ──> running ──> succeeded | failed | cancelled
   necesita los casos de uso, los *mappers* y la persistencia de la API, así que es un proceso del
   mismo paquete (como `db upgrade`). Una imagen con dos órdenes encaja igual en Compose (F10).
 * [ADR-0029](0029-relational-persistence-and-owners.md): propietarios, RLS y auditoría.
+* **Windows** (24-11-2026). El modo asíncrono de psycopg (el de SQLAlchemy y el de la cola)
+  no acepta el `ProactorEventLoop`, que es el bucle por defecto de Windows. El *worker* y la
+  API arrancan allí con un `SelectorEventLoop` (`investinglab_api.loops`), y en el resto de
+  plataformas siguen con el bucle de siempre. Un trabajo de la CI en Windows lo comprueba.
 * Pendiente en G0b:
   * los trabajos en la web y el *worker* dentro de `just dev` (G0b-2);
   * observabilidad mínima: trazas y latido de frescura de cada fuente (G0b-3).

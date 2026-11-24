@@ -15,6 +15,7 @@ from pathlib import Path
 
 import uvicorn
 
+from investinglab_api.loops import loop_factory, uvicorn_loop
 from investinglab_api.settings import get_api_settings
 
 __all__ = ["main"]
@@ -73,7 +74,7 @@ def _worker() -> int:
     from investinglab_api.worker import WorkerNotReadyError, serve  # noqa: PLC0415 - idem
 
     try:
-        asyncio.run(serve(get_api_settings(), get_settings()))
+        asyncio.run(serve(get_api_settings(), get_settings()), loop_factory=loop_factory())
     except WorkerNotReadyError as error:
         sys.stderr.write(f"{error}\n")
         return 2
@@ -112,6 +113,7 @@ def main(argv: list[str] | None = None) -> int:
         host=settings.host,
         port=settings.port,
         reload=arguments.reload,
+        loop=uvicorn_loop(),  # a selector loop on Windows, where psycopg needs one
         log_config=None,  # structlog configures the logging
         access_log=False,  # the API logs every request itself, with its request id
         proxy_headers=False,

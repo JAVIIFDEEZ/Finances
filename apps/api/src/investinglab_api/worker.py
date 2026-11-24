@@ -75,7 +75,7 @@ SHUTDOWN_SECONDS: Final = 30.0
 
 
 class WorkerNotReadyError(Exception):
-    """The worker cannot start: no database, or a database not migrated to this version."""
+    """The worker cannot start: no database, one that does not answer, or one behind its schema."""
 
 
 def register(
@@ -157,8 +157,14 @@ async def serve(settings: ApiSettings, core: Settings) -> None:
     toolkit = AsyncToolkit.from_settings(core)
     try:
         status = await database.status()
+        if status is DatabaseStatus.UNAVAILABLE:
+            msg = (
+                "The database does not answer at INVESTINGLAB_API_DATABASE_URL: is PostgreSQL "
+                f"running (`uv run just db-up`) and is the URL right? ({database.last_error})"
+            )
+            raise WorkerNotReadyError(msg)
         if status is not DatabaseStatus.OK:
-            msg = f"The database is not ready ({status}): run `uv run just db-upgrade`."
+            msg = "The database is behind this version's schema: run `uv run just db-upgrade`."
             raise WorkerNotReadyError(msg)
         app = queue_app(url)
         register(
